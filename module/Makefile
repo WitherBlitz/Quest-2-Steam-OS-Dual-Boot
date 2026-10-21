@@ -8,8 +8,11 @@ ifneq ($(KERNELRELEASE),)
 obj-m += quest_kexec.o marker_read.o
 obj-m += usb_log.o
 quest_kexec-y := loader.o transition.o
-# Without this define the module can only stage (execute=1 is refused).
+# Default builds stage only. Hardware actions require an explicit rebuild and
+# a separate board shutdown/memory review; this flag does not establish safety.
+ifeq ($(QKX_EXPERIMENTAL),1)
 ccflags-y += -DQKX_ENABLE_EXPERIMENTAL_JUMP
+endif
 else
 KDIR ?= $(error set KDIR to the built Android kernel output directory)
 LOCALVERSION ?=

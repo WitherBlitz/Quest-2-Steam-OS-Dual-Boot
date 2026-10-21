@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0
-/* Read-only diagnostic for the Quest kexec log in unused reserved ramoops RAM. */
+/* Legacy retained-log diagnostic. Its fixed region is unavailable on Quest 2. */
 #include <linux/io.h>
 #include <linux/mm.h>
 #include <linux/module.h>
+#include <linux/of.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 
@@ -99,6 +100,17 @@ static int __init qkx_marker_read_init(void)
 	u32 capacity = QKX_LOG_SIZE - QKX_CTXAREA_SIZE - sizeof(*h);
 	u32 pos, wraps, used, first, out = 0;
 	unsigned int i;
+	const char *model;
+
+	/* Hollywood uses this entire range for ramoops pmsg. Block reads as well
+	 * as clear/write_test before mapping it; no replacement is reserved yet.
+	 * Missing identity must not bypass the guard.
+	 */
+	if (of_property_read_string(of_root, "model", &model) ||
+	    !strncmp(model, "Hollywood", 9)) {
+		pr_err("qkx_marker_read: retained log unavailable on Quest 2; overlaps ramoops pmsg\n");
+		return -EOPNOTSUPP;
+	}
 
 	for (i = 0; i < QKX_LOG_PAGES; i++)
 		pages[i] = pfn_to_page((QKX_LOG_PHYS >> PAGE_SHIFT) + i);

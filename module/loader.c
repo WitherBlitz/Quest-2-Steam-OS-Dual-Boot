@@ -85,7 +85,7 @@ MODULE_PARM_DESC(warm_reset_test, "Force the running Android kernel's Qualcomm w
 module_param(flush_rpmh, bool, 0);
 MODULE_PARM_DESC(flush_rpmh, "Call the exported rpmh_flush() on the apps RSC before the final jump, mirroring the cluster-idle-enter path so the RSC hardware isn't left with stale active-set state across kexec");
 module_param(suspend_syncboss, bool, 0);
-MODULE_PARM_DESC(suspend_syncboss, "Suspend spi0.0 syncboss through its PM callback before kexec, stopping active GPI DMA");
+MODULE_PARM_DESC(suspend_syncboss, "Suspend the bound meta,syncboss-spi device through its PM callback before kexec");
 module_param(disconnect_qmp, bool, 0);
 MODULE_PARM_DESC(disconnect_qmp, "Cleanly close Android AOP QMP channels and publish mcore LINK_DOWN before kexec");
 MODULE_PARM_DESC(core_hang_control, "0: untouched; 1: report secure core-hang registers; 2: clear enable bit");
@@ -557,11 +557,17 @@ static void qkx_phase(unsigned int phase, const char *message, bool may_pause)
 		msleep(phase_delay_ms);
 }
 
-static int qkx_disconnect_aop_qmp(struct device *dev)
+static int qkx_match_syncboss(struct device *dev, void *unused)
+{
+	return dev->driver && dev->driver->name &&
+		!strcmp(dev->driver->name, "syncboss_spi") &&
+		of_device_is_compatible(dev->of_node, "meta,syncboss-spi");
+}
+
+static int qkx_disconnect_aop_qmp(struct device *dev,
+		void (*shutdown)(struct mbox_chan *), void (*send_irq_fn)(void *))
 {
 	struct qkx_qmp_device *mdev = dev_get_drvdata(dev);
-	void (*shutdown)(struct mbox_chan *) = (void *)lookup("qmp_shutdown");
-	void (*send_irq_fn)(void *) = (void *)lookup("send_irq");
 	struct qkx_qmp_mbox *mbox;
 	unsigned int i, wait;
 
@@ -642,6 +648,9 @@ static int __maybe_unused qkx_execute(void)
 		(void *)lookup("dwc3_gadget_suspend");
 	int (*rpmh_flush_fn)(const struct device *) =
 		(void *)lookup("rpmh_flush");
+	void (*qmp_shutdown_fn)(struct mbox_chan *) =
+		(void *)lookup("qmp_shutdown");
+	void (*send_irq_fn)(void *) = (void *)lookup("send_irq");
 	struct device *gpu, *watchdog, *usb_core = NULL, *rpmh_dev = NULL;
 	struct device *syncboss = NULL, *qmp_dev = NULL;
 	struct task_struct *wakeup_suppressor = NULL;
@@ -662,6 +671,14 @@ static int __maybe_unused qkx_execute(void)
 	    !watchdog_disable || !platform_bus || !find_dev ||
 	    !suspend_dwc3_gadget || (suspend_syncboss && !spi_bus))
 		return -ENOENT;
+	/* Resolve requested operations before freeze, GPU/USB suspend or MMIO.
+	 * send_irq is absent from the audited Quest 2 stock kernel. Do not enter
+	 * irreversible shutdown and only then discover the missing dependency.
+	 */
+	if (disconnect_qmp && (!qmp_shutdown_fn || !send_irq_fn)) {
+		pr_err("quest_kexec: requested AOP disconnect is unavailable\n");
+		return -ENOENT;
+	}
 	/* No EL2 recovery/HVC assumptions: this implementation supports EL1 boot. */
 	if (read_sysreg(CurrentEL) != 4 || mode[0] != 0xe11 || mode[1] != 0xe11)
 		return -EOPNOTSUPP;
@@ -673,22 +690,23 @@ static int __maybe_unused qkx_execute(void)
 	watchdog = find_dev(platform_bus, NULL, "17c10000.qcom,wdt");
 	usb_core = find_dev(platform_bus, NULL, "a600000.dwc3");
 	if (suspend_syncboss)
-		syncboss = find_dev(spi_bus, NULL, "spi0.0");
+		syncboss = bus_find_device(spi_bus, NULL, NULL, qkx_match_syncboss);
 	if (disconnect_qmp)
 		qmp_dev = find_dev(platform_bus, NULL, "c300000.qcom,qmp-aop");
 	if (flush_rpmh)
 		rpmh_dev = find_dev(platform_bus, NULL,
 			"18200000.rsc:rpmh-regulator-mmcxlvl");
 	if (flush_rpmh && (!rpmh_flush_fn || !rpmh_dev)) {
-		pr_emerg("quest_kexec: flush_rpmh requested but symbol=%d dev=%d; disabling\n",
+		pr_err("quest_kexec: flush_rpmh requested but symbol=%d dev=%d; refusing\n",
 			 !!rpmh_flush_fn, !!rpmh_dev);
-		put_device(rpmh_dev);
-		rpmh_dev = NULL;
+		ret = -ENOENT;
+		goto release_devices;
 	}
 	if (!gpu || !watchdog || !usb_core || !dev_get_drvdata(usb_core) ||
 	    (disconnect_qmp && (!qmp_dev || !dev_get_drvdata(qmp_dev))) ||
 	    (suspend_syncboss && (!syncboss || !syncboss->driver ||
-	     !syncboss->driver->pm || !syncboss->driver->pm->suspend))) {
+	     !syncboss->driver->pm || !syncboss->driver->pm->suspend ||
+	     !syncboss->driver->pm->resume))) {
 		put_device(gpu);
 		put_device(watchdog);
 		put_device(usb_core);
@@ -811,7 +829,7 @@ static int __maybe_unused qkx_execute(void)
 	}
 	if (disconnect_qmp) {
 		qkx_phase(109, "cleanly disconnecting Android AOP QMP", false);
-		ret = qkx_disconnect_aop_qmp(qmp_dev);
+		ret = qkx_disconnect_aop_qmp(qmp_dev, qmp_shutdown_fn, send_irq_fn);
 		pr_emerg("quest_kexec: AOP QMP disconnect returned %d\n", ret);
 		if (ret)
 			panic("quest_kexec: AOP QMP disconnect failed (%d)", ret);
@@ -1020,8 +1038,10 @@ static int __init qkx_init(void)
 	if (test_full_copy && (execute || test_transition || test_cpus))
 		return -EINVAL;
 #ifndef QKX_ENABLE_EXPERIMENTAL_JUMP
-	if (execute) {
-		pr_err("quest_kexec: jump disabled in this staging build; board shutdown is unvalidated\n");
+	if (execute || test_transition || test_full_copy || test_cpus ||
+	    warm_reset_test || core_hang_control || secure_watchdog_control ||
+	    preserve_watchdog || flush_rpmh || suspend_syncboss || disconnect_qmp) {
+		pr_err("quest_kexec: hardware actions disabled in this staging build; board shutdown is unvalidated\n");
 		return -EOPNOTSUPP;
 	}
 #endif
