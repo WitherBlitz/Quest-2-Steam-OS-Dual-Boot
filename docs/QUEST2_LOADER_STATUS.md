@@ -87,8 +87,9 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The full suite has 70 passing host tests: 21 readiness-collector tests, 23
-loader regression tests, 14 RAM-ownership tests and 12 build-audit tests.
+The full suite has 89 passing host tests: 21 readiness-collector tests, 27
+loader regression tests, 17 RAM-ownership tests, 12 handoff-planner tests and
+12 build-audit tests.
 The RAM/shutdown regressions were observed failing before these changes.
 The original loader failed 9
 of the first 11 new regressions before the source fix. An independent source
@@ -109,6 +110,22 @@ Windows runs require Clang/LLD and configured Windows SDK/MSVC headers/libraries
 the host test compiler does not replace the pinned Android build compiler.
 
 ## Verified offline rebuild
+
+### Placement strategy and Hollywood DMA gate
+
+The [placement/shutdown strategy](QUEST2_HANDOFF_STRATEGY.md) adds an offline
+capture-backed candidate planner, `ram_base` for the RAM-only diagnostic, and a
+Hollywood hardware-transition refusal even in experimental builds. The saved
+capture produced eight unclaimed windows above 4 GiB and 72 DT reference
+clients; neither count proves ownership or DMA quiescence. The diagnostic
+parameter cannot change the payload/DTB/entry layout. No headset changes or
+candidate allocation attempt were performed in this phase.
+
+All 19 new regressions were observed failing before their implementation;
+the full 89-test host suite passes. The new `param_ops_ullong` CRC was derived
+directly from the hash-pinned stock Image (`0x28916948`, CRC file offset
+`0x19d6958`) and matches the prior verified generated symvers. A new matching
+native rebuild/ABI check is pending for this source.
 
 ### RAM-ownership and shutdown rebuild
 

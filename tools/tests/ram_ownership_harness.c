@@ -24,6 +24,8 @@
 typedef uint64_t u64;
 typedef unsigned int gfp_t;
 static bool validate_ram, execute, preserve_watchdog, watchdog_recovery, watchdog_control;
+static unsigned long long ram_base;
+static u64 destination_lo = QKX_LO, destination_hi = QKX_HI;
 static bool test_transition, test_full_copy, post_shutdown_probe, warm_reset_test;
 static bool flush_rpmh, suspend_syncboss, disconnect_qmp;
 static unsigned int test_cpus, phase_delay_ms, preflight_only;
@@ -40,7 +42,7 @@ static int of_machine_is_compatible(const char *s) { return 1; }
 static u64 ktime_get_ns(void) { return 1000; }
 static int qkx_resolve(void) { resolve_calls++; return resolve_ret; }
 static int walk_ram(u64 start, u64 end, void *arg, int (*cb)(struct resource *, void *))
-{ struct resource r = { 0x8bf00000, 0xbcbfffff }; return ram_missing ? 0 : cb(&r, arg); }
+{ struct resource r = { 0x8bf00000, 0x1ffffffff }; return ram_missing ? 0 : cb(&r, arg); }
 struct zone { int id; };
 struct page { unsigned long pfn; };
 static struct zone normal, other;
@@ -51,8 +53,10 @@ static void *first_desc, *last_desc;
 static bool destination_owned;
 static void (*release_destination)(unsigned long, unsigned int);
 static int no_alloc, no_free, no_flags, result, alloc_calls, free_calls, page_frees;
+static unsigned long allocated_start, released_start;
 static int hole, reserved, cross_zone, cma, wrong_args;
-static struct page *pfn_to_page(unsigned long pfn) { return &pages[pfn-0x90000]; }
+static struct page *pfn_to_page(unsigned long pfn)
+{ struct page *p = &pages[pfn-(destination_lo >> PAGE_SHIFT)]; p->pfn = pfn; return p; }
 static int pfn_valid(unsigned long pfn) { return !hole || pfn != 0x933ff; }
 static int PageReserved(struct page *p) { return reserved && p->pfn == 0x933ff; }
 static struct zone *page_zone(struct page *p)
@@ -65,11 +69,12 @@ static unsigned long get_flags(struct page *p, unsigned long pfn,
 static int alloc_range(unsigned long start, unsigned long end, unsigned int mt, gfp_t gfp)
 {
     alloc_calls++;
-    wrong_args |= start != 0x90000 || end != 0x93400 || mt != 2 || gfp != 0x10;
+    allocated_start = start;
+    wrong_args |= start != (destination_lo >> PAGE_SHIFT) || end != (destination_hi >> PAGE_SHIFT) || mt != 2 || gfp != 0x10;
     return result;
 }
 static void free_range(unsigned long start, unsigned int n)
-{ free_calls++; wrong_args |= start != 0x90000 || n != 13312; }
+{ free_calls++; released_start = start; wrong_args |= start != (destination_lo >> PAGE_SHIFT) || n != 13312; }
 static uintptr_t lookup(const char *s)
 {
     if (!strcmp(s, "alloc_contig_range")) return no_alloc ? 0 : (uintptr_t)alloc_range;
@@ -88,15 +93,33 @@ int main(int argc, char **argv)
     unsigned int i;
     int ret;
     for (i = 0; i < 13312; i++) pages[i].pfn = 0x90000+i;
+    if (!strcmp(c, "base_without_validation")) {
+        ram_base = 0x100000000ULL;
+        CHECK(init_validation() == -EINVAL);
+        CHECK(!alloc_calls && !resolve_calls);
+        return 0;
+    }
     if (!strncmp(c, "validate_", 9)) {
         validate_ram = true;
+        if (!strcmp(c, "validate_high")) ram_base = 0x100000000ULL;
+        if (!strcmp(c, "validate_bad_base")) {
+            ram_base = 0x100000001ULL;
+            CHECK(init_validation() == -EINVAL && !resolve_calls && !alloc_calls);
+            ram_base = ~0ULL - 0x1000;
+            CHECK(init_validation() == -EINVAL && !resolve_calls && !alloc_calls);
+            return 0;
+        }
         if (!strcmp(c, "validate_model")) model = "Seacliff";
         if (!strcmp(c, "validate_no_model")) model = NULL;
         if (!strcmp(c, "validate_no_ram")) ram_missing = 1;
         if (!strcmp(c, "validate_busy")) result = -EBUSY;
         if (!strcmp(c, "validate_resolve")) resolve_ret = -ENOENT;
         ret = init_validation();
-        if (!strcmp(c, "validate_success")) { CHECK(ret == 0); CHECK(alloc_calls == 1 && free_calls == 1); }
+        if (!strcmp(c, "validate_success") || !strcmp(c, "validate_high")) {
+            CHECK(ret == 0); CHECK(alloc_calls == 1 && free_calls == 1);
+            CHECK(allocated_start == (!strcmp(c, "validate_high") ? 0x100000UL : 0x90000UL));
+            CHECK(released_start == allocated_start);
+        }
         else if (!strcmp(c, "validate_busy")) { CHECK(ret == -EBUSY); CHECK(alloc_calls == 1 && !free_calls); }
         else { CHECK(ret < 0); CHECK(!alloc_calls && !free_calls); }
         if (!strcmp(c, "validate_model") || !strcmp(c, "validate_no_model")) CHECK(ret == -ENODEV);

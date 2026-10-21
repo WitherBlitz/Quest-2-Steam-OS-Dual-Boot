@@ -34,11 +34,11 @@ class LoaderSafetyTests(unittest.TestCase):
         loader = (ROOT / "module/loader.c").read_text()
         marker = (ROOT / "module/marker_read.c").read_text()
         execute = function(loader, "qkx_execute")
-        option_guard = function(loader, "qkx_init").split('\n\tif (!of_machine_is_compatible')[0]
+        option_guard = function(loader, "qkx_init").split('\n\tret = qkx_resolve();')[0]
         option_guard = option_guard.replace("qkx_init(void)", "check_options(void)") + "\nreturn 0;\n}"
         log_guard = function(marker, "qkx_marker_read_init").split('\n\tfor (i = 0;')[0]
         log_guard += "\nreturn 0;\n}"
-        helpers = "\n".join(function(loader, name) for name in ("qkx_match_syncboss",)
+        helpers = "\n".join(function(loader, name) for name in ("qkx_match_syncboss", "qkx_dma_gate")
                             if name + "(" in loader)
         harness = (Path(__file__).with_name("loader_safety_harness.c")).read_text()
         code = harness.replace("/* PRODUCTION */", "\n".join((helpers, execute, option_guard, log_guard)))
@@ -53,9 +53,16 @@ class LoaderSafetyTests(unittest.TestCase):
                                 capture_output=True, text=True)
         if result.returncode:
             raise RuntimeError("Host harness compilation failed:\n" + result.stdout + result.stderr)
+        cls.experimental = Path(cls.temp.name) / ("experimental.exe" if os.name == "nt" else "experimental")
+        result = subprocess.run([compiler, *linker, "-std=gnu11", "-Werror", "-Wno-unused-variable",
+                                 "-Wno-unused-function", "-DQKX_ENABLE_EXPERIMENTAL_JUMP",
+                                 str(source), "-o", str(cls.experimental)], capture_output=True, text=True)
+        if result.returncode:
+            raise RuntimeError(result.stdout + result.stderr)
 
-    def case(self, name):
-        result = subprocess.run([str(self.binary), name], capture_output=True, text=True)
+    def case(self, name, experimental=False):
+        result = subprocess.run([str(self.experimental if experimental else self.binary), name],
+                                capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_audio_is_not_syncboss(self):
@@ -126,6 +133,18 @@ class LoaderSafetyTests(unittest.TestCase):
 
     def test_requested_rpmh_failure_prevents_physical_entry(self):
         self.case("rpmh_failure")
+
+    def test_hollywood_real_jump_is_blocked_before_hardware_even_when_ram_owned(self):
+        self.case("hollywood_jump", experimental=True)
+
+    def test_hollywood_pm_rehearsal_is_blocked_before_hardware(self):
+        self.case("hollywood_rehearsal", experimental=True)
+
+    def test_unknown_board_cannot_enter_shutdown(self):
+        self.case("unknown_board", experimental=True)
+
+    def test_experimental_init_cannot_bypass_hollywood_hardware_gate(self):
+        self.case("hollywood_options", experimental=True)
 
 
 if __name__ == "__main__":

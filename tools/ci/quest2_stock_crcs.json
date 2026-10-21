@@ -55,6 +55,7 @@
     "param_ops_bool": "0xc5b082f4",
     "param_ops_charp": "0x66d9e26a",
     "param_ops_uint": "0xb1c264d4",
+    "param_ops_ullong": "0x28916948",
     "pfn_valid": "0x51e77c97",
     "preempt_schedule": "0x43b0c9c3",
     "printk": "0x7c32d0f0",

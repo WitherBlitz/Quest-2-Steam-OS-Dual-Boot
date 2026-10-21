@@ -50,6 +50,7 @@ static char *initrd = "/data/local/tmp/qkx-initramfs";
 static char *dtb = "/data/local/tmp/qkx-boot.dtb";
 static bool execute;
 static bool validate_ram;
+static unsigned long long ram_base;
 static bool preserve_watchdog;
 static bool watchdog_recovery;
 static bool watchdog_control;
@@ -70,7 +71,9 @@ module_param(initrd, charp, 0);
 module_param(dtb, charp, 0);
 module_param(execute, bool, 0);
 module_param(validate_ram, bool, 0);
-MODULE_PARM_DESC(validate_ram, "Hollywood-only claim/release test of fixed destination RAM; no payload or shutdown");
+MODULE_PARM_DESC(validate_ram, "Hollywood-only one-window RAM claim/release test; no payload or shutdown");
+module_param(ram_base, ullong, 0);
+MODULE_PARM_DESC(ram_base, "Diagnostic base with validate_ram only; zero selects the original fixed window; never relocates payloads");
 module_param(preserve_watchdog, bool, 0);
 module_param(watchdog_recovery, bool, 0);
 module_param(watchdog_control, bool, 0);
@@ -110,6 +113,7 @@ static unsigned long (*lookup)(const char *);
 static struct page **owned;
 static unsigned int nr_owned, nr_copies;
 static bool destination_owned;
+static u64 destination_lo = QKX_LO, destination_hi = QKX_HI;
 static void (*release_destination)(unsigned long, unsigned int);
 
 #define QKX_QMP_LINK_DOWN 0xFFFF0000
@@ -211,7 +215,7 @@ static int qkx_claim_destination(void)
 	unsigned long (*block_flags)(struct page *, unsigned long,
 				     unsigned long, unsigned long) =
 		(void *)lookup("get_pfnblock_flags_mask");
-	unsigned long start = QKX_LO >> PAGE_SHIFT, end = QKX_HI >> PAGE_SHIFT;
+	unsigned long start = destination_lo >> PAGE_SHIFT, end = destination_hi >> PAGE_SHIFT;
 	unsigned long alignment = max_t(unsigned long, MAX_ORDER_NR_PAGES,
 					pageblock_nr_pages);
 	unsigned long pfn;
@@ -349,7 +353,7 @@ static int qkx_stage(struct file *f, u64 dest, u64 file_size, u64 mem_size)
 static int qkx_ram_cb(struct resource *res, void *arg)
 {
 	/* walk_system_ram_res uses inclusive ends. */
-	if (res->start <= QKX_LO && res->end >= QKX_HI - 1)
+	if (res->start <= destination_lo && res->end >= destination_hi - 1)
 		ram_found = true;
 	return 0;
 }
@@ -386,7 +390,8 @@ static void qkx_release(void)
 	owned = NULL;
 	first_desc = last_desc = NULL;
 	if (destination_owned) {
-		release_destination(QKX_LO >> PAGE_SHIFT, (QKX_HI - QKX_LO) >> PAGE_SHIFT);
+		release_destination(destination_lo >> PAGE_SHIFT,
+			(destination_hi - destination_lo) >> PAGE_SHIFT);
 		destination_owned = false;
 		release_destination = NULL;
 	}
@@ -402,19 +407,30 @@ static int qkx_validate_ram(void)
 	if (of_property_read_string(of_root, "model", &model) ||
 	    strncmp(model, "Hollywood", 9))
 		return -ENODEV;
+	if (ram_base) {
+		u64 alignment = max_t(unsigned long, MAX_ORDER_NR_PAGES,
+				      pageblock_nr_pages) * PAGE_SIZE;
+
+		if (!IS_ALIGNED(ram_base, alignment) ||
+		    ram_base > ~0ULL - (QKX_HI - QKX_LO))
+			return -EINVAL;
+		destination_lo = ram_base;
+		destination_hi = ram_base + (QKX_HI - QKX_LO);
+	}
 	ret = qkx_resolve();
 	if (ret)
 		return ret;
 	walk_ram = (void *)lookup("walk_system_ram_res");
 	if (!walk_ram)
 		return -ENOENT;
-	ret = walk_ram(QKX_LO, QKX_HI - 1, NULL, qkx_ram_cb);
+	ret = walk_ram(destination_lo, destination_hi - 1, NULL, qkx_ram_cb);
 	if (ret || !ram_found)
 		return -ERANGE;
-	/* One fixed-range allocation attempt. No payload, CPU or PM operations.
+	/* One selected-range allocation attempt. No payload, CPU or PM operations.
 	 * The native allocator may migrate/reclaim pages; never bypass refusal.
 	 */
 	start = ktime_get_ns();
+	pr_info("quest_kexec: RAM validation range=[%llx,%llx)\n", destination_lo, destination_hi);
 	ret = qkx_claim_destination();
 	elapsed = ktime_get_ns() - start;
 	pr_info("quest_kexec: RAM validation result=%d elapsed_ns=%llu owned=%u\n",
@@ -704,6 +720,23 @@ static int qkx_disconnect_aop_qmp(struct device *dev,
 	return 0;
 }
 
+static int qkx_dma_gate(void)
+{
+	const char *model;
+
+	if (of_property_read_string(of_root, "model", &model))
+		return -ENODEV;
+	/* Stock Hollywood has no proven camera/DSP stop-and-drain protocol.
+	 * Generic shutdown does not run their remove paths, and detaching SMMU
+	 * domains first could expose live DMA. No experimental flag bypasses this.
+	 */
+	if (!strncmp(model, "Hollywood", 9)) {
+		pr_err("quest_kexec: Hollywood DMA shutdown/completion is unvalidated; refusing hardware transition\n");
+		return -EOPNOTSUPP;
+	}
+	return 0;
+}
+
 static int __maybe_unused qkx_execute(void)
 {
 	void (*prepare)(char *) = (void *)lookup("kernel_restart_prepare");
@@ -744,6 +777,11 @@ static int __maybe_unused qkx_execute(void)
 	if (!preflight_only && !destination_owned) {
 		pr_err("quest_kexec: refusing jump without destination RAM ownership\n");
 		return -EPERM;
+	}
+	if (preflight_only != 1) {
+		ret = qkx_dma_gate();
+		if (ret)
+			return ret;
 	}
 	qkx_phase(1, "symbol lookups returned", true);
 	if (!prepare || !migrate || !hotplug_enable || !shutdown_cpus ||
@@ -1098,6 +1136,8 @@ static int __init qkx_init(void)
 		return -EINVAL;
 	if (test_full_copy && (execute || test_transition || test_cpus))
 		return -EINVAL;
+	if (ram_base && !validate_ram)
+		return -EINVAL;
 	if (validate_ram && (execute || preserve_watchdog || watchdog_recovery ||
 	    watchdog_control || test_transition || test_full_copy || test_cpus ||
 	    phase_delay_ms || post_shutdown_probe || preflight_only ||
@@ -1116,6 +1156,13 @@ static int __init qkx_init(void)
 		return -ENODEV;
 	if (validate_ram)
 		return qkx_validate_ram();
+	if ((execute && preflight_only != 1) || test_transition || test_full_copy ||
+	    test_cpus || warm_reset_test || core_hang_control || secure_watchdog_control ||
+	    preserve_watchdog || flush_rpmh || suspend_syncboss || disconnect_qmp) {
+		ret = qkx_dma_gate();
+		if (ret)
+			return ret;
+	}
 	ret = qkx_resolve();
 	if (ret)
 		return ret;

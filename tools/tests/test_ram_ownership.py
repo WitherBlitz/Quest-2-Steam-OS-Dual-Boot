@@ -23,14 +23,15 @@ class RamOwnershipTests(unittest.TestCase):
         validation = (function(loader, "qkx_validate_ram") if "qkx_validate_ram(" in loader
                       else "static int qkx_validate_ram(void) { return -ENOSYS; }")
         init = function(loader, "qkx_init").split('\n\tret = qkx_resolve();')[0]
-        init = ("static int init_validation(void) {" + init[init.index('\n\tif (test_cpus'):]
+        init = ("static int init_validation(void) { int ret;" + init[init.index('\n\tif (test_cpus'):]
                 + "\nreturn -ENOSYS;\n}")
         ram = function(loader, "qkx_ram_cb")
         harness = Path(__file__).with_name("ram_ownership_harness.c").read_text()
         cls.temp = tempfile.TemporaryDirectory(prefix="qkx-ram-test-")
         cls.addClassCleanup(cls.temp.cleanup)
         source = Path(cls.temp.name) / "ram.c"
-        source.write_text(harness.replace("/* PRODUCTION */", "\n".join((claim, release, ram, validation, init))))
+        gate = function(loader, "qkx_dma_gate")
+        source.write_text(harness.replace("/* PRODUCTION */", "\n".join((claim, release, ram, validation, gate, init))))
         cls.binary = Path(cls.temp.name) / ("ram.exe" if os.name == "nt" else "ram")
         linker = ["-fuse-ld=lld"] if os.name == "nt" else []
         result = subprocess.run([compiler, *linker, "-std=gnu11", "-Werror", str(source),
@@ -83,3 +84,12 @@ class RamOwnershipTests(unittest.TestCase):
 
     def test_validation_handles_symbol_resolution_failure(self):
         self.case("validate_resolve")
+
+    def test_selected_high_window_is_claimed_and_released_without_truncation(self):
+        self.case("validate_high")
+
+    def test_candidate_base_overflow_and_alignment_fail_before_lookup(self):
+        self.case("validate_bad_base")
+
+    def test_candidate_cannot_change_staging_or_execution_layout(self):
+        self.case("base_without_validation")

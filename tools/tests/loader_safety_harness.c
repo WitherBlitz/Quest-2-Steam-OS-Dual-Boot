@@ -65,6 +65,7 @@ struct bus_type { int unused; };
 struct qkx_log_header { u32 magic, write_pos, wraps, reserved; };
 static bool execute, preserve_watchdog, watchdog_recovery, watchdog_control;
 static bool validate_ram;
+static unsigned long long ram_base;
 static bool test_transition, test_full_copy, post_shutdown_probe, warm_reset_test;
 static bool flush_rpmh, suspend_syncboss, disconnect_qmp, write_test, clear;
 static unsigned int test_cpus, phase_delay_ms, preflight_only = 1;
@@ -76,7 +77,8 @@ static void *code_page, *pgd_page, *first_desc;
 static char qkx_reloc_start[1], qkx_reloc_end[1];
 static int destructive_calls, put_count, audio_released, missing_rpmh_device;
 static int no_irq, no_qmp_shutdown, no_rpmh;
-static const char *model = "Hollywood (DVT)";
+/* Historical PM rollback paths remain exercised on the legacy board. */
+static const char *model = "Seacliff";
 static u32 mode[2] = { 0xe11, 0xe11 };
 static bool events_check;
 static bool destination_owned;
@@ -117,6 +119,7 @@ static int of_property_read_string(struct device_node *n, const char *p, const c
 static int of_device_is_compatible(const struct device_node *n, const char *s)
 { return n && !strcmp(n->compatible, s); }
 static int of_machine_is_compatible(const char *s) { return 1; }
+static int qkx_validate_ram(void) { return 0; }
 static const char *dev_name(const struct device *d) { return d->name; }
 static void *dev_get_drvdata(struct device *d) { return d ? d->data : NULL; }
 static void put_device(struct device *d) { if (d) put_count++; if (d == &audio) audio_released++; }
@@ -190,7 +193,30 @@ int main(int argc, char **argv)
     const char *which = argc > 1 ? argv[1] : "";
     int ret;
     usb.data = &usb; aop.data = &aop;
-    if (!strcmp(which, "unowned_jump")) {
+    if (!strcmp(which, "hollywood_options")) {
+        bool *actions[] = { &execute, &test_transition, &test_full_copy, &warm_reset_test,
+                            &suspend_syncboss, &disconnect_qmp, &flush_rpmh, &preserve_watchdog };
+        unsigned int i;
+        model = "Hollywood (DVT)";
+        preflight_only = 0;
+        for (i = 0; i < sizeof(actions)/sizeof(actions[0]); i++) {
+            *actions[i] = true;
+            CHECK(check_options() == -EOPNOTSUPP);
+            *actions[i] = false;
+        }
+        test_cpus = 1; CHECK(check_options() == -EOPNOTSUPP); test_cpus = 0;
+        core_hang_control = 1; CHECK(check_options() == -EOPNOTSUPP); core_hang_control = 0;
+        secure_watchdog_control = 1; CHECK(check_options() == -EOPNOTSUPP);
+    } else if (!strcmp(which, "hollywood_jump") || !strcmp(which, "hollywood_rehearsal") ||
+               !strcmp(which, "unknown_board")) {
+        model = !strcmp(which, "unknown_board") ? NULL : "Hollywood (DVT)";
+        destination_owned = true;
+        preflight_only = !strcmp(which, "hollywood_rehearsal") ? 2 : 0;
+        ret = 999;
+        if (!setjmp(failure)) ret = qkx_execute();
+        CHECK(ret == (model ? -EOPNOTSUPP : -ENODEV));
+        CHECK(!did_enter && !did_panic && !trace_len && !put_count);
+    } else if (!strcmp(which, "unowned_jump")) {
         preflight_only = 0;
         ret = 999;
         if (!setjmp(failure)) ret = qkx_execute();
@@ -244,6 +270,7 @@ int main(int argc, char **argv)
         flush_rpmh = suspend_syncboss = disconnect_qmp = true;
         CHECK(qkx_execute() == 0);
     } else if (!strcmp(which, "log") || !strcmp(which, "log_no_model")) {
+        model = "Hollywood (DVT)";
         if (!strcmp(which, "log_no_model")) model = NULL;
         CHECK(qkx_marker_read_init() < 0);
         clear = true;
