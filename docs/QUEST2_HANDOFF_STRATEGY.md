@@ -2,9 +2,9 @@
 
 Scope: Hollywood, Horizon `52242990024200150`, stock kernel
 `4.19.325-cip128-st12-g49638c7a8637`. This is a staged development strategy,
-not boot support. The original live fixed-window claim refused with `-EBUSY`.
-Neither that result nor a free-page snapshot identifies which pages prevented
-allocation.
+not boot support. Separate live claims refused the original fixed window and
+the first planned high window with `-EBUSY`. Neither result nor a free-page
+snapshot identifies which pages prevented allocation.
 
 ## RAM ownership
 
@@ -29,9 +29,11 @@ native allocator diagnostic:
 3. The tool emits at most eight nonoverlapping 52 MiB windows aligned to 4 MiB.
    These are **unclaimed diagnostic candidates**, not free RAM or boot layouts.
    In the saved capture, the first candidate is above 4 GiB because the dynamic
-   secure/DSP allocation limits exclude the lower address space. No candidate
-   has been tested on the headset in this phase. Capture age and firmware-owned
-   memory not represented by DT/resources remain limitations.
+   secure/DSP allocation limits exclude the lower address space. A fresh capture
+   and one subsequent diagnostic at `[0x100000000, 0x103400000)` returned `-EBUSY`,
+   `owned=0`, in 3,657,553 ns. The other seven candidates remain untested. See the
+   [live result and cleanup evidence](QUEST2_LOADER_STATUS.md#selected-high-ram-candidate-on-headset-result).
+   Capture age and firmware-owned memory absent from DT/resources remain limits.
 4. `validate_ram=1` optionally accepts `ram_base` for one selected window.
    Zero retains the original base. The module checks overflow, native isolation
    alignment, Hollywood identity, System RAM coverage, mapped/nonreserved PFNs,
@@ -134,4 +136,5 @@ inputs. Host doubles do not validate kernel layouts, allocator acceptance or
 hardware shutdown. The matching native build and local ABI audit for this source
 passed in [archived run 39567877831](https://github.com/WitherBlitz/Quest-2-Steam-OS-Port/releases/tag/old-fork-build-evidence);
 see the [recorded checksums and scope](QUEST2_LOADER_STATUS.md#placement-strategy-and-hollywood-dma-gate).
-No candidate window or shutdown protocol was tested on hardware in this phase.
+That build phase was offline. The subsequent one-window diagnostic refused
+ownership as recorded above; no shutdown protocol has been tested on hardware.

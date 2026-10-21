@@ -4,10 +4,12 @@ This branch contains a read-only readiness collector and source fixes for
 `hollywood`, Horizon build `52242990024200150`, kernel
 `4.19.325-cip128-st12-g49638c7a8637`. It is an experimental development branch.
 The patched Android kernel module has **been rebuilt and its symbol versions
-verified**. One RAM-only initialization attempt on the headset safely refused
-the fixed destination with `-EBUSY`; no ownership was acquired or payload run.
-Home and tracking remained normal. This branch does not provide a complete
-SteamOS port, validated dual boot, or full tracking.
+verified**. Separate RAM-only attempts refused the original fixed destination
+and one capture-planned window above 4 GiB with `-EBUSY`; neither acquired RAM
+ownership or ran a payload. The latest attempt preserved the boot, CPUs and stock
+modules; the earlier test also had user-confirmed normal Home/tracking. This
+branch does not provide a complete SteamOS port, validated dual boot, or full
+tracking.
 
 ## Branch and build provenance
 
@@ -110,6 +112,51 @@ Windows runs require Clang/LLD and configured Windows SDK/MSVC headers/libraries
 the host test compiler does not replace the pinned Android build compiler.
 
 ## Verified offline rebuild
+
+### Selected high-RAM candidate: on-headset result
+
+On 2026-10-21, a fresh rooted capture matched the expected device, firmware and
+kernel. The planner again produced eight unclaimed windows and 72 DT reference
+clients. After the user confirmed Home usable and idle, exactly one attempt used
+`validate_ram=1 ram_base=0x100000000`, selecting the 52 MiB range
+`[0x100000000, 0x103400000)`:
+
+```text
+quest_kexec: RAM validation range=[100000000,103400000)
+quest_kexec: RAM validation result=-16 elapsed_ns=3657553 owned=0
+```
+
+The model, symbol and System RAM checks passed, and no per-PFN refusal message
+appeared. This indicates a native allocator refusal, not an accepted reservation.
+The exact busy PFNs and ownership preventing migration remain unknown. No second
+candidate, retry or forced claim was attempted. The other seven candidates
+remain untested; two refusals do not establish that all RAM is unusable.
+
+The ADB/root transport returned zero while `insmod` printed "Device or resource
+busy". The kernel result and absent module establish the refusal; transport
+exit status alone would incorrectly classify this test as successful.
+
+The boot ID, online CPUs 0-7, original 20 stock module names and taint 5124 were
+unchanged. Root remained available. The captured log difference had no matched
+panic, BUG, WARNING, OOM, unhandled fault or SMMU/KGSL fault/error messages.
+Failed initialization left no project module resident, so no unload was needed.
+The exact temporary module was hash-checked, removed, and confirmed absent.
+These checks do not replace a functional Home/tracking check. No payload,
+shutdown, CPU offlining, reboot, flashing or boot-policy change occurred.
+
+The module came from [new-repository Actions run 39570913751](https://github.com/WitherBlitz/Quest-2-Steam-OS-Port/actions/runs/39570913751),
+source `88df1dbf1339efe512e0dac26ab42df771b03839`. Runtime source/tools/workflow
+were unchanged at the test checkout `5d1f7de836be7c2415d68a9a61ff2df90d47d07a`.
+The ZIP digest and all 11 inner checksums matched. Native LLVM confirmed ELF64
+little-endian relocatable AArch64, exact vermagic and both diagnostic parameters.
+The current-repo audit verified all 42 module version records and 41 undefined
+imports against generated and recorded stock references; the compile command
+did not enable experimental jumping. All 89 host tests passed on Windows.
+
+ZIP SHA-256: `821256b8c16776539344585a19a2030c845a40518c1058a6892b934ad730ad5b`.
+
+Tested `quest_kexec.ko`: 314,968 bytes, SHA-256
+`1fa947fb6ee0b160215f2d0fb6ad66915468382d30707bea99e3278cf3b9a1a3`.
 
 ### Placement strategy and Hollywood DMA gate
 
@@ -294,10 +341,12 @@ this source repository alone. Each subsequent rebuild needs its own recorded aud
 
 ## Remaining work
 
-The fixed RAM window was refused by the live allocator. A justified placement
-or reservation strategy is needed while retaining that refusal; forcing busy
-pages or guessing alternate addresses is not a solution. DMA quiescence,
-secure-watchdog handling, CPU/MMU transition and recovery remain unproven.
+The original fixed window and first capture-planned high window were refused.
+The next RAM investigation needs native allocator failure-stage evidence before
+another placement change; snapshots alone cannot identify the refusing owner.
+A usable reservation and complete payload/DTB/entry relocation remain unproven.
+Forcing busy pages or repeatedly guessing addresses is not a solution. DMA
+quiescence, secure-watchdog handling, CPU/MMU transition and recovery remain unproven.
 Panicking after irreversible
 failure prevents further handoff but does not prove safe recovery. The target
 DT must preserve Android's secure/dynamic reservations; an allocator claim of
@@ -312,7 +361,7 @@ The pinned shutdown implementation also sets these limits on future tests:
 
 | Area | Source evidence | Still needed before hardware readiness |
 | --- | --- | --- |
-| RAM | The one live native claim refused the fixed window with `-EBUSY`. | A justified placement/reservation strategy and a target DT that preserves all Android secure/dynamic reservations. |
+| RAM | Separate native claims refused the fixed window and one planned high window with `-EBUSY`. | Allocator refusal diagnosis, an accepted reservation, coordinated payload relocation and a target DT preserving secure/dynamic reservations. |
 | GPU/Syncboss | PM callbacks can defer work or hide errors. | Completion and failure detection on this firmware, including rollback. |
 | USB | Gadget suspend stops/disconnects gadget traffic. | Controller/glue DMA quiescence and target USB reprobe. |
 | Storage | UFS shutdown drains requests and powers down the link, but returns zero even after logged errors. | Observed shutdown completion and target reinitialization; no shutdown bypass is implemented here. |
