@@ -461,9 +461,27 @@ implementation. Independent review then reproduced two FDT consumer mismatches:
 properties after child nodes and a preceding unchecked `/chosen@0`. Both have
 failing-then-passing regressions and are rejected by the corrected checker.
 The full 136-test host suite passes, including whole-initialization cleanup and
-experimental Hollywood gate coverage. Matching native build verification is
-pending; host doubles are not native ABI or hardware evidence. No headset
-operation has been performed in this phase.
+experimental Hollywood gate coverage.
+
+[Matching Actions run 39686582673](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39686582673)
+completed successfully from native source
+`9157b54e8bdc72dfa4c7dd0a5ef7caafba9ae3f0`. All 136 tests passed on Linux before
+the later host-only profile checker was added. The matching kernel and three
+modules built with no warning/error lines in the build logs. Local verification
+reproduced the GitHub ZIP digest, 12-file allowlist, 11 inner checksums,
+source/compiler/config pins, no-jump compile command, all 77 version records and
+74 undefined imports, and the two indirect kretprobe helper CRCs. Native
+`llvm-readelf` confirmed AArch64 ELF/vermagic and the new `ram_bytes:ullong` and
+`payload_base:ullong` metadata. Subsequent commits leave native/runtime/build
+sources unchanged. No module was loaded and no headset operation was performed.
+
+ZIP SHA-256: `b64863767b629c54697479468214d192f524183288f495810d617359d5ac8eb9`.
+
+| Module | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `quest_kexec.ko` | 350,608 | `3d8818ba0165fcc3000994e97c5a1ba2899fc2a2fe676c9ca83f4a5c07c41276` |
+| `marker_read.ko` | 158,832 | `95466ec1914182d71be8e92a6cf1d7e5c19f51e9c751763ac286efc34d9ff267` |
+| `usb_log.ko` | 201,760 | `7224ae72bcac9d28421211d4976a642bacd9397b5b44b17ad1da60acc96e072b` |
 
 The [offline Linux payload checker](QUEST2_HANDOFF_STRATEGY.md#offline-linux-payload-checks)
 now records structural/profile findings against the capture and compact layout.
@@ -485,10 +503,10 @@ The instrumented attempt identifies initial pageblock isolation and an unmovable
 and supplied payload sizes. The native source now coordinates compact ownership
 and relocation. A built target Linux Image/initramfs and a prepared, reservation-
 preserving DTB still need validation before compact staging. Any live claim needs
-a verified native artifact, fresh evidence and a justified scope; `ram_base`
+the verified native artifact, fresh evidence and a justified scope; `ram_base`
 alone retains the default 52 MiB length, while `ram_bytes` selects the test size.
 Snapshots alone cannot identify the refusing owner or prove other windows free.
-A usable reservation and complete payload/DTB/entry relocation remain unproven.
+A usable reservation and runtime use of compact payload relocation remain unproven.
 Forcing busy pages or repeatedly guessing addresses is not a solution. DMA
 quiescence, secure-watchdog handling, CPU/MMU transition and recovery remain unproven.
 Panicking after irreversible
@@ -505,7 +523,7 @@ The pinned shutdown implementation also sets these limits on future tests:
 
 | Area | Source evidence | Still needed before hardware readiness |
 | --- | --- | --- |
-| RAM | Fixed/high claims refused; an unmovable block is excluded in offline proposals; native source implements variable-length diagnostics and compact staging. | Verified native artifacts, a target Linux payload/DT, an accepted reservation and preservation of secure/dynamic reservations. |
+| RAM | Fixed/high claims refused; an unmovable block is excluded in offline proposals; variable-length diagnostics and compact staging have a matching verified native build. | A target Linux payload/DT, an accepted reservation and preservation of secure/dynamic reservations. |
 | GPU/Syncboss | PM callbacks can defer work or hide errors. | Completion and failure detection on this firmware, including rollback. |
 | USB | Gadget suspend stops/disconnects gadget traffic. | Controller/glue DMA quiescence and target USB reprobe. |
 | Storage | UFS shutdown drains requests and powers down the link, but returns zero even after logged errors. | Observed shutdown completion and target reinitialization; no shutdown bypass is implemented here. |
