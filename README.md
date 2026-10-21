@@ -3,7 +3,8 @@
 # Quest-KeXec
 
 > **Quest 2 firmware-specific development branch:** default builds stage only;
-> hardware tests and jumping are disabled. The patched module rebuild is pending.
+> hardware tests and jumping are disabled. The matching rebuild and ABI checks
+> passed; physical handoff remains unvalidated.
 > Read [the port status and verification limits](docs/QUEST2_LOADER_STATUS.md)
 > before using the legacy upstream build or boot instructions below.
 

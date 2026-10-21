@@ -3,8 +3,9 @@
 This branch contains a read-only readiness collector and source fixes for
 `hollywood`, Horizon build `52242990024200150`, kernel
 `4.19.325-cip128-st12-g49638c7a8637`. It is an experimental development branch.
-The patched Android kernel module has **not been rebuilt or loaded**. It does
-not provide a complete SteamOS port, validated dual boot, or full tracking.
+The patched Android kernel module has **been rebuilt and its symbol versions
+verified**. It has not been loaded on the headset. This branch does not provide
+a complete SteamOS port, validated dual boot, or full tracking.
 
 ## Branch and build provenance
 
@@ -20,8 +21,8 @@ The matching kernel source is
 [`facebookincubator/oculus-linux-kernel`](https://github.com/facebookincubator/oculus-linux-kernel/tree/6bde5fc06b252c97761bc0963dd13c1abcf377ab)
 at `6bde5fc06b252c97761bc0963dd13c1abcf377ab`. The prior offline build used
 Android Clang/LLD 14.0.7, Android build 8508608 (`clang-r450784e`), from prebuilt
-commit `425c8149f17c8d9914bf690b4d5abe45a13fb993`. A successful earlier build
-does not establish a successful build of these changed sources.
+commit `425c8149f17c8d9914bf690b4d5abe45a13fb993`. The verified patched rebuild
+is recorded below; the earlier unpatched artifacts are separate.
 
 ## Source fixes
 
@@ -54,9 +55,9 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The full suite has 35 passing host tests: 21 readiness-collector tests and 14
-loader regression tests. The original loader failed 9 of the first 11 new
-regressions before the source fix. An independent source review also reproduced
+The full suite has 47 passing host tests: 21 readiness-collector tests, 14
+loader regression tests and 12 build-audit tests. The original loader failed 9
+of the first 11 new regressions before the source fix. An independent source review also reproduced
 the full passing suite and found no Critical or Important issue in this scope.
 
 The C harness compiles the actual `qkx_execute` function and the actual
@@ -68,7 +69,38 @@ validate real kernel layouts, driver callbacks, DMA state or shutdown behavior.
 Windows runs require Clang/LLD and configured Windows SDK/MSVC headers/libraries;
 the host test compiler does not replace the pinned Android build compiler.
 
-## Required rebuild
+## Verified offline rebuild
+
+[Actions run 39551869780](https://github.com/WitherBlitz/quest-kexec-q2/actions/runs/39551869780)
+completed successfully from source commit
+`3668c76984ee4159f19f4f2018957be3c8693f34`. It built the matching kernel Image and
+modules, then the three patched out-of-tree modules with experimental jumping
+disabled. All 47 host tests also passed on the Linux runner.
+
+The downloaded ZIP's SHA-256 is
+`11fe06971c7af7a558aefaac532af352eaf2fd9056c4c262aef6d9b897f3492b`.
+Local verification reproduced all archive checksums, source/compiler/config
+pins, AArch64 ELF/vermagic identity, undefined-symbol coverage, and all 72
+version-record CRCs against the prior trusted built-in stock references:
+
+| Module | Version records | SHA-256 |
+| --- | ---: | --- |
+| `quest_kexec.ko` | 37 | `1018b0a5c3c7e4166f026f8699d1b8cdc7b5ce8c8f6b4c27a3c4369224c867dd` |
+| `marker_read.ko` | 15 | `251820730e1023e858e254c4af230070c4ba99cf658c583373159c0a11591605` |
+| `usb_log.ko` | 20 | `d43889ccff99e01703836a8082c2df92da57d64c89c8d8ec0b3ca7e5b45f6753` |
+
+All 12,362 full `Module.symvers` records equal the prior matching build; their
+textual order differs. The configuration is unchanged. The kernel Image and
+module binaries are not claimed byte-identical to previous builds. Native
+`llvm-readelf` independently confirmed the three modules' ELF headers/vermagic.
+These checks establish the stated offline build and symbol-version agreement;
+they do not establish hardware readiness.
+
+The manually triggered workflow uses an owner-provided private config secret
+and publishes only allowlisted build outputs. It does not cache the config or
+upload raw captures/config/firmware. Artifacts are retained for seven days.
+
+## Reproducing the rebuild
 
 Use a fresh module output/source copy and the existing fully built matching
 Android kernel output. Preserve the original `.config`, `Module.symvers`,
@@ -94,7 +126,7 @@ CRCs, 77 imports across the three original modules, and 33 selected private
 structure offsets. These results refer to the previously inspected artifacts.
 Raw captures, device identifiers, firmware files and private runtime evidence
 are not published here, so that audit is not independently reproducible from
-this source repository alone. Rebuilt modules need their own recorded audit.
+this source repository alone. Each subsequent rebuild needs its own recorded audit.
 
 ## Remaining work
 
