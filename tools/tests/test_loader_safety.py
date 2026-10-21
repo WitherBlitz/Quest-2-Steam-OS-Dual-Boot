@@ -100,6 +100,27 @@ class LoaderSafetyTests(unittest.TestCase):
     def test_plain_staging_options_accepted(self):
         self.case("staging")
 
+    def test_real_jump_requires_destination_ownership_before_shutdown(self):
+        self.case("unowned_jump")
+
+    def test_rehearsal_resumes_syncboss_then_gpu_before_userspace(self):
+        self.case("rehearsal_order")
+
+    def test_freezer_abort_is_respected_without_suppressing_wakeup(self):
+        self.case("freezer_abort")
+
+    def test_gpu_failure_restores_hardware_before_thaw(self):
+        self.case("gpu_failure")
+
+    def test_failed_hardware_resume_does_not_thaw_userspace(self):
+        self.case("resume_failure")
+
+    def test_watchdog_failure_after_usb_stop_cannot_return_to_apps(self):
+        self.case("watchdog_failure")
+
+    def test_requested_rpmh_failure_prevents_physical_entry(self):
+        self.case("rpmh_failure")
+
 
 if __name__ == "__main__":
     unittest.main()

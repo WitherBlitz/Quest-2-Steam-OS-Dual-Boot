@@ -45,6 +45,25 @@ is recorded below; the earlier unpatched artifacts are separate.
   MMU, reset, core-hang and secure-watchdog tests. `QKX_EXPERIMENTAL=1` is a
   developer build opt-in, not evidence that execution is safe. The target-kernel
   patches and their logging assumptions have not been ported by this change.
+- A real jump now requires allocator ownership of the entire fixed 52 MiB
+  destination window. Before staging, the loader checks mapped/nonreserved PFNs,
+  one zone, isolation alignment and ordinary MOVABLE pageblocks, then calls the
+  pinned kernel's `alloc_contig_range`. Missing helpers, CMA/other pageblock
+  types or allocation failure abort without shutdown. A successful claim remains
+  held until handoff or is freed on abort/unload. Rehearsals copy to separately
+  owned scratch pages and do not claim the fixed window. The fixed range may
+  fail allocation on a running headset; there is no fallback that overwrites
+  busy memory. This establishes allocator ownership only, not DMA/secure safety.
+- The freezer's wakeup/failure decisions are respected. The busy-loop thread
+  that overwrote `pm_abort_suspend` has been removed. Reversible paths resume
+  attempted Syncboss suspension, then GPU suspension, before thawing userspace.
+  A reported resume callback error stops with a panic. Syncboss queues async
+  resume work and the GPU callback can hide internal errors, so callback success
+  does not prove hardware recovery; that acceptance test remains outstanding.
+- USB suspension is the explicit irreversible boundary. A later watchdog failure
+  cannot return to apps with USB stopped; a requested RPMh flush failure cannot
+  proceed to the physical trampoline. These paths panic; automatic recovery
+  timing and real hardware behavior remain unvalidated.
 
 ## Host verification
 
@@ -55,21 +74,28 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The full suite has 47 passing host tests: 21 readiness-collector tests, 14
-loader regression tests and 12 build-audit tests. The original loader failed 9
+The full suite has 62 passing host tests: 21 readiness-collector tests, 21
+loader regression tests, 8 RAM-ownership tests and 12 build-audit tests.
+The RAM/shutdown regressions were observed failing before these changes.
+The original loader failed 9
 of the first 11 new regressions before the source fix. An independent source review also reproduced
 the full passing suite and found no Critical or Important issue in this scope.
 
-The C harness compiles the actual `qkx_execute` function and the actual
+The C harnesses compile the actual RAM claim/release and `qkx_execute` functions and the actual
 initialization option/log guard prefixes, ending before their first external
 action, against host API doubles. The tests check peripheral identity, changed
 bus numbering, missing PM resume, missing requested AOP/RPMh dependencies,
-Hollywood/missing-model log rejection and stage-only options. They do not
+Hollywood/missing-model log rejection, allocator failure/lifetime, rollback order,
+irreversible failure paths and stage-only options. They do not
 validate real kernel layouts, driver callbacks, DMA state or shutdown behavior.
 Windows runs require Clang/LLD and configured Windows SDK/MSVC headers/libraries;
 the host test compiler does not replace the pinned Android build compiler.
 
 ## Verified offline rebuild
+
+The RAM-ownership and shutdown changes above have passed host tests and source
+review; their new matching rebuild is pending. The run below is the previously
+verified baseline and does not contain those subsequent changes.
 
 [Actions run 39551869780](https://github.com/WitherBlitz/quest-kexec-q2/actions/runs/39551869780)
 completed successfully from source commit
@@ -130,9 +156,12 @@ this source repository alone. Each subsequent rebuild needs its own recorded aud
 
 ## Remaining work
 
-RAM ownership, DMA quiescence, secure-watchdog handling, CPU/MMU transition and
-recovery remain unproven. Failures after irreversible shutdown still need a
-separate hardware design. The broad `qcom,kona` guard is not exact-board proof.
+Runtime RAM claim acceptance, DMA quiescence, secure-watchdog handling,
+CPU/MMU transition and recovery remain unproven. Panicking after irreversible
+failure prevents further handoff but does not prove safe recovery. The target
+DT must preserve Android's secure/dynamic reservations; an allocator claim of
+the copy window does not fence all target RAM. The broad `qcom,kona` guard is
+not exact-board proof.
 No loading, reboot, flashing, partition change or boot-policy change was part of
 this source fix. Staging itself allocates memory and uses a temporary kprobe;
 it is not a read-only device test.
@@ -140,3 +169,25 @@ it is not a read-only device test.
 The eventual goal is Horizon/Linux switching with only one full OS running.
 Display, tracking, controllers, audio, networking, suspend and a SteamOS runtime
 require subsequent implementation and physical validation.
+
+## Source basis for the ownership/shutdown changes
+
+All links below refer to the matching immutable kernel source, not a newer API:
+
+- [`mm/page_alloc.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/mm/page_alloc.c):
+  `alloc_contig_range` owns every PFN on success and pairs with `free_contig_range`.
+- [`include/linux/gfp.h`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/include/linux/gfp.h):
+  exact four-argument allocator ABI and single-zone requirement.
+- [`mm/cma.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/mm/cma.c):
+  CMA has a separate ownership bitmap; bypassing it is not a valid reservation.
+- [`kernel/power/process.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/kernel/power/process.c):
+  failed `freeze_processes` already thaws userspace.
+- [`drivers/usb/dwc3/gadget.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/usb/dwc3/gadget.c):
+  gadget suspension disconnects/stops traffic; later failures cannot use the
+  existing return-to-apps cleanup as a complete USB restoration protocol.
+- [`kernel/reboot.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/kernel/reboot.c):
+  `kernel_restart_prepare` invokes reboot notifiers and device shutdown.
+- [`drivers/staging/oculus/mcu/syncboss/syncboss_spi_core.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/staging/oculus/mcu/syncboss/syncboss_spi_core.c)
+  and [`drivers/gpu/msm/adreno.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/gpu/msm/adreno.c):
+  deferred Syncboss resume and unreported GPU power-state errors limit what a
+  successful PM callback establishes.

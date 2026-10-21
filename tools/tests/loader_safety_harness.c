@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <errno.h>
+#include <setjmp.h>
 #ifndef _WIN32
 #include <sys/types.h>
 #endif
@@ -77,6 +78,13 @@ static int no_irq, no_qmp_shutdown, no_rpmh;
 static const char *model = "Hollywood (DVT)";
 static u32 mode[2] = { 0xe11, 0xe11 };
 static bool events_check;
+static bool destination_owned;
+static int freeze_ret, gpu_suspend_ret, sync_resume_ret, watchdog_ret = 1, rpmh_ret;
+static int did_panic, did_enter;
+static char trace[128];
+static unsigned int trace_len;
+static jmp_buf failure;
+static void event(char e) { trace[trace_len++] = e; trace[trace_len] = 0; }
 static struct bus_type platform, spi;
 static int noop_pm(struct device *d) { destructive_calls++; return 0; }
 static const struct dev_pm_ops pm = { noop_pm, noop_pm }, no_resume = { noop_pm, NULL };
@@ -89,6 +97,20 @@ static struct device audio = { "spi0.0", &audio_driver, &audio_node };
 static struct device syncboss = { "spi1.0", &sync_driver, &sync_node };
 static struct device aop = { "aop" }, rpmh = { "rpmh" };
 static struct device_node root_node, *of_root = &root_node;
+static int freeze_users(void) { destructive_calls++; event('F'); return freeze_ret; }
+static void thaw_users(void) { destructive_calls++; event('T'); }
+static void sleep_lock(void) { destructive_calls++; event('L'); }
+static void sleep_unlock(void) { event('U'); }
+static int gpu_suspend(struct device *d) { destructive_calls++; event('G'); return gpu_suspend_ret; }
+static int gpu_resume(struct device *d) { event('g'); return 0; }
+static int sync_suspend(struct device *d) { event('S'); return 0; }
+static int sync_resume(struct device *d) { event('s'); return sync_resume_ret; }
+static const struct dev_pm_ops sync_pm = { sync_suspend, sync_resume };
+static int usb_suspend(void *d) { event('B'); return 0; }
+static ssize_t wdt_disable(struct device *d, struct device_attribute *a, const char *s, size_t n)
+{ event('W'); return watchdog_ret; }
+static int rpmh_flush_stub(const struct device *d) { event('R'); return rpmh_ret; }
+static void prepare_stub(char *s) { event('P'); }
 static int of_property_read_string(struct device_node *n, const char *p, const char **out)
 { if (!model) return -EINVAL; *out = model; return 0; }
 static int of_device_is_compatible(const struct device_node *n, const char *s)
@@ -129,6 +151,16 @@ static uintptr_t lookup(const char *s)
     if (!strcmp(s, "send_irq") && no_irq) return 0;
     if (!strcmp(s, "qmp_shutdown") && no_qmp_shutdown) return 0;
     if (!strcmp(s, "rpmh_flush") && no_rpmh) return 0;
+    if (!strcmp(s, "freeze_processes")) return (uintptr_t)freeze_users;
+    if (!strcmp(s, "thaw_processes")) return (uintptr_t)thaw_users;
+    if (!strcmp(s, "lock_system_sleep")) return (uintptr_t)sleep_lock;
+    if (!strcmp(s, "unlock_system_sleep")) return (uintptr_t)sleep_unlock;
+    if (!strcmp(s, "adreno_pm_suspend")) return (uintptr_t)gpu_suspend;
+    if (!strcmp(s, "adreno_pm_resume")) return (uintptr_t)gpu_resume;
+    if (!strcmp(s, "dwc3_gadget_suspend")) return (uintptr_t)usb_suspend;
+    if (!strcmp(s, "wdog_disable_set")) return (uintptr_t)wdt_disable;
+    if (!strcmp(s, "rpmh_flush")) return (uintptr_t)rpmh_flush_stub;
+    if (!strcmp(s, "kernel_restart_prepare")) return (uintptr_t)prepare_stub;
     return (uintptr_t)destructive;
 }
 static void qkx_phase(unsigned int p, const char *s, bool b) { }
@@ -140,15 +172,16 @@ static void atomic_set(atomic_t *p, int n) { *p = n; }
 static int atomic_read(atomic_t *p) { return *p; }
 static int qkx_wakeup_suppressor(void *p) { return 0; }
 static struct task_struct *kthread_run(int (*fn)(void *), void *p, const char *s)
-{ destructive_calls++; return ERR_PTR(-ENOMEM); }
+{ destructive_calls++; abort_suspend = -1000000; event('K'); return (void *)1; }
 static void kthread_stop(struct task_struct *t) { destructive_calls++; }
 static int qkx_test_cpus(void) { destructive_calls++; return 0; }
 static int qkx_test_transition(void) { destructive_calls++; return 0; }
 static int qkx_disconnect_aop_qmp(struct device *d, ...) { destructive_calls++; return 0; }
 static int num_online_cpus(void) { return 1; }
 static void *page_address(struct page *p) { return NULL; }
-static void qkx_enter(uintptr_t a, uintptr_t b, uintptr_t c, u64 d, u64 e) { exit(90); }
-static void panic(const char *s, ...) { exit(91); }
+static void qkx_enter(uintptr_t a, uintptr_t b, uintptr_t c, u64 d, u64 e)
+{ did_enter++; longjmp(failure, 1); }
+static void panic(const char *s, ...) { did_panic++; longjmp(failure, 1); }
 /* PRODUCTION */
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "line %d: %s\n", __LINE__, #x); return 1; } } while (0)
 int main(int argc, char **argv)
@@ -156,7 +189,34 @@ int main(int argc, char **argv)
     const char *which = argc > 1 ? argv[1] : "";
     int ret;
     usb.data = &usb; aop.data = &aop;
-    if (!strncmp(which, "syncboss", 8)) {
+    if (!strcmp(which, "unowned_jump")) {
+        preflight_only = 0;
+        ret = 999;
+        if (!setjmp(failure)) ret = qkx_execute();
+        CHECK(ret == -EPERM);
+    } else if (!strcmp(which, "rehearsal_order") || !strcmp(which, "freezer_abort") ||
+               !strcmp(which, "gpu_failure") || !strcmp(which, "resume_failure") ||
+               !strcmp(which, "watchdog_failure") || !strcmp(which, "rpmh_failure")) {
+        destination_owned = true;
+        sync_driver.pm = &sync_pm;
+        suspend_syncboss = true;
+        preflight_only = 2;
+        if (!strcmp(which, "freezer_abort")) freeze_ret = -EBUSY;
+        if (!strcmp(which, "gpu_failure")) gpu_suspend_ret = -EIO;
+        if (!strcmp(which, "resume_failure")) sync_resume_ret = -EIO;
+        if (!strcmp(which, "watchdog_failure")) { preflight_only = 0; watchdog_ret = -EACCES; }
+        if (!strcmp(which, "rpmh_failure")) { preflight_only = 0; flush_rpmh = true; rpmh_ret = -EIO; }
+        ret = 999;
+        if (!setjmp(failure)) ret = qkx_execute();
+        CHECK(!did_enter);
+        if (!strcmp(which, "rehearsal_order")) { CHECK(ret == 0); CHECK(!strcmp(trace, "LFGSsgTU")); }
+        if (!strcmp(which, "freezer_abort")) { CHECK(ret == -EBUSY); CHECK(!strcmp(trace, "LFU")); }
+        if (!strcmp(which, "gpu_failure")) { CHECK(ret == -EIO); CHECK(!strcmp(trace, "LFGgTU")); }
+        if (!strcmp(which, "resume_failure")) { CHECK(did_panic == 1); CHECK(!strchr(trace, 'T')); }
+        if (!strcmp(which, "watchdog_failure")) { CHECK(did_panic == 1); CHECK(!strchr(trace, 'T')); }
+        if (!strcmp(which, "rpmh_failure")) { CHECK(did_panic == 1); CHECK(strchr(trace, 'R')); }
+        return 0;
+    } else if (!strncmp(which, "syncboss", 8)) {
         suspend_syncboss = true;
         if (!strcmp(which, "syncboss_no_resume")) sync_driver.pm = &no_resume;
         if (!strcmp(which, "syncboss_wrong_driver")) audio_node.compatible = "meta,syncboss-spi";

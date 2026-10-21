@@ -13,13 +13,13 @@
 #include <linux/io.h>
 #include <linux/kprobes.h>
 #include <linux/ktime.h>
-#include <linux/kthread.h>
 #include <linux/list.h>
 #include <linux/mailbox_controller.h>
 #include <linux/mailbox/qmp.h>
 #include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/pageblock-flags.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
@@ -106,6 +106,8 @@ extern unsigned long qkx_roundtrip(u64 pgd, u64 code, u64 descriptors,
 static unsigned long (*lookup)(const char *);
 static struct page **owned;
 static unsigned int nr_owned, nr_copies;
+static bool destination_owned;
+static void (*release_destination)(unsigned long, unsigned int);
 
 #define QKX_QMP_LINK_DOWN 0xFFFF0000
 #define QKX_QMP_CH_DISCONNECTED 0xFFFF0000
@@ -185,21 +187,6 @@ static void qkx_copy_toio32(void __iomem *dst, const void *src, size_t len)
 static struct qkx_desc *first_desc, *last_desc;
 static void *code_page, *pgd_page;
 static bool ram_found;
-static atomic_t *qkx_pm_abort_suspend;
-static atomic_t qkx_suppress_wakeup_abort = ATOMIC_INIT(0);
-
-static int qkx_wakeup_suppressor(void *unused)
-{
-	/* freeze_processes() clears pm_abort_suspend immediately before its
-	 * loop. Keep it negative while that loop runs so USB/MCU wake IRQs cannot
-	 * turn this irreversible reboot into a suspend-style -EBUSY abort.
-	 */
-	while (!kthread_should_stop() && atomic_read(&qkx_suppress_wakeup_abort)) {
-		atomic_set(qkx_pm_abort_suspend, -1000000);
-		cpu_relax();
-	}
-	return 0;
-}
 
 static int qkx_resolve(void)
 {
@@ -209,6 +196,52 @@ static int qkx_resolve(void)
 		return ret;
 	lookup = (void *)kp.addr;
 	unregister_kprobe(&kp);
+	return 0;
+}
+
+static int qkx_claim_destination(void)
+{
+	int (*claim)(unsigned long, unsigned long, unsigned int, gfp_t) =
+		(void *)lookup("alloc_contig_range");
+	void (*release)(unsigned long, unsigned int) =
+		(void *)lookup("free_contig_range");
+	unsigned long (*block_flags)(struct page *, unsigned long,
+				     unsigned long, unsigned long) =
+		(void *)lookup("get_pfnblock_flags_mask");
+	unsigned long start = QKX_LO >> PAGE_SHIFT, end = QKX_HI >> PAGE_SHIFT;
+	unsigned long alignment = max_t(unsigned long, MAX_ORDER_NR_PAGES,
+					pageblock_nr_pages);
+	unsigned long pfn;
+	struct zone *zone = NULL;
+	int ret;
+
+	if (!claim || !release || !block_flags)
+		return -ENOENT;
+	/* Validate the entire isolation envelope, not just the payload pages.
+	 * Reject CMA: claiming that pool also requires ownership of its bitmap.
+	 * The native allocator handles allocation/migration races and busy pages;
+	 * a System RAM resource or a free-page snapshot is not ownership.
+	 */
+	if (!IS_ALIGNED(start, alignment) || !IS_ALIGNED(end, alignment))
+		return -EINVAL;
+	for (pfn = start; pfn < end; pfn++) {
+		struct page *page;
+
+		if (!pfn_valid(pfn))
+			return -ERANGE;
+		page = pfn_to_page(pfn);
+		if (PageReserved(page) || (zone && page_zone(page) != zone))
+			return -EBUSY;
+		zone = page_zone(page);
+		if (block_flags(page, pfn, PB_migrate_end, MIGRATETYPE_MASK) != MIGRATE_MOVABLE)
+			return -EBUSY;
+	}
+	ret = claim(start, end, MIGRATE_MOVABLE, GFP_KERNEL);
+	if (ret)
+		return ret;
+	release_destination = release;
+	destination_owned = true;
+	pr_info("quest_kexec: destination RAM allocated; DMA/secure handoff still unvalidated\n");
 	return 0;
 }
 
@@ -341,6 +374,11 @@ static void qkx_release(void)
 	vfree(owned);
 	owned = NULL;
 	first_desc = last_desc = NULL;
+	if (destination_owned) {
+		release_destination(QKX_LO >> PAGE_SHIFT, (QKX_HI - QKX_LO) >> PAGE_SHIFT);
+		destination_owned = false;
+		release_destination = NULL;
+	}
 }
 
 static int qkx_test_transition(void);
@@ -636,6 +674,7 @@ static int __maybe_unused qkx_execute(void)
 	void (*sleep_lock)(void) = (void *)lookup("lock_system_sleep");
 	void (*sleep_unlock)(void) = (void *)lookup("unlock_system_sleep");
 	bool *events_check_enabled = (void *)lookup("events_check_enabled");
+	atomic_t *pm_abort_suspend = (void *)lookup("pm_abort_suspend");
 	int (*gpu_suspend)(struct device *) = (void *)lookup("adreno_pm_suspend");
 	int (*gpu_resume)(struct device *) = (void *)lookup("adreno_pm_resume");
 	ssize_t (*watchdog_disable)(struct device *, struct device_attribute *,
@@ -653,21 +692,23 @@ static int __maybe_unused qkx_execute(void)
 	void (*send_irq_fn)(void *) = (void *)lookup("send_irq");
 	struct device *gpu, *watchdog, *usb_core = NULL, *rpmh_dev = NULL;
 	struct device *syncboss = NULL, *qmp_dev = NULL;
-	struct task_struct *wakeup_suppressor = NULL;
-	bool syncboss_suspended = false;
+	bool syncboss_attempted = false, gpu_attempted = false, users_frozen = false;
 	void __iomem *wdt_regs = NULL;
 	bool sleep_locked = false;
 	unsigned int i;
 	int ret;
+	if (!preflight_only && !destination_owned) {
+		pr_err("quest_kexec: refusing jump without destination RAM ownership\n");
+		return -EPERM;
+	}
 	qkx_phase(1, "symbol lookups returned", true);
 	if (!prepare || !migrate || !hotplug_enable || !shutdown_cpus ||
 	    !stuck || !mode)
 		return -ENOENT;
 	pr_emerg("quest_kexec: native shutdown symbols ready; kexec_in_progress=%s\n",
 		 kexec_progress ? "available" : "compiled out");
-	qkx_pm_abort_suspend = (void *)lookup("pm_abort_suspend");
 	if (!freeze_users || !thaw_users || !sleep_lock || !sleep_unlock ||
-	    !events_check_enabled || !qkx_pm_abort_suspend || !gpu_suspend || !gpu_resume ||
+	    !events_check_enabled || !pm_abort_suspend || !gpu_suspend || !gpu_resume ||
 	    !watchdog_disable || !platform_bus || !find_dev ||
 	    !suspend_dwc3_gadget || (suspend_syncboss && !spi_bus))
 		return -ENOENT;
@@ -739,67 +780,40 @@ static int __maybe_unused qkx_execute(void)
 	qkx_phase(7, "acquiring system-sleep lock before freezing userspace", false);
 	sleep_lock();
 	sleep_locked = true;
-	/* This is an irreversible reboot, not suspend. Android autosleep can arm
-	 * wakeup checking before blocking on system_transition_mutex, leaving a
-	 * stale saved_count that makes the direct freezer abort. Suppress that
-	 * suspend-only abort check while holding the system-sleep lock;
-	 * freeze_processes still clears pm_abort_suspend itself.
+	/* A wakeup/freezer failure is a real abort while rollback is possible.
+	 * Do not race the freezer by overwriting shared wakeup state.
 	 */
-	WRITE_ONCE(*events_check_enabled, false);
-	atomic_set(&qkx_suppress_wakeup_abort, 1);
-	wakeup_suppressor = kthread_run(qkx_wakeup_suppressor, NULL,
-					"qkx_wakeup_suppress");
-	if (IS_ERR(wakeup_suppressor)) {
-		ret = PTR_ERR(wakeup_suppressor);
-		wakeup_suppressor = NULL;
-		atomic_set(&qkx_suppress_wakeup_abort, 0);
-		goto release_devices;
-	}
-	/* Ensure the suppressor has run before freeze_processes clears the flag. */
-	while (atomic_read(qkx_pm_abort_suspend) >= 0)
-		cpu_relax();
-	pr_emerg("quest_kexec: system-sleep lock acquired; wakeup abort check suppressed; freezing userspace\n");
 	ret = freeze_users();
-	atomic_set(&qkx_suppress_wakeup_abort, 0);
-	kthread_stop(wakeup_suppressor);
-	wakeup_suppressor = NULL;
-	atomic_set(qkx_pm_abort_suspend, 0);
 	pr_emerg("quest_kexec: PHASE 08: freeze_processes returned %d\n", ret);
 	/* freeze_processes already thaws everything on failure. */
 	if (ret) {
 		goto release_devices;
 	}
+	users_frozen = true;
 	qkx_phase(9, "calling GPU suspend", false);
+	gpu_attempted = true;
 	ret = gpu_suspend(gpu);
 	pr_emerg("quest_kexec: PHASE 10: GPU suspend returned %d\n", ret);
 	if (ret) {
-		gpu_resume(gpu);
-		thaw_users();
 		goto release_devices;
 	}
 	if (suspend_syncboss) {
 		qkx_phase(10, "suspending Android syncboss SPI streaming", false);
+		syncboss_attempted = true;
 		ret = syncboss->driver->pm->suspend(syncboss);
 		pr_emerg("quest_kexec: syncboss suspend returned %d\n", ret);
 		if (ret) {
-			gpu_resume(gpu);
-			thaw_users();
 			goto release_devices;
 		}
-		syncboss_suspended = true;
 	}
 	if (preflight_only >= 2) {
-		int resume_ret;
 		if (preflight_only == 3)
 			ret = qkx_test_cpus();
-		resume_ret = gpu_resume(gpu);
-		thaw_users();
-		pr_emerg("quest_kexec: rehearsal restored userspace; GPU resume=%d test=%d\n",
-			resume_ret, ret);
-		if (!ret)
-			ret = resume_ret;
 		goto release_devices;
 	}
+	/* Irreversible boundary: no return-to-apps path after USB is stopped.
+	 * Watchdog and later shutdown operations cannot promise full rollback.
+	 */
 	/* Stop gadget traffic and controller Run/Stop without tearing down the
 	 * Qualcomm glue power domain. Full driver unbind hard-resets the board. */
 	qkx_phase(10, "suspending Android DWC3 gadget", false);
@@ -821,11 +835,7 @@ static int __maybe_unused qkx_execute(void)
 		ret = watchdog_disable(watchdog, NULL, "1", 1);
 	}
 	if (ret != 1) {
-		if (ret >= 0)
-			ret = -EIO;
-		gpu_resume(gpu);
-		thaw_users();
-		goto release_devices;
+		panic("quest_kexec: watchdog disable failed after USB shutdown (%d)", ret);
 	}
 	if (disconnect_qmp) {
 		qkx_phase(109, "cleanly disconnecting Android AOP QMP", false);
@@ -852,7 +862,7 @@ static int __maybe_unused qkx_execute(void)
 	/* freeze_secondary_cpus() rechecks pm_wakeup_pending() per CPU; a late
 	 * wake IRQ during device shutdown would abort it and force a panic. */
 	WRITE_ONCE(*events_check_enabled, false);
-	atomic_set(qkx_pm_abort_suspend, 0);
+	atomic_set(pm_abort_suspend, 0);
 	qkx_phase(13, "calling native machine_shutdown", false);
 	shutdown_cpus();
 	qkx_phase(14, "native machine_shutdown returned", false);
@@ -874,6 +884,8 @@ static int __maybe_unused qkx_execute(void)
 		qkx_phase(140, "flushing RPMh votes to RSC before final jump", false);
 		rpmh_ret = rpmh_flush_fn(rpmh_dev);
 		pr_emerg("quest_kexec: rpmh_flush returned %d\n", rpmh_ret);
+		if (rpmh_ret)
+			panic("quest_kexec: requested RPMh flush failed (%d)", rpmh_ret);
 		qkx_phase(141, "rpmh_flush returned", false);
 		put_device(rpmh_dev);
 		rpmh_dev = NULL;
@@ -937,14 +949,17 @@ static int __maybe_unused qkx_execute(void)
 	qkx_enter(virt_to_phys(pgd_page), virt_to_phys(code_page),
 		virt_to_phys(first_desc), QKX_ENTRY, QKX_DTB);
 release_devices:
-	if (syncboss_suspended && syncboss && syncboss->driver &&
-	    syncboss->driver->pm && syncboss->driver->pm->resume)
-		syncboss->driver->pm->resume(syncboss);
-	if (wakeup_suppressor) {
-		atomic_set(&qkx_suppress_wakeup_abort, 0);
-		kthread_stop(wakeup_suppressor);
-		atomic_set(qkx_pm_abort_suspend, 0);
-	}
+	/* Call PM resume in reverse order before thawing user processes.
+	 * A failed suspend may have changed hardware, so resume attempts too.
+	 * These callbacks can defer work or hide internal errors: return zero
+	 * is not proof that hardware has recovered.
+	 */
+	if (syncboss_attempted && syncboss->driver->pm->resume(syncboss))
+		panic("quest_kexec: Syncboss rollback failed; refusing to thaw apps");
+	if (gpu_attempted && gpu_resume(gpu))
+		panic("quest_kexec: GPU rollback failed; refusing to thaw apps");
+	if (users_frozen)
+		thaw_users();
 	if (sleep_locked)
 		sleep_unlock();
 	if (wdt_regs)
@@ -1111,6 +1126,12 @@ static int __init qkx_init(void)
 	ret = -EINVAL;
 	if (get_unaligned_be32(dh) != 0xd00dfeed || get_unaligned_be32(dh + 4) != dsize)
 		goto out;
+	/* Rehearsals use owned scratch pages and never copy to the fixed window. */
+	if (execute && !preflight_only) {
+		ret = qkx_claim_destination();
+		if (ret)
+			goto out;
+	}
 	ret = qkx_stage(kf, QKX_ENTRY, ksize, PAGE_ALIGN(image_size));
 	if (!ret)
 		ret = qkx_stage(rf, QKX_INITRD, rsize, PAGE_ALIGN(rsize));

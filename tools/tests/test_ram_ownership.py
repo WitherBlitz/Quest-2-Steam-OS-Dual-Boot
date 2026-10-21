@@ -1,0 +1,61 @@
+"""Run actual allocator-ownership/lifetime helpers with host page API doubles."""
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import unittest
+
+from test_loader_safety import ROOT, function
+
+
+class RamOwnershipTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        compiler = os.environ.get("HOST_TEST_CC") or shutil.which("cc") or shutil.which("clang")
+        if not compiler:
+            raise RuntimeError("Set HOST_TEST_CC to a host C compiler")
+        loader = (ROOT / "module/loader.c").read_text()
+        # Before the feature exists the loader has no claim operation at all.
+        claim = (function(loader, "qkx_claim_destination") if "qkx_claim_destination(" in loader
+                 else "static int qkx_claim_destination(void) { return 0; }")
+        release = function(loader, "qkx_release")
+        harness = Path(__file__).with_name("ram_ownership_harness.c").read_text()
+        cls.temp = tempfile.TemporaryDirectory(prefix="qkx-ram-test-")
+        cls.addClassCleanup(cls.temp.cleanup)
+        source = Path(cls.temp.name) / "ram.c"
+        source.write_text(harness.replace("/* PRODUCTION */", claim + "\n" + release))
+        cls.binary = Path(cls.temp.name) / ("ram.exe" if os.name == "nt" else "ram")
+        linker = ["-fuse-ld=lld"] if os.name == "nt" else []
+        result = subprocess.run([compiler, *linker, "-std=gnu11", "-Werror", str(source),
+                                 "-o", str(cls.binary)], capture_output=True, text=True)
+        if result.returncode:
+            raise RuntimeError(result.stdout + result.stderr)
+
+    def case(self, case):
+        result = subprocess.run([str(self.binary), case], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_success_holds_full_window_until_release(self):
+        self.case("success")
+
+    def test_busy_range_is_never_owned_or_freed(self):
+        self.case("busy")
+
+    def test_missing_allocator_or_release_hook_rejected(self):
+        self.case("missing")
+
+    def test_unmapped_pfn_never_reaches_allocator(self):
+        self.case("hole")
+
+    def test_reserved_page_never_reaches_allocator(self):
+        self.case("reserved")
+
+    def test_cross_zone_range_rejected(self):
+        self.case("zone")
+
+    def test_cma_or_other_nonmovable_pageblock_rejected(self):
+        self.case("cma")
+
+    def test_failed_claim_does_not_leak_staging_allocations(self):
+        self.case("staging_cleanup")
