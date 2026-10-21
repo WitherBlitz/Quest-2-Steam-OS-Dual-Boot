@@ -7,7 +7,7 @@ The patched Android kernel module has **been rebuilt and its symbol versions
 verified**. Separate RAM-only attempts refused the original fixed destination
 and one capture-planned window above 4 GiB with `-EBUSY`; neither acquired RAM
 ownership or ran a payload. The latest attempt preserved the boot, CPUs and stock
-modules; the user confirmed normal Home/tracking after the earlier attempts. This
+modules; the user confirmed normal Home/tracking after the recorded attempts. This
 branch does not provide a complete SteamOS port, validated dual boot, or full
 tracking.
 
@@ -196,8 +196,9 @@ failed init left no project module resident. The unique temporary file was
 hash-checked, removed and confirmed absent. The same boot, CPUs 0-7, 20 stock
 module names, root access and taint 5124 were preserved. The captured log
 difference contained no matched panic, BUG, WARNING, OOM, unhandled fault or
-SMMU/KGSL fault/error. Functional Home/tracking feedback is pending. No retry,
-other window, payload, shutdown, reboot or flash was attempted.
+SMMU/KGSL fault/error. The user subsequently confirmed Home and head/controller
+tracking remained normal. No retry, other window, payload, shutdown, reboot or
+flash was attempted.
 
 ### Selected high-RAM candidate: on-headset result
 
