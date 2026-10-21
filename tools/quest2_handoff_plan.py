@@ -57,7 +57,9 @@ def payload_requirements(image, initramfs, dtb):
                         "dtb_address": dtb_offset, "dtb_end": dtb_offset + len(dtb)},
             "legacy_format_compatible": (offset == 0x80000 and memory <= 0x2f80000 and
                                          len(initramfs) <= 0x200000),
-            "requires_loader_port": True,
+            "native_window_limit_bytes": 0x4000000,
+            "requires_loader_port": window > 0x4000000,
+            "requires_payload_validation": True,
             "scope": "Copy destinations only; headers/sizes do not validate target DT contents, "
                      "total OS working RAM, source staging, secure ownership or DMA shutdown"}
 
@@ -217,9 +219,11 @@ def plan(tree, iomem, *, exclude_blocks=(), payload=None):
         compact["candidates"] = ([] if blockers else
                                  candidates(ram, excluded, compact["window_bytes"], compact["offsets"]))
         compact["blockers"] = blockers + [
-            "Compact layout requires a coordinated loader/staging port; ram_base changes only the "
-            "fixed 52 MiB base",
+            "Compact staging requires payload_base and a validated matching DTB; ram_base and "
+            "ram_bytes select only a RAM diagnostic, not payload relocation",
             "Native RAM ownership, target DT preservation and hardware shutdown remain unproven"]
+        if compact["requires_loader_port"]:
+            compact["blockers"].append("Copy envelope exceeds the native loader's 64 MiB limit")
         if not compact["candidates"] and not blockers:
             compact["blockers"].append("No conservatively usable compact copy extent found")
     ram_blockers = blockers + ([] if fixed or blockers else

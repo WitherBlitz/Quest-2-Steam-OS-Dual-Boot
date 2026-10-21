@@ -221,7 +221,8 @@ class HandoffPlanTests(unittest.TestCase):
         self.assertEqual(p["image"]["sha256"], hashlib.sha256(parts[0]).hexdigest())
         self.assertEqual(p["window_bytes"], 0x2400000)
         self.assertFalse(p["legacy_format_compatible"])
-        self.assertTrue(p["requires_loader_port"])
+        self.assertFalse(p["requires_loader_port"])
+        self.assertTrue(p["requires_payload_validation"])
 
     def test_compact_layout_fits_before_busy_block_without_changing_probe_size(self):
         p = self.planned(exclude_blocks=[(0x102c00000, 0x103000000)], parts=payload())
@@ -233,7 +234,7 @@ class HandoffPlanTests(unittest.TestCase):
         self.assertLessEqual(c["dtb_end"], c["end"])
         self.assertEqual(c["dtb_address"] % 8, 0)
         self.assertEqual(c["ownership"], "unclaimed")
-        self.assertTrue(p["payload"]["requires_loader_port"])
+        self.assertFalse(p["payload"]["requires_loader_port"])
         self.assertEqual(p["ram"]["candidates"][0]["base"], 0x103000000)
         self.assertEqual(p["status"], "HANDOFF_BLOCKED")
         self.assertFalse(p["dma"]["quiesced"])
@@ -243,6 +244,11 @@ class HandoffPlanTests(unittest.TestCase):
         self.assertEqual(p["payload"]["status"], "MISSING_INPUTS")
         self.assertEqual(p["payload"]["candidates"], [])
         self.assertTrue(p["payload"]["blockers"])
+
+    def test_layout_above_native_envelope_limit_still_requires_a_port(self):
+        p = self.sized(payload(memory=0x4000000))
+        self.assertTrue(p["requires_loader_port"])
+        self.assertEqual(p["native_window_limit_bytes"], 0x4000000)
 
     def test_compact_plan_can_fit_when_fixed_diagnostic_does_not(self):
         p = self.planned(parts=payload(), iomem="100000000-102bfffff : System RAM\n")

@@ -52,6 +52,8 @@ static bool execute;
 static bool validate_ram;
 static bool ram_diagnose;
 static unsigned long long ram_base;
+static unsigned long long ram_bytes;
+static unsigned long long payload_base;
 static bool preserve_watchdog;
 static bool watchdog_recovery;
 static bool watchdog_control;
@@ -77,6 +79,10 @@ module_param(ram_diagnose, bool, 0);
 MODULE_PARM_DESC(ram_diagnose, "With validate_ram only: temporarily observe native allocator returns; never bypass refusal");
 module_param(ram_base, ullong, 0);
 MODULE_PARM_DESC(ram_base, "Diagnostic base with validate_ram only; zero selects the original fixed window; never relocates payloads");
+module_param(ram_bytes, ullong, 0);
+MODULE_PARM_DESC(ram_bytes, "With validate_ram only: aligned claim length, maximum 64 MiB; zero retains 52 MiB");
+module_param(payload_base, ullong, 0);
+MODULE_PARM_DESC(payload_base, "Hollywood compact staging base; zero retains legacy layout; does not enable handoff");
 module_param(preserve_watchdog, bool, 0);
 module_param(watchdog_recovery, bool, 0);
 module_param(watchdog_control, bool, 0);
@@ -117,6 +123,7 @@ static struct page **owned;
 static unsigned int nr_owned, nr_copies;
 static bool destination_owned;
 static u64 destination_lo = QKX_LO, destination_hi = QKX_HI;
+static u64 payload_entry = QKX_ENTRY, payload_initrd = QKX_INITRD, payload_dtb = QKX_DTB;
 static void (*release_destination)(unsigned long, unsigned int);
 
 #define QKX_QMP_LINK_DOWN 0xFFFF0000
@@ -207,6 +214,148 @@ static int qkx_resolve(void)
 	lookup = (void *)kp.addr;
 	unregister_kprobe(&kp);
 	return 0;
+}
+
+static int qkx_select_destination(u64 base, u64 bytes)
+{
+	u64 alignment = max_t(unsigned long, MAX_ORDER_NR_PAGES,
+			      pageblock_nr_pages) * PAGE_SIZE;
+
+	if (!bytes || bytes > 0x4000000ULL || !IS_ALIGNED(base, alignment) ||
+	    !IS_ALIGNED(bytes, alignment) || base > ~0ULL - bytes)
+		return -EINVAL;
+	destination_lo = base;
+	destination_hi = base + bytes;
+	return 0;
+}
+
+static int qkx_payload_layout(const u8 *kh, u64 ksize, u64 rsize, u64 dsize)
+{
+	u64 memory = get_unaligned_le64(kh + 16);
+	u64 offset = get_unaligned_le64(kh + 8);
+	u64 flags = get_unaligned_le64(kh + 24);
+	u64 rd, dt, bytes;
+	int ret;
+
+	if (ksize < 64 || ksize > 0x4000000ULL || !rsize || rsize > 0x4000000ULL ||
+	    dsize < 40 || dsize > SZ_2M || memcmp(kh + 56, "ARM\x64", 4) ||
+	    memory < ksize || memory > 0x4000000ULL || offset >= SZ_2M ||
+	    !IS_ALIGNED(offset, PAGE_SIZE) || (flags & ~0xfULL) ||
+	    (flags & 1) || !(flags & 8) || ((flags & 6) != 0 && (flags & 6) != 2))
+		return -EINVAL;
+	if (!payload_base) {
+		if (offset != SZ_512K || memory > QKX_INITRD - QKX_ENTRY || rsize > SZ_2M)
+			return -EINVAL;
+		ret = qkx_select_destination(QKX_LO, QKX_HI - QKX_LO);
+		if (ret)
+			return ret;
+		payload_entry = QKX_ENTRY;
+		payload_initrd = QKX_INITRD;
+		payload_dtb = QKX_DTB;
+		return 0;
+	}
+	/* Bounded sizes make these relative additions safe. The envelope includes
+	 * page-rounded DTB copies, not just the DTB's exact file length.
+	 */
+	rd = PAGE_ALIGN(offset + memory);
+	dt = PAGE_ALIGN(rd + rsize);
+	bytes = ALIGN(dt + dsize, 0x400000ULL);
+	ret = qkx_select_destination(payload_base, bytes);
+	if (ret)
+		return ret;
+	payload_entry = payload_base + offset;
+	payload_initrd = payload_base + rd;
+	payload_dtb = payload_base + dt;
+	return 0;
+}
+
+/* Bounded, canonical v17 FDT structure check and compact initrd contract.
+ * Does not certify board compatibility, reservations or device shutdown.
+ */
+static int qkx_check_dtb(const u8 *b, u64 size, u64 rsize)
+{
+	u32 pos, end, strings, slen, reserve, depth = 0, seen = 0;
+	bool root = false, chosen = false, chosen_seen = false, terminated = false;
+	bool children[64] = { false };
+
+	if (size < 40 || size > SZ_2M || get_unaligned_be32(b) != 0xd00dfeed ||
+	    get_unaligned_be32(b + 4) != size || get_unaligned_be32(b + 20) != 17 ||
+	    get_unaligned_be32(b + 24) > 17)
+		return -EINVAL;
+	pos = get_unaligned_be32(b + 8);
+	strings = get_unaligned_be32(b + 12);
+	reserve = get_unaligned_be32(b + 16);
+	slen = get_unaligned_be32(b + 32);
+	if (reserve < 40 || !IS_ALIGNED(reserve, 8) || reserve >= pos ||
+	    !IS_ALIGNED(pos, 4) || pos > strings || strings > size || slen > size - strings ||
+	    get_unaligned_be32(b + 36) > strings - pos)
+		return -EINVAL;
+	end = pos + get_unaligned_be32(b + 36);
+	while (reserve + 16 <= pos) {
+		u64 addr = get_unaligned_be64(b + reserve);
+		u64 len = get_unaligned_be64(b + reserve + 8);
+
+		reserve += 16;
+		if (!addr && !len) { terminated = true; break; }
+		if (!len || addr > ~0ULL - len)
+			return -EINVAL;
+	}
+	if (!terminated)
+		return -EINVAL;
+	while (pos + 4 <= end) {
+		u32 token = get_unaligned_be32(b + pos);
+
+		pos += 4;
+		if (token == 1) {
+			u32 name = pos;
+
+			while (pos < end && b[pos]) pos++;
+			if (pos == end || depth >= 64 || (!depth && (root || pos != name)))
+				return -EINVAL;
+			if (depth) children[depth - 1] = true;
+			children[depth] = false;
+			if (!depth) root = true;
+			if (depth == 1 && ((pos - name == 6 && !memcmp(b + name, "chosen", 6)) ||
+			    (pos - name == 8 && !memcmp(b + name, "chosen@0", 8)))) {
+				if (chosen_seen) return -EINVAL;
+				chosen_seen = chosen = true;
+			}
+			depth++;
+			pos = ALIGN(pos + 1, 4);
+		} else if (token == 2) {
+			if (!depth) return -EINVAL;
+			if (depth == 2) chosen = false;
+			depth--;
+		} else if (token == 3) {
+			u32 len, name, stop, bit = 0;
+			u64 value;
+
+			if (!depth || children[depth - 1] || end - pos < 8) return -EINVAL;
+			len = get_unaligned_be32(b + pos);
+			name = get_unaligned_be32(b + pos + 4);
+			pos += 8;
+			if (len > end - pos || name >= slen) return -EINVAL;
+			stop = name;
+			while (stop < slen && b[strings + stop]) stop++;
+			if (stop == slen) return -EINVAL;
+			if (chosen && depth == 2) {
+				if (stop - name == 18 && !memcmp(b + strings + name, "linux,initrd-start", 18)) bit = 1;
+				if (stop - name == 16 && !memcmp(b + strings + name, "linux,initrd-end", 16)) bit = 2;
+			}
+			if (bit) {
+				if ((seen & bit) || (len != 4 && len != 8)) return -EINVAL;
+				value = len == 8 ? get_unaligned_be64(b + pos) : get_unaligned_be32(b + pos);
+				if (value != payload_initrd + (bit == 2 ? rsize : 0)) return -EINVAL;
+				seen |= bit;
+			}
+			pos += ALIGN(len, 4);
+		} else if (token == 9) {
+			return root && !depth && seen == 3 && pos == end ? 0 : -EINVAL;
+		} else if (token != 4) {
+			return -EINVAL;
+		}
+	}
+	return -EINVAL;
 }
 
 enum qkx_ram_stage {
@@ -396,7 +545,7 @@ static void *qkx_page(void)
 			return NULL;
 		owned[nr_owned++] = page;
 		pa = page_to_phys(page);
-		if (pa < QKX_LO || pa >= QKX_HI)
+		if (pa < destination_lo || pa >= destination_hi)
 			return page_address(page);
 	}
 	return NULL;
@@ -451,7 +600,8 @@ static int qkx_read(struct file *f, void *buf, size_t size, loff_t *pos)
 	return 0;
 }
 
-static int qkx_stage(struct file *f, u64 dest, u64 file_size, u64 mem_size)
+static int qkx_stage(struct file *f, u64 dest, u64 file_size, u64 mem_size,
+		     const void *buffer)
 {
 	loff_t pos = 0;
 	u64 off;
@@ -462,7 +612,12 @@ static int qkx_stage(struct file *f, u64 dest, u64 file_size, u64 mem_size)
 		if (!page)
 			return -ENOMEM;
 		if (off < file_size) {
-			ret = qkx_read(f, page, min_t(u64, PAGE_SIZE, file_size - off), &pos);
+			if (buffer) {
+				memcpy(page, buffer + off, min_t(u64, PAGE_SIZE, file_size - off));
+				ret = 0;
+			} else {
+				ret = qkx_read(f, page, min_t(u64, PAGE_SIZE, file_size - off), &pos);
+			}
 			if (ret)
 				return ret;
 			crc = crc32_le(crc, page, min_t(u64, PAGE_SIZE, file_size - off));
@@ -533,16 +688,10 @@ static int qkx_validate_ram(void)
 	if (of_property_read_string(of_root, "model", &model) ||
 	    strncmp(model, "Hollywood", 9))
 		return -ENODEV;
-	if (ram_base) {
-		u64 alignment = max_t(unsigned long, MAX_ORDER_NR_PAGES,
-				      pageblock_nr_pages) * PAGE_SIZE;
-
-		if (!IS_ALIGNED(ram_base, alignment) ||
-		    ram_base > ~0ULL - (QKX_HI - QKX_LO))
-			return -EINVAL;
-		destination_lo = ram_base;
-		destination_hi = ram_base + (QKX_HI - QKX_LO);
-	}
+	ret = qkx_select_destination(ram_base ? ram_base : QKX_LO,
+				     ram_bytes ? ram_bytes : QKX_HI - QKX_LO);
+	if (ret)
+		return ret;
 	ret = qkx_resolve();
 	if (ret)
 		return ret;
@@ -1162,7 +1311,7 @@ static int __maybe_unused qkx_execute(void)
 		__flush_dcache_area(page_address(owned[i]), PAGE_SIZE);
 	__flush_icache_range((unsigned long)code_page, (unsigned long)code_page + PAGE_SIZE);
 	qkx_enter(virt_to_phys(pgd_page), virt_to_phys(code_page),
-		virt_to_phys(first_desc), QKX_ENTRY, QKX_DTB);
+		virt_to_phys(first_desc), payload_entry, payload_dtb);
 release_devices:
 	/* Call PM resume in reverse order before thawing user processes.
 	 * Adreno suspend can partially change state on error, so resume attempts.
@@ -1255,7 +1404,8 @@ static int __init qkx_init(void)
 {
 	struct file *kf = NULL, *rf = NULL, *df = NULL;
 	u8 kh[64], dh[40];
-	u64 ksize, rsize, dsize, image_size, flags;
+	u64 ksize, rsize, dsize, image_size;
+	void *dbuf = NULL;
 	loff_t pos = 0;
 	int ret;
 	int (*walk_ram)(u64, u64, void *, int (*)(struct resource *, void *));
@@ -1269,7 +1419,9 @@ static int __init qkx_init(void)
 		return -EINVAL;
 	if (test_full_copy && (execute || test_transition || test_cpus))
 		return -EINVAL;
-	if ((ram_base || ram_diagnose) && !validate_ram)
+	if ((ram_base || ram_bytes || ram_diagnose) && !validate_ram)
+		return -EINVAL;
+	if (payload_base && validate_ram)
 		return -EINVAL;
 	if (validate_ram && (execute || preserve_watchdog || watchdog_recovery ||
 	    watchdog_control || test_transition || test_full_copy || test_cpus ||
@@ -1289,6 +1441,12 @@ static int __init qkx_init(void)
 		return -ENODEV;
 	if (validate_ram)
 		return qkx_validate_ram();
+	if (payload_base) {
+		const char *model;
+
+		if (of_property_read_string(of_root, "model", &model) || strncmp(model, "Hollywood", 9))
+			return -ENODEV;
+	}
 	if ((execute && preflight_only != 1) || test_transition || test_full_copy ||
 	    test_cpus || warm_reset_test || core_hang_control || secure_watchdog_control ||
 	    preserve_watchdog || flush_rpmh || suspend_syncboss || disconnect_qmp) {
@@ -1324,13 +1482,6 @@ static int __init qkx_init(void)
 	walk_ram = (void *)lookup("walk_system_ram_res");
 	if (!walk_ram)
 		return -ENOENT;
-	ret = walk_ram(QKX_LO, QKX_HI - 1, NULL, qkx_ram_cb);
-	if (ret || !ram_found)
-		return -ERANGE;
-	/* Host prepare_boot.py also rejects nested reserved iomem regions. */
-	owned = vzalloc(QKX_MAX_PAGES * sizeof(*owned));
-	if (!owned)
-		return -ENOMEM;
 	kf = qkx_open(image);
 	if (IS_ERR(kf)) { ret = PTR_ERR(kf); kf = NULL; goto out; }
 	rf = qkx_open(initrd);
@@ -1341,18 +1492,26 @@ static int __init qkx_init(void)
 	rsize = i_size_read(file_inode(rf));
 	dsize = i_size_read(file_inode(df));
 	ret = -EINVAL;
-	if (ksize < sizeof(kh) || !rsize || rsize > SZ_2M || dsize < sizeof(dh) || dsize > SZ_2M)
+	if (ksize < sizeof(kh) || ksize > 0x4000000ULL || !rsize ||
+	    rsize > 0x4000000ULL || dsize < sizeof(dh) || dsize > SZ_2M)
 		goto out;
 	ret = qkx_read(kf, kh, sizeof(kh), &pos);
 	if (ret)
 		goto out;
 	image_size = get_unaligned_le64(kh + 16);
-	flags = get_unaligned_le64(kh + 24);
-	ret = -EINVAL;
-	if (memcmp(kh + 56, "ARM\x64", 4) || get_unaligned_le64(kh + 8) != SZ_512K ||
-	    image_size < ksize || image_size > QKX_INITRD - QKX_ENTRY ||
-	    (flags & 1) || !(flags & 8) || ((flags & 6) != 0 && (flags & 6) != 2))
+	ret = qkx_payload_layout(kh, ksize, rsize, dsize);
+	if (ret)
 		goto out;
+	ret = walk_ram(destination_lo, destination_hi - 1, NULL, qkx_ram_cb);
+	if (ret || !ram_found) {
+		ret = -ERANGE;
+		goto out;
+	}
+	owned = vzalloc(QKX_MAX_PAGES * sizeof(*owned));
+	if (!owned) {
+		ret = -ENOMEM;
+		goto out;
+	}
 	pos = 0;
 	ret = qkx_read(df, dh, sizeof(dh), &pos);
 	if (ret)
@@ -1360,26 +1519,35 @@ static int __init qkx_init(void)
 	ret = -EINVAL;
 	if (get_unaligned_be32(dh) != 0xd00dfeed || get_unaligned_be32(dh + 4) != dsize)
 		goto out;
+	if (payload_base) {
+		dbuf = vzalloc(dsize);
+		if (!dbuf) { ret = -ENOMEM; goto out; }
+		pos = 0;
+		ret = qkx_read(df, dbuf, dsize, &pos);
+		if (!ret) ret = qkx_check_dtb(dbuf, dsize, rsize);
+		if (ret) goto out;
+	}
 	/* Rehearsals use owned scratch pages and never copy to the fixed window. */
 	if (execute && !preflight_only) {
 		ret = qkx_claim_destination();
 		if (ret)
 			goto out;
 	}
-	ret = qkx_stage(kf, QKX_ENTRY, ksize, PAGE_ALIGN(image_size));
+	ret = qkx_stage(kf, payload_entry, ksize, PAGE_ALIGN(image_size), NULL);
 	if (!ret)
-		ret = qkx_stage(rf, QKX_INITRD, rsize, PAGE_ALIGN(rsize));
+		ret = qkx_stage(rf, payload_initrd, rsize, PAGE_ALIGN(rsize), NULL);
 	if (!ret)
-		ret = qkx_stage(df, QKX_DTB, dsize, PAGE_ALIGN(dsize));
+		ret = qkx_stage(df, payload_dtb, dsize, PAGE_ALIGN(dsize), dbuf);
 	if (!ret)
 		ret = qkx_identity_map();
 out:
+	vfree(dbuf);
 	if (kf) filp_close(kf, NULL);
 	if (rf) filp_close(rf, NULL);
 	if (df) filp_close(df, NULL);
 	if (!ret) {
 		pr_info("quest_kexec: staged %u copy pages, %u allocations; entry=%llx dtb=%llx; execute=%u\n",
-			nr_copies, nr_owned, QKX_ENTRY, QKX_DTB, execute);
+			nr_copies, nr_owned, payload_entry, payload_dtb, execute);
 		if (test_transition)
 			ret = qkx_test_transition();
 		if (test_full_copy)

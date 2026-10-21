@@ -32,7 +32,7 @@ static void test_log(const char *fmt, ...)
 typedef uint64_t u64;
 typedef unsigned int gfp_t;
 static bool validate_ram, ram_diagnose, execute, preserve_watchdog, watchdog_recovery, watchdog_control;
-static unsigned long long ram_base;
+static unsigned long long ram_base, ram_bytes, payload_base;
 static u64 destination_lo = QKX_LO, destination_hi = QKX_HI;
 static bool test_transition, test_full_copy, post_shutdown_probe, warm_reset_test;
 static bool flush_rpmh, suspend_syncboss, disconnect_qmp;
@@ -61,7 +61,8 @@ static void *first_desc, *last_desc;
 static bool destination_owned;
 static void (*release_destination)(unsigned long, unsigned int);
 static int no_alloc, no_free, no_flags, no_probe, result, alloc_calls, free_calls, page_frees;
-static unsigned long allocated_start, released_start;
+static unsigned long allocated_start, released_start, allocated_end;
+static unsigned int expected_pages = 13312;
 static int hole, reserved, cross_zone, cma, wrong_args;
 struct task_struct { int id; };
 static struct task_struct caller, stranger, *current = &caller;
@@ -105,11 +106,12 @@ static int alloc_range(unsigned long start, unsigned long end, unsigned int mt, 
 {
     alloc_calls++;
     allocated_start = start;
+    allocated_end = end;
     wrong_args |= start != (destination_lo >> PAGE_SHIFT) || end != (destination_hi >> PAGE_SHIFT) || mt != 2 || gfp != 0x10;
     return result;
 }
 static void free_range(unsigned long start, unsigned int n)
-{ free_calls++; released_start = start; wrong_args |= start != (destination_lo >> PAGE_SHIFT) || n != 13312; }
+{ free_calls++; released_start = start; wrong_args |= start != (destination_lo >> PAGE_SHIFT) || n != expected_pages; }
 static uintptr_t lookup(const char *s)
 {
     if (!strcmp(s, "alloc_contig_range")) return no_alloc ? 0 : (uintptr_t)alloc_range;
@@ -130,6 +132,35 @@ int main(int argc, char **argv)
     unsigned int i;
     int ret;
     for (i = 0; i < 13312; i++) pages[i].pfn = 0x90000+i;
+    if (!strcmp(c, "length_without_validation")) {
+        ram_bytes = 0x2400000;
+        CHECK(init_validation() == -EINVAL && !resolve_calls && !alloc_calls);
+        return 0;
+    }
+    if (!strcmp(c, "validate_payload_conflict")) {
+        validate_ram = true; payload_base = 0x100000000ULL;
+        CHECK(init_validation() == -EINVAL && !resolve_calls && !alloc_calls);
+        return 0;
+    }
+    if (!strcmp(c, "validate_compact")) {
+        validate_ram = true; ram_base = 0x100000000ULL; ram_bytes = 0x2400000;
+        expected_pages = 9216;
+        CHECK(init_validation() == 0 && alloc_calls == 1 && free_calls == 1 && !wrong_args);
+        CHECK(allocated_start == 0x100000 && allocated_end == 0x102400 && released_start == allocated_start);
+        CHECK(!destination_owned);
+        return 0;
+    }
+    if (!strcmp(c, "validate_bad_length")) {
+        const unsigned long long bad[] = {1, 0x2400001, 0x4400000, ~0ULL};
+        validate_ram = true; ram_base = 0x100000000ULL;
+        for (i = 0; i < sizeof(bad)/sizeof(bad[0]); i++) {
+            ram_bytes = bad[i];
+            CHECK(init_validation() == -EINVAL && !resolve_calls && !alloc_calls);
+        }
+        ram_bytes = 0x2400000; ram_base = ~0ULL - 0x3fffff;
+        CHECK(init_validation() == -EINVAL && !resolve_calls && !alloc_calls);
+        return 0;
+    }
     if (!strcmp(c, "base_without_validation")) {
         ram_base = 0x100000000ULL;
         CHECK(init_validation() == -EINVAL);

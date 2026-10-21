@@ -26,13 +26,15 @@ class RamOwnershipTests(unittest.TestCase):
         init = ("static int init_validation(void) { int ret;" + init[init.index('\n\tif (test_cpus'):]
                 + "\nreturn -ENOSYS;\n}")
         ram = function(loader, "qkx_ram_cb")
+        select = (function(loader, "qkx_select_destination") if "qkx_select_destination(" in loader
+                  else "static int qkx_select_destination(unsigned long long a, unsigned long long b) { return -ENOSYS; }")
         harness = Path(__file__).with_name("ram_ownership_harness.c").read_text()
         cls.temp = tempfile.TemporaryDirectory(prefix="qkx-ram-test-")
         cls.addClassCleanup(cls.temp.cleanup)
         source = Path(cls.temp.name) / "ram.c"
         gate = function(loader, "qkx_dma_gate")
         diagnostics = loader[loader.index("enum qkx_ram_stage {"):loader.index("static int qkx_claim_destination(")]
-        source.write_text(harness.replace("/* PRODUCTION */", "\n".join((diagnostics, claim, release, ram, validation, gate, init))))
+        source.write_text(harness.replace("/* PRODUCTION */", "\n".join((diagnostics, select, claim, release, ram, validation, gate, init))))
         cls.binary = Path(cls.temp.name) / ("ram.exe" if os.name == "nt" else "ram")
         linker = ["-fuse-ld=lld"] if os.name == "nt" else []
         result = subprocess.run([compiler, *linker, "-std=gnu11", "-Werror", str(source),
@@ -88,6 +90,18 @@ class RamOwnershipTests(unittest.TestCase):
 
     def test_selected_high_window_is_claimed_and_released_without_truncation(self):
         self.case("validate_high")
+
+    def test_compact_diagnostic_claims_and_releases_exactly_36_mib(self):
+        self.case("validate_compact")
+
+    def test_compact_length_is_bounded_aligned_and_cannot_overflow(self):
+        self.case("validate_bad_length")
+
+    def test_length_requires_ram_only_diagnostic(self):
+        self.case("length_without_validation")
+
+    def test_payload_base_cannot_mix_with_ram_only_diagnostic(self):
+        self.case("validate_payload_conflict")
 
     def test_candidate_base_overflow_and_alignment_fail_before_lookup(self):
         self.case("validate_bad_base")

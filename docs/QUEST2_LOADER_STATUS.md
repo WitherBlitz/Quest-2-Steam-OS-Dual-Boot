@@ -49,8 +49,9 @@ is recorded below; the earlier unpatched artifacts are separate.
   MMU, reset, core-hang and secure-watchdog tests. `QKX_EXPERIMENTAL=1` is a
   developer build opt-in, not evidence that execution is safe. The target-kernel
   patches and their logging assumptions have not been ported by this change.
-- A real jump now requires allocator ownership of the entire fixed 52 MiB
-  destination window. Before staging, the loader checks mapped/nonreserved PFNs,
+- A real jump requires allocator ownership of the entire destination window
+  (52 MiB in the default legacy layout; the compact source path derives its
+  bounded envelope from payload sizes). Before staging, the loader checks mapped/nonreserved PFNs,
   one zone, isolation alignment and ordinary MOVABLE pageblocks, then calls the
   pinned kernel's `alloc_contig_range`. Missing helpers, CMA/other pageblock
   types or allocation failure abort without shutdown. A successful claim remains
@@ -89,9 +90,9 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The full suite has 116 passing host tests: 21 readiness-collector tests, 27
-loader regression tests, 26 RAM-ownership tests, 27 handoff-planner tests and
-15 build-audit tests.
+The full suite has 136 passing host tests: 21 readiness-collector tests, 27
+loader regression tests, 30 RAM-ownership tests, 28 handoff-planner tests,
+15 native payload/layout tests and 15 build-audit tests.
 The RAM/shutdown regressions were observed failing before these changes.
 The original loader failed 9
 of the first 11 new regressions before the source fix. An independent source
@@ -444,15 +445,36 @@ layout, 52 MiB diagnostic, ABI references and Hollywood transition gate are
 unchanged. No new native build, RAM claim, module load or headset operation was
 performed. Every proposed range remains unclaimed and handoff remains blocked.
 
+## Native allocation length and payload relocation
+
+The [native layout contract](QUEST2_HANDOFF_STRATEGY.md#native-variable-length-diagnostic-and-compact-staging)
+adds diagnostic-only `ram_bytes` and a separate Hollywood `payload_base` compact
+staging option. Claim/release lengths, source-page exclusion, System RAM coverage,
+copy destinations and final entry/DTB arguments now use the selected layout.
+Legacy defaults and the Hollywood hardware-transition gate remain enforced.
+Compact staging rejects DTBs with malformed structures, hidden/duplicate chosen
+nodes or initrd properties inconsistent with the computed addresses, and stages
+the exact validated DTB buffer.
+
+The initial four length/option tests and nine layout/staging tests failed before
+implementation. Independent review then reproduced two FDT consumer mismatches:
+properties after child nodes and a preceding unchecked `/chosen@0`. Both have
+failing-then-passing regressions and are rejected by the corrected checker.
+The full 136-test host suite passes, including whole-initialization cleanup and
+experimental Hollywood gate coverage. Matching native build verification is
+pending; host doubles are not native ABI or hardware evidence. No headset
+operation has been performed in this phase.
+
 ## Remaining work
 
 The original fixed window and first capture-planned high window were refused.
 The instrumented attempt identifies initial pageblock isolation and an unmovable
 4 MiB block. Offline planning now accounts for caller-supplied observed blocks
-and supplied payload sizes. Next, establish a target Linux payload/DT and port
-the native claim length, staging/copy layout, DTB and physical entry together
-before considering a compact-window claim. Any live claim needs fresh evidence
-and a justified scope; the old `ram_base` parameter cannot test a 36 MiB extent.
+and supplied payload sizes. The native source now coordinates compact ownership
+and relocation. A built target Linux Image/initramfs and a prepared, reservation-
+preserving DTB still need validation before compact staging. Any live claim needs
+a verified native artifact, fresh evidence and a justified scope; `ram_base`
+alone retains the default 52 MiB length, while `ram_bytes` selects the test size.
 Snapshots alone cannot identify the refusing owner or prove other windows free.
 A usable reservation and complete payload/DTB/entry relocation remain unproven.
 Forcing busy pages or repeatedly guessing addresses is not a solution. DMA
@@ -471,7 +493,7 @@ The pinned shutdown implementation also sets these limits on future tests:
 
 | Area | Source evidence | Still needed before hardware readiness |
 | --- | --- | --- |
-| RAM | Fixed/high claims refused; instrumentation found an unmovable high block; offline compact proposals account for its observed range. | A target Linux payload/DT, coordinated variable-length ownership and relocation, an accepted reservation and preservation of secure/dynamic reservations. |
+| RAM | Fixed/high claims refused; an unmovable block is excluded in offline proposals; native source implements variable-length diagnostics and compact staging. | Verified native artifacts, a target Linux payload/DT, an accepted reservation and preservation of secure/dynamic reservations. |
 | GPU/Syncboss | PM callbacks can defer work or hide errors. | Completion and failure detection on this firmware, including rollback. |
 | USB | Gadget suspend stops/disconnects gadget traffic. | Controller/glue DMA quiescence and target USB reprobe. |
 | Storage | UFS shutdown drains requests and powers down the link, but returns zero even after logged errors. | Observed shutdown completion and target reinitialization; no shutdown bypass is implemented here. |

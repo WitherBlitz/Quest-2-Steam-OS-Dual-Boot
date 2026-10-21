@@ -40,19 +40,19 @@ native allocator diagnostic:
    supports accounting for observed unmovable blocks before another placement
    design, rather than repeating this layout unchanged.
    Capture age and firmware-owned memory absent from DT/resources remain limits.
-4. `validate_ram=1` optionally accepts `ram_base` for one selected window.
-   Zero retains the original base. The module checks overflow, native isolation
+4. `validate_ram=1` optionally accepts `ram_base` and `ram_bytes` for one selected
+   window. Zero retains the original base and 52 MiB length respectively.
+   Lengths are bounded to 64 MiB. The module checks overflow, native isolation
    alignment, Hollywood identity, System RAM coverage, mapped/nonreserved PFNs,
    one zone and ordinary MOVABLE pageblocks before `alloc_contig_range`.
    CMA remains rejected. A successful claim is immediately released using its
    exact original PFNs; a refusal never frees unowned pages. No scan, fallback,
    retry, payload open or shutdown occurs. Allocation may migrate/reclaim pages
    and has no hard real-time deadline.
-5. `ram_base` is rejected without `validate_ram`. It **does not relocate** the
-   payload, initrd, DTB, staging exclusion or physical entry. Those still use the
-   old fixed layout and must be ported together after a viable reservation is
-   observed. An accepted diagnostic address cannot be used as a boot address
-   merely by changing this parameter.
+5. `ram_base` and `ram_bytes` are rejected without `validate_ram`. They **do not
+   relocate** payloads and cannot combine with `payload_base`. An accepted
+   diagnostic range does not become a boot layout by changing these parameters.
+   Compact staging has its own opt-in contract below.
 6. Optional `ram_diagnose=1` adds task/range-filtered return observations around
    the same single claim. All required probes must register before allocation;
    partial failure unwinds, and all observers are removed before init returns.
@@ -121,15 +121,48 @@ selected runtime target DT**. It yielded:
 | Existing 52 MiB diagnostic | `[0x103000000, 0x106400000)` | Avoids the observed block; no allocation attempted. |
 | Compact 36 MiB copy proposal | `[0x100000000, 0x102400000)` | Reference sizing fits before that block; requires a loader port. |
 
-The reference ramdisk exceeds the current loader's 2 MiB limit. Even inputs
-compatible with the old format require a coordinated native copy/staging,
-claim/release, DTB and entry-address port to use the compact arrangement.
-`ram.candidates` and `ram_base` retain the fixed **52 MiB** diagnostic contract;
-neither consumes `payload.candidates`. The report remains `HANDOFF_BLOCKED`,
+The reference ramdisk exceeds the legacy loader format's 2 MiB limit. At this
+offline-planning stage the native compact port had not been implemented.
+`ram.candidates` still reports the default **52 MiB** diagnostic contract;
+it never automatically consumes `payload.candidates`. The report remains `HANDOFF_BLOCKED`,
 every candidate is unclaimed, and DMA quiescence remains false. Copy-envelope
 sizing does not account for total OS working RAM, source/staging allocations,
 target-DT preservation or hardware shutdown. No native rebuild or headset
 operation was performed in this host-only phase.
+
+## Native variable-length diagnostic and compact staging
+
+`ram_bytes` selects the RAM-only diagnostic's claim length. Zero retains 52 MiB;
+a nonzero value must satisfy the pinned allocator's isolation alignment (4 MiB
+on this kernel), be at most 64 MiB and not overflow with the base. Claim,
+observation, System RAM coverage and release use that exact selected range.
+Allocation refusal never frees unowned memory. This parameter does not open
+payload files or change the staging layout.
+
+For Hollywood staging, nonzero `payload_base` selects a separate compact layout
+derived from the Image header and file lengths. Kernel memory, page-rounded
+initramfs/DTB copies and the 4 MiB rounded ownership envelope must fit within
+64 MiB. The legacy layout remains the default. Image and initramfs files are
+bounded to 64 MiB each; DTBs remain bounded to 2 MiB. Oversize, unsupported
+Image flags/offsets, unaligned bases and overflowing layouts fail before staging.
+
+The selected envelope is used consistently for System RAM coverage, allocator
+claim/release, exclusion of source/descriptor/control pages, copy destinations
+and final entry/DTB arguments. Compact staging requires a canonical v17 DTB with
+one `/chosen` or `/chosen@0` node whose `linux,initrd-start` and `linux,initrd-end`
+match the computed addresses. Truncated structures, invalid strings/tokens,
+duplicates, properties after child nodes and mismatched initrd values fail.
+The validated DTB buffer supplies the staged bytes, avoiding a second file read
+that could change the checked addresses.
+
+These checks establish a copy-layout contract only. They do not validate the
+target kernel patches, Linux userspace, complete DT reservations, secure owners
+or hardware state. The host planner marks envelopes over 64 MiB as still needing
+a loader port and all inputs as needing payload validation. The legacy preparer
+`tools/prepare.py` still emits the old fixed layout and cannot prepare a compact
+DTB. `payload_base` does not rewrite the DTB. No deployment command is provided.
+The Hollywood hardware-transition gate remains enforced even in experimental
+builds; this work does not enable a jump or a headset allocation attempt.
 
 ## DMA shutdown handling
 
@@ -195,7 +228,10 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The full host suite has 116 tests, including 27 offline planner tests. The
+The full host suite has 136 tests, including 28 offline planner tests and 15
+native payload/layout tests. The latter compile actual layout, DTB, staging and
+initialization functions against host API doubles, including failed staging
+after a successful claim and compact-jump refusal before opening payloads. The
 planner regressions cover observed exclusions, declared-memory sizing, compact
 and fixed-layout separation, input bounds, holes/reservations, the 32 GiB window
 constraint and exclusive report output. No Python formatter/linter is configured;
