@@ -129,7 +129,7 @@ review found no Critical or Important issue. Minor follow-ups remain for
 inconsistent `phandle`/`linux,phandle` aliases and an aligned overflowing-base
 test input; neither changes the hardware refusal gate.
 
-[Actions run 39567877831](https://github.com/WitherBlitz/quest-kexec-q2/actions/runs/39567877831)
+[Archived Actions run 39567877831](https://github.com/WitherBlitz/Quest-2-Steam-OS-Port/releases/tag/old-fork-build-evidence)
 completed successfully from source commit
 `ce5dfce20a5fb830632f291ae3a44844da9b2bd5`. All 89 tests passed on Linux and
 the matching kernel and three modules built. Local checks reproduced the
@@ -147,7 +147,7 @@ build was not deployed; no high-window claim or DMA shutdown was attempted.
 
 ### RAM-ownership and shutdown rebuild
 
-[Actions run 39557599099](https://github.com/WitherBlitz/quest-kexec-q2/actions/runs/39557599099)
+[Archived Actions run 39557599099](https://github.com/WitherBlitz/Quest-2-Steam-OS-Port/releases/tag/old-fork-build-evidence)
 completed successfully from corrected source commit
 `cdfc84a4bc30d9cfcc997ea5f4713bba3c6dfc02`. All 63 host tests passed on Linux,
 and the matching kernel and three modules built without warning/error log lines.
@@ -180,7 +180,7 @@ completion when the Syncboss suspend-abort correction was identified.
 
 The RAM-only diagnostic and its seven new regressions passed the host suite.
 A fresh source review found no Critical or Important issue in this path.
-[Actions run 39562556932](https://github.com/WitherBlitz/quest-kexec-q2/actions/runs/39562556932)
+[Archived Actions run 39562556932](https://github.com/WitherBlitz/Quest-2-Steam-OS-Port/releases/tag/old-fork-build-evidence)
 completed successfully from source commit
 `6410b712e8a489b54d2d10c30bf004457844cf11`. All 70 tests passed on Linux and
 the matching kernel and three modules built. Local checks reproduced the ZIP
@@ -235,7 +235,7 @@ change the observed allocator refusal or establish hardware readiness.
 
 ### Earlier baseline
 
-[Actions run 39551869780](https://github.com/WitherBlitz/quest-kexec-q2/actions/runs/39551869780)
+[Archived Actions run 39551869780](https://github.com/WitherBlitz/Quest-2-Steam-OS-Port/releases/tag/old-fork-build-evidence)
 completed successfully from source commit
 `3668c76984ee4159f19f4f2018957be3c8693f34`. It built the matching kernel Image and
 modules, then the three patched out-of-tree modules with experimental jumping

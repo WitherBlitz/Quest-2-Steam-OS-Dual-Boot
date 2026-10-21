@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   build:
-    if: github.repository == 'WitherBlitz/quest-kexec-q2' && github.actor == 'WitherBlitz'
+    if: github.repository == 'WitherBlitz/Quest-2-Steam-OS-Port' && github.actor == 'WitherBlitz'
     runs-on: ubuntu-22.04
     timeout-minutes: 180
     steps:

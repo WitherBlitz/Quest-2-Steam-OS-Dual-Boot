@@ -1,6 +1,13 @@
 **To improve and hopefully finish  the goat who made this, feel free to use my improvements on the main branch or this code in any other way machachu56.**
 
-# Quest-KeXec
+# Quest 2 Steam OS Port
+
+The original project, [quest-kexec-q2](https://github.com/machachu56/quest-kexec-q2),
+was created by [machachu56](https://github.com/machachu56). This repository
+continues that work with the Quest 2 port improvements.
+
+The original Git history and branches are preserved. See the
+[migration record and archived build evidence](docs/REPOSITORY_MIGRATION.md).
 
 > **Quest 2 firmware-specific development branch:** default builds stage only;
 > hardware tests and jumping are disabled. The matching rebuild and ABI checks
