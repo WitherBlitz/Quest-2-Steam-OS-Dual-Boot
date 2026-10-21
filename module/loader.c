@@ -50,6 +50,7 @@ static char *initrd = "/data/local/tmp/qkx-initramfs";
 static char *dtb = "/data/local/tmp/qkx-boot.dtb";
 static bool execute;
 static bool validate_ram;
+static bool ram_diagnose;
 static unsigned long long ram_base;
 static bool preserve_watchdog;
 static bool watchdog_recovery;
@@ -72,6 +73,8 @@ module_param(dtb, charp, 0);
 module_param(execute, bool, 0);
 module_param(validate_ram, bool, 0);
 MODULE_PARM_DESC(validate_ram, "Hollywood-only one-window RAM claim/release test; no payload or shutdown");
+module_param(ram_diagnose, bool, 0);
+MODULE_PARM_DESC(ram_diagnose, "With validate_ram only: temporarily observe native allocator returns; never bypass refusal");
 module_param(ram_base, ullong, 0);
 MODULE_PARM_DESC(ram_base, "Diagnostic base with validate_ram only; zero selects the original fixed window; never relocates payloads");
 module_param(preserve_watchdog, bool, 0);
@@ -203,6 +206,129 @@ static int qkx_resolve(void)
 		return ret;
 	lookup = (void *)kp.addr;
 	unregister_kprobe(&kp);
+	return 0;
+}
+
+enum qkx_ram_stage {
+	QKX_RAM_ISOLATE, QKX_RAM_UNMOVABLE, QKX_RAM_TEST, QKX_RAM_FREE,
+	QKX_RAM_STAGES
+};
+
+struct qkx_ram_probe {
+	struct kretprobe probe;
+	unsigned int calls;
+	unsigned long result, failed_block;
+	bool failed;
+};
+
+static struct qkx_ram_probe qkx_ram_probes[] = {
+	{ .probe.kp.symbol_name = "start_isolate_page_range" },
+	{ .probe.kp.symbol_name = "has_unmovable_pages" },
+	{ .probe.kp.symbol_name = "test_pages_isolated" },
+	{ .probe.kp.symbol_name = "isolate_freepages_range" },
+};
+static struct task_struct *ram_diagnostic_task;
+static void (*remove_ram_probe)(struct kretprobe *);
+static unsigned int nr_ram_probes;
+
+/* Observe only this synchronous caller. Never write the target's registers.
+ * Probe allocations/timing can affect the attempt; this is not page ownership
+ * attribution for an earlier uninstrumented refusal.
+ */
+static int qkx_ram_probe_entry(struct kretprobe_instance *instance,
+			       struct pt_regs *regs)
+{
+	unsigned long pfn = 0;
+
+	if (current != READ_ONCE(ram_diagnostic_task))
+		return 1;
+	if (instance->rp == &qkx_ram_probes[QKX_RAM_UNMOVABLE].probe) {
+		pfn = page_to_pfn((struct page *)regs->regs[1]);
+		if (pfn < destination_lo >> PAGE_SHIFT ||
+		    pfn >= destination_hi >> PAGE_SHIFT)
+			return 1;
+	} else {
+		unsigned long start = regs->regs[0], end = regs->regs[1];
+
+		if (instance->rp == &qkx_ram_probes[QKX_RAM_FREE].probe) {
+			start = regs->regs[1];
+			end = regs->regs[2];
+		}
+		if (start != destination_lo >> PAGE_SHIFT ||
+		    end != destination_hi >> PAGE_SHIFT)
+			return 1;
+	}
+	*(unsigned long *)instance->data = pfn;
+	return 0;
+}
+
+static int qkx_ram_probe_return(struct kretprobe_instance *instance,
+				struct pt_regs *regs)
+{
+	struct qkx_ram_probe *state = container_of(instance->rp,
+						struct qkx_ram_probe, probe);
+
+	state->calls++;
+	state->result = regs_return_value(regs);
+	if (state == &qkx_ram_probes[QKX_RAM_UNMOVABLE] &&
+	    state->result && !state->failed) {
+		state->failed_block = *(unsigned long *)instance->data;
+		state->failed = true;
+	}
+	return 0;
+}
+
+static void qkx_ram_diag_stop(void)
+{
+	unsigned int i;
+
+	WRITE_ONCE(ram_diagnostic_task, NULL);
+	while (nr_ram_probes)
+		remove_ram_probe(&qkx_ram_probes[--nr_ram_probes].probe);
+	remove_ram_probe = NULL;
+	for (i = 0; i < QKX_RAM_STAGES; i++) {
+		struct qkx_ram_probe *state = &qkx_ram_probes[i];
+
+		if (i == QKX_RAM_FREE)
+			pr_info("quest_kexec: RAM diagnostic %s calls=%u result_pfn=%lx nmissed=%d kprobe_nmissed=%lu\n",
+				state->probe.kp.symbol_name, state->calls,
+				state->result, state->probe.nmissed, state->probe.kp.nmissed);
+		else
+			pr_info("quest_kexec: RAM diagnostic %s calls=%u result=%d nmissed=%d kprobe_nmissed=%lu\n",
+				state->probe.kp.symbol_name, state->calls,
+				(int)state->result, state->probe.nmissed, state->probe.kp.nmissed);
+		if (state->failed)
+			pr_info("quest_kexec: RAM diagnostic unmovable block starts at PFN %lx; exact busy page/owner unknown\n",
+				state->failed_block);
+	}
+}
+
+static int qkx_ram_diag_start(void)
+{
+	int (*add)(struct kretprobe *) = (void *)lookup("register_kretprobe");
+	unsigned int i;
+	int ret;
+
+	remove_ram_probe = (void *)lookup("unregister_kretprobe");
+	if (!add || !remove_ram_probe)
+		return -ENOENT;
+	for (i = 0; i < QKX_RAM_STAGES; i++) {
+		struct kretprobe *probe = &qkx_ram_probes[i].probe;
+
+		probe->handler = qkx_ram_probe_return;
+		probe->entry_handler = qkx_ram_probe_entry;
+		probe->data_size = sizeof(unsigned long);
+		probe->maxactive = 16;
+		ret = add(probe);
+		if (ret) {
+			pr_err("quest_kexec: RAM diagnostic registration failed for %s: %d; no claim\n",
+				probe->kp.symbol_name, ret);
+			qkx_ram_diag_stop();
+			return ret;
+		}
+		nr_ram_probes++;
+	}
+	WRITE_ONCE(ram_diagnostic_task, current);
 	return 0;
 }
 
@@ -426,6 +552,11 @@ static int qkx_validate_ram(void)
 	ret = walk_ram(destination_lo, destination_hi - 1, NULL, qkx_ram_cb);
 	if (ret || !ram_found)
 		return -ERANGE;
+	if (ram_diagnose) {
+		ret = qkx_ram_diag_start();
+		if (ret)
+			return ret;
+	}
 	/* One selected-range allocation attempt. No payload, CPU or PM operations.
 	 * The native allocator may migrate/reclaim pages; never bypass refusal.
 	 */
@@ -436,6 +567,8 @@ static int qkx_validate_ram(void)
 	pr_info("quest_kexec: RAM validation result=%d elapsed_ns=%llu owned=%u\n",
 		ret, elapsed, destination_owned);
 	qkx_release();
+	if (ram_diagnose)
+		qkx_ram_diag_stop();
 	if (!ret)
 		pr_info("quest_kexec: RAM validation released destination; no payload or shutdown\n");
 	return ret;
@@ -1136,7 +1269,7 @@ static int __init qkx_init(void)
 		return -EINVAL;
 	if (test_full_copy && (execute || test_transition || test_cpus))
 		return -EINVAL;
-	if (ram_base && !validate_ram)
+	if ((ram_base || ram_diagnose) && !validate_ram)
 		return -EINVAL;
 	if (validate_ram && (execute || preserve_watchdog || watchdog_recovery ||
 	    watchdog_control || test_transition || test_full_copy || test_cpus ||

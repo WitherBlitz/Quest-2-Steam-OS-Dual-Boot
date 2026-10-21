@@ -65,6 +65,7 @@ struct bus_type { int unused; };
 struct qkx_log_header { u32 magic, write_pos, wraps, reserved; };
 static bool execute, preserve_watchdog, watchdog_recovery, watchdog_control;
 static bool validate_ram;
+static bool ram_diagnose;
 static unsigned long long ram_base;
 static bool test_transition, test_full_copy, post_shutdown_probe, warm_reset_test;
 static bool flush_rpmh, suspend_syncboss, disconnect_qmp, write_test, clear;
@@ -297,6 +298,7 @@ int main(int argc, char **argv)
         unsigned int i;
         preflight_only = 0;
         validate_ram = true;
+        ram_diagnose = true;
         CHECK(check_options() == 0);
         for (i = 0; i < sizeof(actions)/sizeof(actions[0]); i++) {
             *actions[i] = true; CHECK(check_options() == -EINVAL); *actions[i] = false;

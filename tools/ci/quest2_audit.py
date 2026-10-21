@@ -86,9 +86,18 @@ def inspect_module(data, generated, stock):
         rows[name] = f"0x{crc:08x}"
     if "module_layout" not in rows or not undefined <= rows.keys():
         raise ValueError("Undefined symbol lacks a version record or module_layout is missing")
-    return {"elf": "ELF64 LE REL AArch64", "vermagic": magic[0],
-            "undefined_symbols": sorted(undefined), "versioned_imports": len(rows),
-            "crc_rows": rows}
+    result = {"elf": "ELF64 LE REL AArch64", "vermagic": magic[0],
+              "undefined_symbols": sorted(undefined), "versioned_imports": len(rows),
+              "crc_rows": rows}
+    if b"parmtype=ram_diagnose:bool" in info.split(b"\0"):
+        indirect = {}
+        for name in ("register_kretprobe", "unregister_kretprobe"):
+            crc = stock.get(name)
+            if crc is None or generated.get(name) != crc:
+                raise ValueError("Missing or mismatching indirect ABI CRC: " + name)
+            indirect[name] = f"0x{crc:08x}"
+        result["indirect_crc_rows"] = indirect
+    return result
 
 
 def load_symvers(path):

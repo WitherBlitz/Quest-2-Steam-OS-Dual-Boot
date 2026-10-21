@@ -17,9 +17,10 @@ if SCRIPT.exists():
 
 VM = "4.19.325-cip128-st12-g49638c7a8637 SMP preempt mod_unload modversions aarch64"
 CRC = {"api": 0x11223344, "module_layout": 0x74B4EBEB}
+KRET = {"register_kretprobe": 0x861FCDB7, "unregister_kretprobe": 0x4093E955}
 
 
-def elf_fixture(*, machine=183, vermagic=VM, symbol="api", api_crc=0x11223344):
+def elf_fixture(*, machine=183, vermagic=VM, symbol="api", api_crc=0x11223344, diagnostic=False):
     # Hand-built ELF64 LE relocatable with one real undefined global symbol.
     names = b"\0.shstrtab\0.strtab\0.symtab\0.modinfo\0__versions\0"
     strings = b"\0" + symbol.encode() + b"\0"
@@ -28,7 +29,8 @@ def elf_fixture(*, machine=183, vermagic=VM, symbol="api", api_crc=0x11223344):
                         [("api", api_crc), ("module_layout", 0x74B4EBEB)])
     sections = [("", 0, b"", 0, 0), (".shstrtab", 3, names, 0, 0),
                 (".strtab", 3, strings, 0, 0), (".symtab", 2, symbols, 2, 24),
-                (".modinfo", 1, b"vermagic=" + vermagic.encode() + b"\0", 0, 0),
+                (".modinfo", 1, b"vermagic=" + vermagic.encode() + b"\0" +
+                 (b"parmtype=ram_diagnose:bool\0" if diagnostic else b""), 0, 0),
                 ("__versions", 1, versions, 0, 0)]
     data = bytearray(64)
     headers = []
@@ -114,6 +116,25 @@ class CIAuditTests(unittest.TestCase):
         self.require_audit()
         with self.assertRaises(ValueError):
             audit.inspect_module(elf_fixture()[:-32], CRC, CRC)
+
+    def test_diagnostic_indirect_abi_crcs_are_recorded(self):
+        result = audit.inspect_module(elf_fixture(diagnostic=True), {**CRC, **KRET}, {**CRC, **KRET})
+        self.assertEqual(result.get("indirect_crc_rows"),
+                         {name: f"0x{value:08x}" for name, value in KRET.items()})
+
+    def test_diagnostic_indirect_abi_mismatch_is_rejected(self):
+        for name in KRET:
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                audit.inspect_module(elf_fixture(diagnostic=True),
+                                     {**CRC, **KRET, name: KRET[name] ^ 1}, {**CRC, **KRET})
+
+    def test_diagnostic_missing_indirect_abi_reference_is_rejected(self):
+        for name in KRET:
+            for source in ("generated", "stock"):
+                with self.subTest(name=name, source=source), self.assertRaises(ValueError):
+                    generated, stock = {**CRC, **KRET}, {**CRC, **KRET}
+                    (generated if source == "generated" else stock).pop(name)
+                    audit.inspect_module(elf_fixture(diagnostic=True), generated, stock)
 
 
 if __name__ == "__main__":

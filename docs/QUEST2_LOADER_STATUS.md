@@ -89,9 +89,9 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The full suite has 89 passing host tests: 21 readiness-collector tests, 27
-loader regression tests, 17 RAM-ownership tests, 12 handoff-planner tests and
-12 build-audit tests.
+The full suite has 101 passing host tests: 21 readiness-collector tests, 27
+loader regression tests, 26 RAM-ownership tests, 12 handoff-planner tests and
+15 build-audit tests.
 The RAM/shutdown regressions were observed failing before these changes.
 The original loader failed 9
 of the first 11 new regressions before the source fix. An independent source
@@ -112,6 +112,39 @@ Windows runs require Clang/LLD and configured Windows SDK/MSVC headers/libraries
 the host test compiler does not replace the pinned Android build compiler.
 
 ## Verified offline rebuild
+
+### Opt-in allocator refusal observation
+
+`ram_diagnose=1` is accepted only with `validate_ram=1`. It temporarily registers
+return probes for the pinned kernel's `start_isolate_page_range`,
+`has_unmovable_pages`, `test_pages_isolated` and `isolate_freepages_range`.
+The callbacks filter the initiating task and selected PFN range, record return
+values without changing registers, and log only after probes are removed.
+Missing helpers or any registration failure abort before the claim and unwind
+only successfully registered probes. Normal success and refusal also remove
+all probes before initialization returns. The default diagnostic is unchanged.
+
+An observed negative isolation/test return or zero free-page-collection return
+can identify that attempt's failure stage. An unmovable result identifies a
+block start, **not the exact busy PFN or owner**. Missing observations, compiler
+inlining and nonzero kretprobe/kprobe missed counts prevent conclusions from absence. Probe allocation
+and timing can perturb the attempt; its result cannot automatically explain a
+previous uninstrumented refusal. No force, retry, alternate-address scan, global
+tracing toggle, hardware shutdown or payload path is added.
+
+The two new option/helper regressions and the caller/range filtering regression
+were observed failing before their fixes. All 101 Windows host tests pass,
+including partial-registration cleanup, success/refusal/guard cleanup,
+unchanged target registers, first-block retention and both missed-event counters.
+An independent review found an indirect ABI assurance gap. The build audit now
+requires generated-versus-stock CRC agreement for both dynamically resolved
+kretprobe exports, binding their additional structure/callback types. The CRCs
+were decoded from the hash-pinned stock Image: `register_kretprobe=0x861fcdb7`
+at raw offset `0x19dbf7c`, `unregister_kretprobe=0x4093e955` at `0x19dcf48`.
+All 68 existing stock references agreed with the same decoded export table.
+New missing/mismatch ABI regressions failed before the gate was implemented.
+Matching native rebuild, follow-up review and instrumented live validation
+are pending; this source is not yet a verified deployable artifact.
 
 ### Selected high-RAM candidate: on-headset result
 

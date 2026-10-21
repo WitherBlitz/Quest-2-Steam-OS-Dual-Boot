@@ -31,7 +31,8 @@ class RamOwnershipTests(unittest.TestCase):
         cls.addClassCleanup(cls.temp.cleanup)
         source = Path(cls.temp.name) / "ram.c"
         gate = function(loader, "qkx_dma_gate")
-        source.write_text(harness.replace("/* PRODUCTION */", "\n".join((claim, release, ram, validation, gate, init))))
+        diagnostics = loader[loader.index("enum qkx_ram_stage {"):loader.index("static int qkx_claim_destination(")]
+        source.write_text(harness.replace("/* PRODUCTION */", "\n".join((diagnostics, claim, release, ram, validation, gate, init))))
         cls.binary = Path(cls.temp.name) / ("ram.exe" if os.name == "nt" else "ram")
         linker = ["-fuse-ld=lld"] if os.name == "nt" else []
         result = subprocess.run([compiler, *linker, "-std=gnu11", "-Werror", str(source),
@@ -93,3 +94,32 @@ class RamOwnershipTests(unittest.TestCase):
 
     def test_candidate_cannot_change_staging_or_execution_layout(self):
         self.case("base_without_validation")
+
+    def test_diagnosis_requires_validation_before_resolving(self):
+        self.case("diagnose_without_validation")
+
+    def test_missing_probe_helpers_refuse_before_allocation(self):
+        self.case("validate_diagnose_missing")
+
+    def test_missing_unregister_helper_refuses_before_registration(self):
+        self.case("diagnose_no_unregister")
+
+    def test_each_registration_failure_removes_only_previous_probes(self):
+        for index in range(4):
+            with self.subTest(index=index):
+                self.case(f"diagnose_register_{index}")
+
+    def test_probe_entry_rejects_other_tasks_and_other_windows(self):
+        self.case("diagnose_filter")
+
+    def test_observers_preserve_registers_and_report_returns_and_misses(self):
+        self.case("diagnose_records")
+
+    def test_diagnosed_success_releases_ram_and_all_probes(self):
+        self.case("diagnose_success")
+
+    def test_diagnosed_busy_never_frees_unowned_ram_and_removes_probes(self):
+        self.case("diagnose_busy")
+
+    def test_pfn_guard_failure_also_removes_all_probes(self):
+        self.case("diagnose_guard")

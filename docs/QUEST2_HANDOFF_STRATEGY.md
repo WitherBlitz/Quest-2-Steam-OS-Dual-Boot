@@ -47,6 +47,12 @@ native allocator diagnostic:
    old fixed layout and must be ported together after a viable reservation is
    observed. An accepted diagnostic address cannot be used as a boot address
    merely by changing this parameter.
+6. Optional `ram_diagnose=1` adds task/range-filtered return observations around
+   the same single claim. All required probes must register before allocation;
+   partial failure unwinds, and all observers are removed before init returns.
+   It reports native stages and a first unmovable block, never an exact owner.
+   Missed events and probe allocation/timing limit interpretation. See the
+   [diagnostic scope and verification](QUEST2_LOADER_STATUS.md#opt-in-allocator-refusal-observation).
 
 Offline use:
 
