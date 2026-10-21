@@ -79,7 +79,7 @@ static const char *model = "Hollywood (DVT)";
 static u32 mode[2] = { 0xe11, 0xe11 };
 static bool events_check;
 static bool destination_owned;
-static int freeze_ret, gpu_suspend_ret, sync_resume_ret, watchdog_ret = 1, rpmh_ret;
+static int freeze_ret, gpu_suspend_ret, sync_suspend_ret, sync_resume_ret, watchdog_ret = 1, rpmh_ret;
 static int did_panic, did_enter;
 static char trace[128];
 static unsigned int trace_len;
@@ -103,7 +103,7 @@ static void sleep_lock(void) { destructive_calls++; event('L'); }
 static void sleep_unlock(void) { event('U'); }
 static int gpu_suspend(struct device *d) { destructive_calls++; event('G'); return gpu_suspend_ret; }
 static int gpu_resume(struct device *d) { event('g'); return 0; }
-static int sync_suspend(struct device *d) { event('S'); return 0; }
+static int sync_suspend(struct device *d) { event('S'); return sync_suspend_ret; }
 static int sync_resume(struct device *d) { event('s'); return sync_resume_ret; }
 static const struct dev_pm_ops sync_pm = { sync_suspend, sync_resume };
 static int usb_suspend(void *d) { event('B'); return 0; }
@@ -195,7 +195,8 @@ int main(int argc, char **argv)
         if (!setjmp(failure)) ret = qkx_execute();
         CHECK(ret == -EPERM);
     } else if (!strcmp(which, "rehearsal_order") || !strcmp(which, "freezer_abort") ||
-               !strcmp(which, "gpu_failure") || !strcmp(which, "resume_failure") ||
+               !strcmp(which, "gpu_failure") || !strcmp(which, "syncboss_failure") ||
+               !strcmp(which, "resume_failure") ||
                !strcmp(which, "watchdog_failure") || !strcmp(which, "rpmh_failure")) {
         destination_owned = true;
         sync_driver.pm = &sync_pm;
@@ -203,6 +204,7 @@ int main(int argc, char **argv)
         preflight_only = 2;
         if (!strcmp(which, "freezer_abort")) freeze_ret = -EBUSY;
         if (!strcmp(which, "gpu_failure")) gpu_suspend_ret = -EIO;
+        if (!strcmp(which, "syncboss_failure")) sync_suspend_ret = -EBUSY;
         if (!strcmp(which, "resume_failure")) sync_resume_ret = -EIO;
         if (!strcmp(which, "watchdog_failure")) { preflight_only = 0; watchdog_ret = -EACCES; }
         if (!strcmp(which, "rpmh_failure")) { preflight_only = 0; flush_rpmh = true; rpmh_ret = -EIO; }
@@ -212,6 +214,7 @@ int main(int argc, char **argv)
         if (!strcmp(which, "rehearsal_order")) { CHECK(ret == 0); CHECK(!strcmp(trace, "LFGSsgTU")); }
         if (!strcmp(which, "freezer_abort")) { CHECK(ret == -EBUSY); CHECK(!strcmp(trace, "LFU")); }
         if (!strcmp(which, "gpu_failure")) { CHECK(ret == -EIO); CHECK(!strcmp(trace, "LFGgTU")); }
+        if (!strcmp(which, "syncboss_failure")) { CHECK(ret == -EBUSY); CHECK(!strcmp(trace, "LFGSgTU")); }
         if (!strcmp(which, "resume_failure")) { CHECK(did_panic == 1); CHECK(!strchr(trace, 'T')); }
         if (!strcmp(which, "watchdog_failure")) { CHECK(did_panic == 1); CHECK(!strchr(trace, 'T')); }
         if (!strcmp(which, "rpmh_failure")) { CHECK(did_panic == 1); CHECK(strchr(trace, 'R')); }

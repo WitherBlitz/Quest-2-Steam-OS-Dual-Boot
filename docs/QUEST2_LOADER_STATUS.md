@@ -56,7 +56,9 @@ is recorded below; the earlier unpatched artifacts are separate.
   busy memory. This establishes allocator ownership only, not DMA/secure safety.
 - The freezer's wakeup/failure decisions are respected. The busy-loop thread
   that overwrote `pm_abort_suspend` has been removed. Reversible paths resume
-  attempted Syncboss suspension, then GPU suspension, before thawing userspace.
+  successful Syncboss suspension, then attempted GPU suspension, before thawing
+  userspace. A failed Syncboss suspend is not resumed: its failure paths precede
+  state changes and can indicate an earlier async resume is still running.
   A reported resume callback error stops with a panic. Syncboss queues async
   resume work and the GPU callback can hide internal errors, so callback success
   does not prove hardware recovery; that acceptance test remains outstanding.
@@ -74,7 +76,7 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The full suite has 62 passing host tests: 21 readiness-collector tests, 21
+The full suite has 63 passing host tests: 21 readiness-collector tests, 22
 loader regression tests, 8 RAM-ownership tests and 12 build-audit tests.
 The RAM/shutdown regressions were observed failing before these changes.
 The original loader failed 9

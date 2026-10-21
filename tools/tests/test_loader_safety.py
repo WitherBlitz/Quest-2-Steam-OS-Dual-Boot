@@ -112,6 +112,9 @@ class LoaderSafetyTests(unittest.TestCase):
     def test_gpu_failure_restores_hardware_before_thaw(self):
         self.case("gpu_failure")
 
+    def test_failed_syncboss_suspend_does_not_queue_duplicate_resume(self):
+        self.case("syncboss_failure")
+
     def test_failed_hardware_resume_does_not_thaw_userspace(self):
         self.case("resume_failure")
 

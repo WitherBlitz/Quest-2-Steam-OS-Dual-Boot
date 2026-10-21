@@ -692,7 +692,7 @@ static int __maybe_unused qkx_execute(void)
 	void (*send_irq_fn)(void *) = (void *)lookup("send_irq");
 	struct device *gpu, *watchdog, *usb_core = NULL, *rpmh_dev = NULL;
 	struct device *syncboss = NULL, *qmp_dev = NULL;
-	bool syncboss_attempted = false, gpu_attempted = false, users_frozen = false;
+	bool syncboss_suspended = false, gpu_attempted = false, users_frozen = false;
 	void __iomem *wdt_regs = NULL;
 	bool sleep_locked = false;
 	unsigned int i;
@@ -799,12 +799,12 @@ static int __maybe_unused qkx_execute(void)
 	}
 	if (suspend_syncboss) {
 		qkx_phase(10, "suspending Android syncboss SPI streaming", false);
-		syncboss_attempted = true;
 		ret = syncboss->driver->pm->suspend(syncboss);
 		pr_emerg("quest_kexec: syncboss suspend returned %d\n", ret);
 		if (ret) {
 			goto release_devices;
 		}
+		syncboss_suspended = true;
 	}
 	if (preflight_only >= 2) {
 		if (preflight_only == 3)
@@ -950,11 +950,13 @@ static int __maybe_unused qkx_execute(void)
 		virt_to_phys(first_desc), QKX_ENTRY, QKX_DTB);
 release_devices:
 	/* Call PM resume in reverse order before thawing user processes.
-	 * A failed suspend may have changed hardware, so resume attempts too.
+	 * Adreno suspend can partially change state on error, so resume attempts.
+	 * Syncboss errors precede state changes (including an in-progress resume);
+	 * only resume it after a successful suspend to avoid duplicate async work.
 	 * These callbacks can defer work or hide internal errors: return zero
 	 * is not proof that hardware has recovered.
 	 */
-	if (syncboss_attempted && syncboss->driver->pm->resume(syncboss))
+	if (syncboss_suspended && syncboss->driver->pm->resume(syncboss))
 		panic("quest_kexec: Syncboss rollback failed; refusing to thaw apps");
 	if (gpu_attempted && gpu_resume(gpu))
 		panic("quest_kexec: GPU rollback failed; refusing to thaw apps");
