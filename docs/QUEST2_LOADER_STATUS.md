@@ -90,9 +90,9 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The full suite has 136 passing host tests: 21 readiness-collector tests, 27
+The full suite has 152 passing host tests: 21 readiness-collector tests, 27
 loader regression tests, 30 RAM-ownership tests, 28 handoff-planner tests,
-15 native payload/layout tests and 15 build-audit tests.
+15 native payload/layout tests, 16 offline payload-profile tests and 15 build-audit tests.
 The RAM/shutdown regressions were observed failing before these changes.
 The original loader failed 9
 of the first 11 new regressions before the source fix. An independent source
@@ -464,6 +464,18 @@ The full 136-test host suite passes, including whole-initialization cleanup and
 experimental Hollywood gate coverage. Matching native build verification is
 pending; host doubles are not native ABI or hardware evidence. No headset
 operation has been performed in this phase.
+
+The [offline Linux payload checker](QUEST2_HANDOFF_STRATEGY.md#offline-linux-payload-checks)
+now records structural/profile findings against the capture and compact layout.
+All 152 Windows host tests pass. A real run against the available Android
+references completed with 15 findings and `HANDOFF_BLOCKED`; the actual native
+DTB checker separately returned `-EINVAL`. The stock first DTB differs from the
+runtime model and memory map, and its removed-region and ramoops `reg` properties
+do not match. The Android config has `CONFIG_DEVTMPFS=n` and
+`CONFIG_ION_POOL_AUTO_REFILL=y`; the ramdisk contains Android init rather than
+the expected BusyBox shell init. These are rejected references, not a validated
+Linux payload. The new offline checker's final independent review is outstanding;
+the native source review was approved after the two FDT fixes above.
 
 ## Remaining work
 

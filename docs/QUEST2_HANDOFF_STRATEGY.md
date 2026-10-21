@@ -164,6 +164,54 @@ DTB. `payload_base` does not rewrite the DTB. No deployment command is provided.
 The Hollywood hardware-transition gate remains enforced even in experimental
 builds; this work does not enable a jump or a headset allocation attempt.
 
+## Offline Linux payload checks
+
+`tools/quest2_payload_check.py` checks supplied files against a matching private
+capture and the selected compact base. It writes a new host JSON report only:
+
+```sh
+python3 -B tools/quest2_payload_check.py --capture /path/to/private-capture \
+  --kernel-image /path/to/target/Image --kernel-config /path/to/target/.config \
+  --initramfs /path/to/linux/initramfs --dtb /path/to/prepared/boot.dtb \
+  --base 0x100000000 --exclude-block 0x102c00000:0x103000000 \
+  --output /path/to/new-payload-check.json
+```
+
+The tool checks Image sizing, native limits, placement against captured and
+target reservations, model/compatible identity, memory maps and chosen initrd
+addresses. Reserved-memory properties must be preserved; the kernel-generated
+`name` property is ignored. Linux's first-string `device_type` interpretation and
+`linux,usable-memory` override are accounted for. Noncanonical strings and
+duplicate/hidden chosen nodes are rejected or reported.
+
+The userspace profile is the repository's BusyBox initramfs: an executable `/init`
+using `/bin/sh` or `/bin/busybox sh`, with an executable static ARM64 shell.
+The checker bounds gzip expansion to 64 MiB and validates newc records, canonical
+paths, parent-directory order, unsupported hardlinks and ELF load headers. It
+checks the supplied config for built-in ARM64/4 KiB, initrd, ELF/script loaders,
+devtmpfs and USB ECM support, gzip support when needed, disabled ION pool refill
+and absence of forced internal initramfs. Alternative Linux init profiles are
+outside this checker's scope. See the pinned
+[FDT consumers](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/of/fdt.c),
+[newc consumer](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/init/initramfs.c),
+[ELF consumer](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/fs/binfmt_elf.c)
+and [upstream target profile](https://github.com/machachu56/quest-kexec-q2/blob/9c96c192d4a4a80f95ba0013294977e85c6eae11/README.md).
+
+Even zero findings leave `HANDOFF_BLOCKED` and
+`kernel_patch_provenance_verified=false`. These are bounded structural/profile
+checks, not execution of the binaries/scripts, proof that the supplied config
+matches the Image, a source/patch audit, or permission to deploy. Input hashes
+identify the examined bytes. Snapshot age, reservations absent from the runtime
+tree, allocator ownership and DMA/secure hardware state remain unresolved.
+Successful report generation exits 3 regardless of findings; malformed inputs
+or an existing output path exit 2.
+
+The available Android reference set produced 15 findings: model/memory and
+reservation differences, unprepared initrd addresses, unsuitable config values
+and an Android init rather than the expected BusyBox script. Separately, the
+actual native checker accepted its sizing and refused its DTB with `-EINVAL`.
+No built target Linux payload or selected target DTB has been validated.
+
 ## DMA shutdown handling
 
 The implemented board gate refuses Hollywood hardware transitions even with
@@ -228,8 +276,8 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The full host suite has 136 tests, including 28 offline planner tests and 15
-native payload/layout tests. The latter compile actual layout, DTB, staging and
+The full host suite has 152 tests, including 28 offline planner tests, 16 offline
+payload-profile tests and 15 native payload/layout tests. The latter compile actual layout, DTB, staging and
 initialization functions against host API doubles, including failed staging
 after a successful claim and compact-jump refusal before opening payloads. The
 planner regressions cover observed exclusions, declared-memory sizing, compact
