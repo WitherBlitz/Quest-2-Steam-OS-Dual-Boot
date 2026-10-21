@@ -7,7 +7,7 @@ The patched Android kernel module has **been rebuilt and its symbol versions
 verified**. Separate RAM-only attempts refused the original fixed destination
 and one capture-planned window above 4 GiB with `-EBUSY`; neither acquired RAM
 ownership or ran a payload. The latest attempt preserved the boot, CPUs and stock
-modules; the earlier test also had user-confirmed normal Home/tracking. This
+modules; the user confirmed normal Home/tracking after both attempts. This
 branch does not provide a complete SteamOS port, validated dual boot, or full
 tracking.
 
@@ -141,8 +141,9 @@ unchanged. Root remained available. The captured log difference had no matched
 panic, BUG, WARNING, OOM, unhandled fault or SMMU/KGSL fault/error messages.
 Failed initialization left no project module resident, so no unload was needed.
 The exact temporary module was hash-checked, removed, and confirmed absent.
-These checks do not replace a functional Home/tracking check. No payload,
-shutdown, CPU offlining, reboot, flashing or boot-policy change occurred.
+After the test, the user confirmed Home and head/controller tracking remained
+normal. No payload, shutdown, CPU offlining, reboot, flashing or boot-policy
+change occurred.
 
 The module came from [new-repository Actions run 39570913751](https://github.com/WitherBlitz/Quest-2-Steam-OS-Port/actions/runs/39570913751),
 source `88df1dbf1339efe512e0dac26ab42df771b03839`. Runtime source/tools/workflow
