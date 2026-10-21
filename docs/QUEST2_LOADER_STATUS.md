@@ -124,8 +124,26 @@ candidate allocation attempt were performed in this phase.
 All 19 new regressions were observed failing before their implementation;
 the full 89-test host suite passes. The new `param_ops_ullong` CRC was derived
 directly from the hash-pinned stock Image (`0x28916948`, CRC file offset
-`0x19d6958`) and matches the prior verified generated symvers. A new matching
-native rebuild/ABI check is pending for this source.
+`0x19d6958`) and matches the prior verified generated symvers. A fresh source
+review found no Critical or Important issue. Minor follow-ups remain for
+inconsistent `phandle`/`linux,phandle` aliases and an aligned overflowing-base
+test input; neither changes the hardware refusal gate.
+
+[Actions run 39567877831](https://github.com/WitherBlitz/quest-kexec-q2/actions/runs/39567877831)
+completed successfully from source commit
+`ce5dfce20a5fb830632f291ae3a44844da9b2bd5`. All 89 tests passed on Linux and
+the matching kernel and three modules built. Local checks reproduced the
+transport digest, ZIP CRC/12-file allowlist, 11 checksums, source/compiler/config
+pins, no-jump compile command and all 77 version records / 74 undefined-symbol
+references against generated and stock references. Native `llvm-readelf`
+separately confirmed ELF/vermagic and the `ram_base:ullong` parameter.
+
+ZIP SHA-256: `ba9933bd6b85353a303410e2705bf8717839e07221e328cbfca66575e46af83e`.
+
+`quest_kexec.ko`: 314,880 bytes, 42 version records, SHA-256
+`fedfc4927497b0f10451adb9365cbcb2c8456a5b1ccc600b4525a3417555137b`.
+The other two module hashes are unchanged from the prior rebuild. This native
+build was not deployed; no high-window claim or DMA shutdown was attempted.
 
 ### RAM-ownership and shutdown rebuild
 

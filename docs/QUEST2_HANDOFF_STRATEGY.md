@@ -131,5 +131,7 @@ git diff --check
 The new regressions exercise actual C claim/release and initialization/execute
 control flow, including an experimental-build harness, and real offline planner
 inputs. Host doubles do not validate kernel layouts, allocator acceptance or
-hardware shutdown. A new matching native build and ABI audit are required before
-any later on-headset diagnostic.
+hardware shutdown. The matching native build and local ABI audit for this source
+passed in [run 39567877831](https://github.com/WitherBlitz/quest-kexec-q2/actions/runs/39567877831);
+see the [recorded checksums and scope](QUEST2_LOADER_STATUS.md#placement-strategy-and-hollywood-dma-gate).
+No candidate window or shutdown protocol was tested on hardware in this phase.
