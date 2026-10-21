@@ -34,6 +34,17 @@ repository. The workflow's repository guard is updated and the private,
 hash-pinned build configuration is provisioned as an Actions secret, not as a
 public source or release asset.
 
-The former fork is removed only after the branch histories, release assets,
-README credit and a fresh native build in this repository have been verified.
+The fresh [native build, run 39570913751](https://github.com/WitherBlitz/Quest-2-Steam-OS-Port/actions/runs/39570913751),
+passed from migration commit `88df1dbf1339efe512e0dac26ab42df771b03839`.
+All 89 tests passed. Local verification checked the downloaded ZIP digest,
+12-file allowlist, all checksums, source/compiler/config pins, no-jump compile
+command, AArch64 ELF/vermagic and all 77 version records / 74 undefined imports
+against generated and stock references.
+
+Build ZIP SHA-256: `821256b8c16776539344585a19a2030c845a40518c1058a6892b934ad730ad5b`.
+
+The former personal fork was deleted on 2026-10-21 after those checks and a
+fresh verification of its exact branch tips. GitHub confirmed deletion; the
+old repository endpoint returns 404. This repository and the original
+`machachu56/quest-kexec-q2` upstream remain accessible.
 This migration does not change loader behavior or establish hardware readiness.
