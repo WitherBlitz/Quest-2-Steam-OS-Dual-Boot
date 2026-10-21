@@ -78,6 +78,59 @@ quiescence requirements to be satisfied. The target DT must preserve every
 remaining secure/dynamic reservation; protecting the copy window alone does
 not protect the rest of the target allocator's memory.
 
+## Observed-block exclusions and compact copy proposals
+
+The offline planner accepts repeatable `--exclude-block START:END` arguments.
+These are half-open, 4 MiB aligned ranges inside one captured System RAM
+resource. They join all existing exclusions for both diagnostic and compact
+candidates. The report labels them caller-supplied observations that may be
+stale; they neither reserve RAM nor establish a current page owner.
+
+Optional `--kernel-image`, `--initramfs` and `--dtb` inputs must be supplied
+together. Each file is bounded to 64 MiB. The tool requires a raw uncompressed
+ARM64 Image with a nonzero declared memory size, supported little-endian/4 KiB
+flags and placement freedom, a nonempty initramfs, and one exact-size DTB of at
+most 2 MiB. It records lengths and SHA-256 digests. This is header/sizing
+inspection, not validation of the initramfs or target DT contents.
+
+The separate `payload` report sizes kernel memory from `text_offset + image_size`,
+then page-aligns the initramfs and DTB and rounds the copy envelope to 4 MiB.
+Candidates stay within one usable resource after exclusions and satisfy the
+ARM64 kernel/initrd 1 GiB aligned window constraint of at most 32 GiB. At most
+eight disjoint candidates are emitted. Missing inputs produce no compact
+addresses. A smaller compact proposal may fit when no 52 MiB diagnostic extent
+does; neither result establishes allocator acceptance.
+
+```sh
+python3 -B tools/quest2_handoff_plan.py --capture /path/to/private-capture \
+  --exclude-block 0x102c00000:0x103000000 \
+  --kernel-image /path/to/Image --initramfs /path/to/initramfs \
+  --dtb /path/to/one-target.dtb --output /path/to/new-host-report.json
+```
+
+On 2026-10-21, an offline exercise used the saved matching capture and the
+observed unmovable block above. The returned rebuilt Android Image was
+30,369,808 bytes and declared `0x1dd1000` bytes of kernel memory with
+`text_offset=0x80000`. The stock Android ramdisk was 2,676,670 bytes; a first DTB
+of 385,801 bytes was extracted from its 1,150,513-byte multi-DTB bundle solely
+as a sizing reference. This set is **not a validated target Linux payload or
+selected runtime target DT**. It yielded:
+
+| Report | First unclaimed range | Meaning |
+| --- | --- | --- |
+| Existing 52 MiB diagnostic | `[0x103000000, 0x106400000)` | Avoids the observed block; no allocation attempted. |
+| Compact 36 MiB copy proposal | `[0x100000000, 0x102400000)` | Reference sizing fits before that block; requires a loader port. |
+
+The reference ramdisk exceeds the current loader's 2 MiB limit. Even inputs
+compatible with the old format require a coordinated native copy/staging,
+claim/release, DTB and entry-address port to use the compact arrangement.
+`ram.candidates` and `ram_base` retain the fixed **52 MiB** diagnostic contract;
+neither consumes `payload.candidates`. The report remains `HANDOFF_BLOCKED`,
+every candidate is unclaimed, and DMA quiescence remains false. Copy-envelope
+sizing does not account for total OS working RAM, source/staging allocations,
+target-DT preservation or hardware shutdown. No native rebuild or headset
+operation was performed in this host-only phase.
+
 ## DMA shutdown handling
 
 The implemented board gate refuses Hollywood hardware transitions even with
@@ -142,7 +195,13 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The new regressions exercise actual C claim/release and initialization/execute
+The full host suite has 116 tests, including 27 offline planner tests. The
+planner regressions cover observed exclusions, declared-memory sizing, compact
+and fixed-layout separation, input bounds, holes/reservations, the 32 GiB window
+constraint and exclusive report output. No Python formatter/linter is configured;
+Python syntax parsing and `git diff --check` supplement the tests.
+
+The native-path regressions exercise actual C claim/release and initialization/execute
 control flow, including an experimental-build harness, and real offline planner
 inputs. Host doubles do not validate kernel layouts, allocator acceptance or
 hardware shutdown. The matching native build and local ABI audit for this source

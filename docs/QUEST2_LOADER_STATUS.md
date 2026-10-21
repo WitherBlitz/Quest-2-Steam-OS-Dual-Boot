@@ -89,8 +89,8 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The full suite has 101 passing host tests: 21 readiness-collector tests, 27
-loader regression tests, 26 RAM-ownership tests, 12 handoff-planner tests and
+The full suite has 116 passing host tests: 21 readiness-collector tests, 27
+loader regression tests, 26 RAM-ownership tests, 27 handoff-planner tests and
 15 build-audit tests.
 The RAM/shutdown regressions were observed failing before these changes.
 The original loader failed 9
@@ -427,12 +427,32 @@ Raw captures, device identifiers, firmware files and private runtime evidence
 are not published here, so that audit is not independently reproducible from
 this source repository alone. Each subsequent rebuild needs its own recorded audit.
 
+## Offline compact-placement follow-up
+
+The planner now accepts observed-block exclusions and optional Image/initramfs/
+single-DTB sizing inputs. The [placement strategy](QUEST2_HANDOFF_STRATEGY.md#observed-block-exclusions-and-compact-copy-proposals)
+records validation, CLI use and the private saved-capture exercise. Excluding
+`[0x102c00000, 0x103000000)` moved the first fixed 52 MiB diagnostic candidate
+to `0x103000000`. Android reference input sizes produced a separate 36 MiB copy
+proposal at `[0x100000000, 0x102400000)`, before that block. The reference
+ramdisk exceeds the existing loader's 2 MiB limit; these inputs are not a
+validated target Linux payload or selected target DT.
+
+All 116 host tests pass, including 27 planner tests. This phase changes only
+the host planner, its tests and documentation. The native loader, fixed staging
+layout, 52 MiB diagnostic, ABI references and Hollywood transition gate are
+unchanged. No new native build, RAM claim, module load or headset operation was
+performed. Every proposed range remains unclaimed and handoff remains blocked.
+
 ## Remaining work
 
 The original fixed window and first capture-planned high window were refused.
 The instrumented attempt identifies initial pageblock isolation and an unmovable
-4 MiB block. The next placement design should account for observed unmovable
-blocks and actual payload requirements, then require a fresh native claim.
+4 MiB block. Offline planning now accounts for caller-supplied observed blocks
+and supplied payload sizes. Next, establish a target Linux payload/DT and port
+the native claim length, staging/copy layout, DTB and physical entry together
+before considering a compact-window claim. Any live claim needs fresh evidence
+and a justified scope; the old `ram_base` parameter cannot test a 36 MiB extent.
 Snapshots alone cannot identify the refusing owner or prove other windows free.
 A usable reservation and complete payload/DTB/entry relocation remain unproven.
 Forcing busy pages or repeatedly guessing addresses is not a solution. DMA
@@ -451,7 +471,7 @@ The pinned shutdown implementation also sets these limits on future tests:
 
 | Area | Source evidence | Still needed before hardware readiness |
 | --- | --- | --- |
-| RAM | Fixed/high claims refused; instrumentation found initial isolation failure and an unmovable high block. | Placement accounting for unmovable blocks, an accepted reservation, coordinated payload relocation and a DT preserving secure/dynamic reservations. |
+| RAM | Fixed/high claims refused; instrumentation found an unmovable high block; offline compact proposals account for its observed range. | A target Linux payload/DT, coordinated variable-length ownership and relocation, an accepted reservation and preservation of secure/dynamic reservations. |
 | GPU/Syncboss | PM callbacks can defer work or hide errors. | Completion and failure detection on this firmware, including rollback. |
 | USB | Gadget suspend stops/disconnects gadget traffic. | Controller/glue DMA quiescence and target USB reprobe. |
 | Storage | UFS shutdown drains requests and powers down the link, but returns zero even after logged errors. | Observed shutdown completion and target reinitialization; no shutdown bypass is implemented here. |

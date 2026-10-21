@@ -15,6 +15,78 @@ from quest2_preflight import CaptureError, EXPECTED, MAX_ARTIFACT, validate_iome
 WINDOW = 0x3400000
 ALIGNMENT = 0x400000
 LIMIT = 1 << 64
+PAGE = 0x1000
+GIB = 1 << 30
+
+
+def align_up(value, alignment):
+    return (value + alignment - 1) & -alignment
+
+
+def payload_requirements(image, initramfs, dtb):
+    """Size copy destinations only; this is not a payload or boot validator."""
+    if any(not data or len(data) > MAX_ARTIFACT for data in (image, initramfs, dtb)):
+        raise ValueError("payload inputs must be nonempty and at most 64 MiB each")
+    if len(image) < 64 or image[56:60] != b"ARM\x64":
+        raise ValueError("raw uncompressed ARM64 Image header required")
+    offset, memory, flags = struct.unpack_from("<QQQ", image, 8)
+    if (not memory or memory < len(image) or offset % PAGE or offset >= 0x200000 or
+            flags & ~0xf or flags & 1 or flags & 6 not in (0, 2) or not flags & 8):
+        raise ValueError("unsupported Image memory size, offset or flags")
+    if (len(dtb) < 40 or len(dtb) > 0x200000 or
+            struct.unpack_from(">II", dtb) != (0xd00dfeed, len(dtb))):
+        raise ValueError("one exact-size DTB of at most 2 MiB required")
+    kernel_end = offset + memory
+    initrd_offset = align_up(kernel_end, PAGE)
+    initrd_end = initrd_offset + len(initramfs)
+    dtb_offset = align_up(initrd_end, PAGE)
+    window = align_up(dtb_offset + len(dtb), ALIGNMENT)
+    if window >= LIMIT or initrd_end > 32 * GIB:
+        raise ValueError("overflowing copy layout or kernel/initrd span exceeds 32 GiB")
+
+    def metadata(data):
+        return {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+
+    return {"status": "SIZING_ONLY", "window_bytes": window,
+            "alignment_bytes": ALIGNMENT,
+            "image": {**metadata(image), "memory_bytes": memory,
+                      "text_offset": offset, "flags": flags},
+            "initramfs": metadata(initramfs), "dtb": metadata(dtb),
+            "offsets": {"kernel_address": offset, "kernel_memory_end": kernel_end,
+                        "initramfs_address": initrd_offset, "initramfs_end": initrd_end,
+                        "dtb_address": dtb_offset, "dtb_end": dtb_offset + len(dtb)},
+            "legacy_format_compatible": (offset == 0x80000 and memory <= 0x2f80000 and
+                                         len(initramfs) <= 0x200000),
+            "requires_loader_port": True,
+            "scope": "Copy destinations only; headers/sizes do not validate target DT contents, "
+                     "total OS working RAM, source staging, secure ownership or DMA shutdown"}
+
+
+def candidates(ram, excluded, window, offsets=None):
+    result = []
+    last_end = 0
+    for lo, hi in sorted(ram):
+        parts = [(max(lo, last_end), hi)]
+        for ex in excluded:
+            parts = [(a, b) for start, end in parts for a, b in
+                     ((start, min(end, ex["start"])), (max(start, ex["end"]), end)) if a < b]
+        for start, end in sorted(parts):
+            base = align_up(start, ALIGNMENT)
+            while base + window <= end and len(result) < 8:
+                row = {"base": base, "end": base + window, "ownership": "unclaimed"}
+                if offsets is not None:
+                    initrd_window = base & -GIB
+                    if base + offsets["initramfs_end"] - initrd_window > 32 * GIB:
+                        base = align_up(base + 1, GIB)
+                        continue
+                    row.update({key: base + value for key, value in offsets.items()})
+                    row["initrd_window_base"] = initrd_window
+                result.append(row)
+                base += window
+                last_end = base
+        if len(result) == 8:
+            break
+    return result
 
 
 def words(data):
@@ -85,7 +157,7 @@ def dma_references(tree):
             "blockers": ["Device-specific stop, completion, secure ownership and recovery remain unproven"]}
 
 
-def plan(tree, iomem):
+def plan(tree, iomem, *, exclude_blocks=(), payload=None):
     try:
         visibility = validate_iomem(iomem.encode())
     except CaptureError as exc:
@@ -110,6 +182,13 @@ def plan(tree, iomem):
             ram.append((start, end))
         else:
             excluded.append({"start": start, "end": end, "reason": "iomem: " + m[3]})
+    for start, end in exclude_blocks:
+        if (type(start) is not int or type(end) is not int or not 0 <= start < end <= LIMIT or
+                start % ALIGNMENT or end % ALIGNMENT or
+                not any(lo <= start < end <= hi for lo, hi in ram)):
+            raise ValueError("excluded block must be 4 MiB aligned and inside one System RAM extent")
+        excluded.append({"start": start, "end": end,
+                         "reason": "Caller-supplied observed block; may be stale, not a reservation"})
     nodes = sorted({k.rpartition("/")[0] for k in tree
                     if k.startswith("reserved-memory/") and k.count("/") == 2})
     for node in nodes:
@@ -130,28 +209,26 @@ def plan(tree, iomem):
         # Keep disabled reservations excluded as well: do not assume firmware
         # releases their memory merely because Linux does not probe a client.
         excluded.extend({"start": lo, "end": hi, "reason": reason} for lo, hi in spans)
-    candidates = []
-    if not blockers:
-        last_end = 0
-        for lo, hi in sorted(ram):
-            parts = [(max(lo, last_end), hi)]
-            for ex in excluded:
-                parts = [(a, b) for start, end in parts for a, b in
-                         ((start, min(end, ex["start"])), (max(start, ex["end"]), end)) if a < b]
-            for start, end in sorted(parts):
-                base = (start + ALIGNMENT - 1) & -ALIGNMENT
-                while base + WINDOW <= end and len(candidates) < 8:
-                    candidates.append({"base": base, "end": base + WINDOW, "ownership": "unclaimed"})
-                    base += WINDOW
-                    last_end = base
-            if len(candidates) == 8:
-                break
-    if not candidates and not blockers:
-        blockers.append("No conservatively usable 52 MiB extent found")
+    fixed = [] if blockers else candidates(ram, excluded, WINDOW)
+    compact = {"status": "MISSING_INPUTS", "candidates": [],
+               "blockers": ["Supply an Image, initramfs and one DTB for copy sizing"]}
+    if payload is not None:
+        compact = payload_requirements(*payload)
+        compact["candidates"] = ([] if blockers else
+                                 candidates(ram, excluded, compact["window_bytes"], compact["offsets"]))
+        compact["blockers"] = blockers + [
+            "Compact layout requires a coordinated loader/staging port; ram_base changes only the "
+            "fixed 52 MiB base",
+            "Native RAM ownership, target DT preservation and hardware shutdown remain unproven"]
+        if not compact["candidates"] and not blockers:
+            compact["blockers"].append("No conservatively usable compact copy extent found")
+    ram_blockers = blockers + ([] if fixed or blockers else
+                               ["No conservatively usable 52 MiB extent found"])
     return {"schema_version": 1, "status": "HANDOFF_BLOCKED",
             "ram": {"window_bytes": WINDOW, "alignment_bytes": ALIGNMENT,
-                    "candidates": candidates, "exclusions": excluded, "blockers": blockers,
+                    "candidates": fixed, "exclusions": excluded, "blockers": ram_blockers,
                     "scope": "Snapshot candidates only; native allocator claim still required"},
+            "payload": compact,
             "dma": dma_references(tree)}
 
 
@@ -188,13 +265,40 @@ def load_capture(root):
     return tree, data["iomem"].decode("ascii")
 
 
+def read_payload(path):
+    if not path.is_file() or path.stat().st_size > MAX_ARTIFACT:
+        raise ValueError("payload must be a regular file of at most 64 MiB")
+    with path.open("rb") as stream:
+        data = stream.read(MAX_ARTIFACT + 1)
+    if not data or len(data) > MAX_ARTIFACT:
+        raise ValueError("empty/oversize payload input")
+    return data
+
+
+def block_argument(value):
+    try:
+        start, end = value.split(":")
+        return int(start, 0), int(end, 0)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("expected half-open START:END (e.g. 0x102c00000:0x103000000)") from exc
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--capture", type=Path, required=True)
     ap.add_argument("--output", type=Path, required=True, help="new host JSON report")
+    ap.add_argument("--exclude-block", type=block_argument, action="append", default=[],
+                    help="repeatable observed 4 MiB aligned block, half-open START:END")
+    ap.add_argument("--kernel-image", type=Path, help="raw uncompressed ARM64 Image for sizing")
+    ap.add_argument("--initramfs", type=Path)
+    ap.add_argument("--dtb", type=Path, help="one DTB; not a concatenated bundle")
     args = ap.parse_args(argv)
     try:
-        report = plan(*load_capture(args.capture))
+        paths = (args.kernel_image, args.initramfs, args.dtb)
+        if any(paths) and not all(paths):
+            raise ValueError("--kernel-image, --initramfs and --dtb must be supplied together")
+        payload = tuple(read_payload(path) for path in paths) if all(paths) else None
+        report = plan(*load_capture(args.capture), exclude_blocks=args.exclude_block, payload=payload)
         with args.output.open("x", encoding="utf-8") as stream:
             json.dump(report, stream, indent=2)
             stream.write("\n")
