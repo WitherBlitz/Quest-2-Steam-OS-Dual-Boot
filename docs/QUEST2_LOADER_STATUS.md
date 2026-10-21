@@ -143,8 +143,9 @@ were decoded from the hash-pinned stock Image: `register_kretprobe=0x861fcdb7`
 at raw offset `0x19dbf7c`, `unregister_kretprobe=0x4093e955` at `0x19dcf48`.
 All 68 existing stock references agreed with the same decoded export table.
 New missing/mismatch ABI regressions failed before the gate was implemented.
-Matching native rebuild, follow-up review and instrumented live validation
-are pending; this source is not yet a verified deployable artifact.
+Follow-up review found no remaining Important findings and independently passed
+all 101 host tests. Matching native rebuild and instrumented live validation are
+pending; this source is not yet a verified deployable artifact.
 
 ### Selected high-RAM candidate: on-headset result
 
