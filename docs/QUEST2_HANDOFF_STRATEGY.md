@@ -33,6 +33,12 @@ native allocator diagnostic:
    and one subsequent diagnostic at `[0x100000000, 0x103400000)` returned `-EBUSY`,
    `owned=0`, in 3,657,553 ns. The other seven candidates remain untested. See the
    [live result and cleanup evidence](QUEST2_LOADER_STATUS.md#selected-high-ram-candidate-on-headset-result).
+   One later instrumented attempt on that same window identified an initial
+   pageblock-isolation refusal and an unmovable block at
+   `[0x102c00000, 0x103000000)`. It also acquired no RAM. The exact busy page and
+   owner remain unknown; the [instrumented evidence](QUEST2_LOADER_STATUS.md#verified-build-and-instrumented-result)
+   supports accounting for observed unmovable blocks before another placement
+   design, rather than repeating this layout unchanged.
    Capture age and firmware-owned memory absent from DT/resources remain limits.
 4. `validate_ram=1` optionally accepts `ram_base` for one selected window.
    Zero retains the original base. The module checks overflow, native isolation

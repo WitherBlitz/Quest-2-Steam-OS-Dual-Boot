@@ -7,7 +7,7 @@ The patched Android kernel module has **been rebuilt and its symbol versions
 verified**. Separate RAM-only attempts refused the original fixed destination
 and one capture-planned window above 4 GiB with `-EBUSY`; neither acquired RAM
 ownership or ran a payload. The latest attempt preserved the boot, CPUs and stock
-modules; the user confirmed normal Home/tracking after both attempts. This
+modules; the user confirmed normal Home/tracking after the earlier attempts. This
 branch does not provide a complete SteamOS port, validated dual boot, or full
 tracking.
 
@@ -127,9 +127,9 @@ all probes before initialization returns. The default diagnostic is unchanged.
 An observed negative isolation/test return or zero free-page-collection return
 can identify that attempt's failure stage. An unmovable result identifies a
 block start, **not the exact busy PFN or owner**. Missing observations, compiler
-inlining and nonzero kretprobe/kprobe missed counts prevent conclusions from absence. Probe allocation
-and timing can perturb the attempt; its result cannot automatically explain a
-previous uninstrumented refusal. No force, retry, alternate-address scan, global
+inlining and nonzero kretprobe/kprobe missed counts prevent conclusions from
+absence. Probe allocation and timing can perturb the attempt; its result cannot
+automatically explain a previous uninstrumented refusal. No force, retry, alternate-address scan, global
 tracing toggle, hardware shutdown or payload path is added.
 
 The two new option/helper regressions and the caller/range filtering regression
@@ -144,8 +144,60 @@ at raw offset `0x19dbf7c`, `unregister_kretprobe=0x4093e955` at `0x19dcf48`.
 All 68 existing stock references agreed with the same decoded export table.
 New missing/mismatch ABI regressions failed before the gate was implemented.
 Follow-up review found no remaining Important findings and independently passed
-all 101 host tests. Matching native rebuild and instrumented live validation are
-pending; this source is not yet a verified deployable artifact.
+all 101 host tests. The matching native build and one instrumented attempt are
+recorded below. This remains a RAM diagnostic, not a deployable boot port.
+
+#### Verified build and instrumented result
+
+[Actions run 39646562317](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39646562317)
+succeeded from `968b47a471fec9c4b0b592a35330ff10bca10334`, after updating the
+repository guard for GitHub's canonical `Quest-2-Steam-OS-Dual-Boot` location.
+All 101 tests passed on Linux. Local verification reproduced the transport
+digest, ZIP CRC/12-file allowlist, all 11 checksums, source/compiler/config pins,
+no-jump compile command and all 77 module version records / 74 undefined imports
+against generated and stock references. Both indirect ABI CRC records also
+matched, and the complete audit manifest matched the local recomputation.
+Native LLVM confirmed ELF/vermagic and all three diagnostic parameters.
+
+ZIP SHA-256: `aa01719a4fb2a9230a698aa6be22397be14979a4ef9217615043fc14ded3af17`.
+
+Tested `quest_kexec.ko`: 331,104 bytes, 42 version records, SHA-256
+`cf6aa48b66f3b91e238da76f886b440874895a028a92ecffc9a713f23831331a`.
+The other two modules were audited offline and were not loaded.
+
+On 2026-10-21, a fresh matching capture again selected the first high window.
+After Home readiness and current root/boot/health checks, exactly one attempt
+used `validate_ram=1 ram_diagnose=1 ram_base=0x100000000`. It reported:
+
+```text
+RAM validation result=-16 elapsed_ns=6137657 owned=0
+start_isolate_page_range calls=1 result=-16
+has_unmovable_pages calls=12 result=1
+unmovable block starts at PFN 102c00
+test_pages_isolated calls=0
+isolate_freepages_range calls=0
+```
+
+Both missed counters were zero for all four observers. This identifies an
+**initial pageblock-isolation refusal**. In the [pinned allocator](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/mm/page_alloc.c),
+that error returns before migration. The first reported unmovable block is
+`[0x102c00000, 0x103000000)`: 1,024 pages / 4 MiB with this kernel configuration.
+The exact busy PFN, notifier allowance and owning allocation remain unknown.
+
+Non-atomic flag snapshots contained the same two SLAB-marked PFNs inside that
+block before probe installation and after the attempt. This is consistent with
+pre-existing kernel allocations obstructing isolation; it does not establish
+which page the native predicate encountered or which subsystem owns it.
+Probe allocation/timing remains an additional limitation.
+
+No RAM was acquired. `insmod`'s inner exit status was 1 even though the root
+transport returned 0. All four summaries were emitted after observer removal;
+failed init left no project module resident. The unique temporary file was
+hash-checked, removed and confirmed absent. The same boot, CPUs 0-7, 20 stock
+module names, root access and taint 5124 were preserved. The captured log
+difference contained no matched panic, BUG, WARNING, OOM, unhandled fault or
+SMMU/KGSL fault/error. Functional Home/tracking feedback is pending. No retry,
+other window, payload, shutdown, reboot or flash was attempted.
 
 ### Selected high-RAM candidate: on-headset result
 
@@ -377,8 +429,10 @@ this source repository alone. Each subsequent rebuild needs its own recorded aud
 ## Remaining work
 
 The original fixed window and first capture-planned high window were refused.
-The next RAM investigation needs native allocator failure-stage evidence before
-another placement change; snapshots alone cannot identify the refusing owner.
+The instrumented attempt identifies initial pageblock isolation and an unmovable
+4 MiB block. The next placement design should account for observed unmovable
+blocks and actual payload requirements, then require a fresh native claim.
+Snapshots alone cannot identify the refusing owner or prove other windows free.
 A usable reservation and complete payload/DTB/entry relocation remain unproven.
 Forcing busy pages or repeatedly guessing addresses is not a solution. DMA
 quiescence, secure-watchdog handling, CPU/MMU transition and recovery remain unproven.
@@ -396,7 +450,7 @@ The pinned shutdown implementation also sets these limits on future tests:
 
 | Area | Source evidence | Still needed before hardware readiness |
 | --- | --- | --- |
-| RAM | Separate native claims refused the fixed window and one planned high window with `-EBUSY`. | Allocator refusal diagnosis, an accepted reservation, coordinated payload relocation and a target DT preserving secure/dynamic reservations. |
+| RAM | Fixed/high claims refused; instrumentation found initial isolation failure and an unmovable high block. | Placement accounting for unmovable blocks, an accepted reservation, coordinated payload relocation and a DT preserving secure/dynamic reservations. |
 | GPU/Syncboss | PM callbacks can defer work or hide errors. | Completion and failure detection on this firmware, including rollback. |
 | USB | Gadget suspend stops/disconnects gadget traffic. | Controller/glue DMA quiescence and target USB reprobe. |
 | Storage | UFS shutdown drains requests and powers down the link, but returns zero even after logged errors. | Observed shutdown completion and target reinitialization; no shutdown bypass is implemented here. |
