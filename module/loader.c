@@ -49,6 +49,7 @@ static char *image = "/data/local/tmp/qkx-Image";
 static char *initrd = "/data/local/tmp/qkx-initramfs";
 static char *dtb = "/data/local/tmp/qkx-boot.dtb";
 static bool execute;
+static bool validate_ram;
 static bool preserve_watchdog;
 static bool watchdog_recovery;
 static bool watchdog_control;
@@ -68,6 +69,8 @@ module_param(image, charp, 0);
 module_param(initrd, charp, 0);
 module_param(dtb, charp, 0);
 module_param(execute, bool, 0);
+module_param(validate_ram, bool, 0);
+MODULE_PARM_DESC(validate_ram, "Hollywood-only claim/release test of fixed destination RAM; no payload or shutdown");
 module_param(preserve_watchdog, bool, 0);
 module_param(watchdog_recovery, bool, 0);
 module_param(watchdog_control, bool, 0);
@@ -226,15 +229,23 @@ static int qkx_claim_destination(void)
 		return -EINVAL;
 	for (pfn = start; pfn < end; pfn++) {
 		struct page *page;
+		unsigned long type;
 
-		if (!pfn_valid(pfn))
+		if (!pfn_valid(pfn)) {
+			pr_err("quest_kexec: destination PFN %lx is not mapped\n", pfn);
 			return -ERANGE;
+		}
 		page = pfn_to_page(pfn);
-		if (PageReserved(page) || (zone && page_zone(page) != zone))
+		if (PageReserved(page) || (zone && page_zone(page) != zone)) {
+			pr_err("quest_kexec: destination PFN %lx is reserved or crosses zones\n", pfn);
 			return -EBUSY;
+		}
 		zone = page_zone(page);
-		if (block_flags(page, pfn, PB_migrate_end, MIGRATETYPE_MASK) != MIGRATE_MOVABLE)
+		type = block_flags(page, pfn, PB_migrate_end, MIGRATETYPE_MASK);
+		if (type != MIGRATE_MOVABLE) {
+			pr_err("quest_kexec: destination PFN %lx has unsupported pageblock type %lu\n", pfn, type);
 			return -EBUSY;
+		}
 	}
 	ret = claim(start, end, MIGRATE_MOVABLE, GFP_KERNEL);
 	if (ret)
@@ -379,6 +390,39 @@ static void qkx_release(void)
 		destination_owned = false;
 		release_destination = NULL;
 	}
+}
+
+static int qkx_validate_ram(void)
+{
+	int (*walk_ram)(u64, u64, void *, int (*)(struct resource *, void *));
+	const char *model;
+	u64 start, elapsed;
+	int ret;
+
+	if (of_property_read_string(of_root, "model", &model) ||
+	    strncmp(model, "Hollywood", 9))
+		return -ENODEV;
+	ret = qkx_resolve();
+	if (ret)
+		return ret;
+	walk_ram = (void *)lookup("walk_system_ram_res");
+	if (!walk_ram)
+		return -ENOENT;
+	ret = walk_ram(QKX_LO, QKX_HI - 1, NULL, qkx_ram_cb);
+	if (ret || !ram_found)
+		return -ERANGE;
+	/* One fixed-range allocation attempt. No payload, CPU or PM operations.
+	 * The native allocator may migrate/reclaim pages; never bypass refusal.
+	 */
+	start = ktime_get_ns();
+	ret = qkx_claim_destination();
+	elapsed = ktime_get_ns() - start;
+	pr_info("quest_kexec: RAM validation result=%d elapsed_ns=%llu owned=%u\n",
+		ret, elapsed, destination_owned);
+	qkx_release();
+	if (!ret)
+		pr_info("quest_kexec: RAM validation released destination; no payload or shutdown\n");
+	return ret;
 }
 
 static int qkx_test_transition(void);
@@ -1054,6 +1098,12 @@ static int __init qkx_init(void)
 		return -EINVAL;
 	if (test_full_copy && (execute || test_transition || test_cpus))
 		return -EINVAL;
+	if (validate_ram && (execute || preserve_watchdog || watchdog_recovery ||
+	    watchdog_control || test_transition || test_full_copy || test_cpus ||
+	    phase_delay_ms || post_shutdown_probe || preflight_only ||
+	    core_hang_control || secure_watchdog_control || warm_reset_test ||
+	    flush_rpmh || suspend_syncboss || disconnect_qmp))
+		return -EINVAL;
 #ifndef QKX_ENABLE_EXPERIMENTAL_JUMP
 	if (execute || test_transition || test_full_copy || test_cpus ||
 	    warm_reset_test || core_hang_control || secure_watchdog_control ||
@@ -1064,6 +1114,8 @@ static int __init qkx_init(void)
 #endif
 	if (!of_machine_is_compatible("qcom,kona"))
 		return -ENODEV;
+	if (validate_ram)
+		return qkx_validate_ram();
 	ret = qkx_resolve();
 	if (ret)
 		return ret;

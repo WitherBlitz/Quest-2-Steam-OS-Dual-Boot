@@ -18,7 +18,29 @@
 #define max_t(t,a,b) ((t)(a) > (t)(b) ? (t)(a) : (t)(b))
 #define pr_err(...) ((void)0)
 #define pr_info(...) ((void)0)
+#ifndef EOPNOTSUPP
+#define EOPNOTSUPP 95
+#endif
+typedef uint64_t u64;
 typedef unsigned int gfp_t;
+static bool validate_ram, execute, preserve_watchdog, watchdog_recovery, watchdog_control;
+static bool test_transition, test_full_copy, post_shutdown_probe, warm_reset_test;
+static bool flush_rpmh, suspend_syncboss, disconnect_qmp;
+static unsigned int test_cpus, phase_delay_ms, preflight_only;
+static unsigned int core_hang_control, secure_watchdog_control;
+struct resource { u64 start, end; };
+struct device_node { int unused; };
+static struct device_node root_node, *of_root = &root_node;
+static const char *model = "Hollywood (DVT)";
+static bool ram_found;
+static int ram_missing, resolve_ret, resolve_calls;
+static int of_property_read_string(struct device_node *n, const char *s, const char **v)
+{ if (!model) return -EINVAL; *v = model; return 0; }
+static int of_machine_is_compatible(const char *s) { return 1; }
+static u64 ktime_get_ns(void) { return 1000; }
+static int qkx_resolve(void) { resolve_calls++; return resolve_ret; }
+static int walk_ram(u64 start, u64 end, void *arg, int (*cb)(struct resource *, void *))
+{ struct resource r = { 0x8bf00000, 0xbcbfffff }; return ram_missing ? 0 : cb(&r, arg); }
 struct zone { int id; };
 struct page { unsigned long pfn; };
 static struct zone normal, other;
@@ -53,6 +75,7 @@ static uintptr_t lookup(const char *s)
     if (!strcmp(s, "alloc_contig_range")) return no_alloc ? 0 : (uintptr_t)alloc_range;
     if (!strcmp(s, "free_contig_range")) return no_free ? 0 : (uintptr_t)free_range;
     if (!strcmp(s, "get_pfnblock_flags_mask")) return no_flags ? 0 : (uintptr_t)get_flags;
+    if (!strcmp(s, "walk_system_ram_res")) return (uintptr_t)walk_ram;
     return 0;
 }
 static void __free_page(struct page *p) { page_frees++; }
@@ -65,6 +88,24 @@ int main(int argc, char **argv)
     unsigned int i;
     int ret;
     for (i = 0; i < 13312; i++) pages[i].pfn = 0x90000+i;
+    if (!strncmp(c, "validate_", 9)) {
+        validate_ram = true;
+        if (!strcmp(c, "validate_model")) model = "Seacliff";
+        if (!strcmp(c, "validate_no_model")) model = NULL;
+        if (!strcmp(c, "validate_no_ram")) ram_missing = 1;
+        if (!strcmp(c, "validate_busy")) result = -EBUSY;
+        if (!strcmp(c, "validate_resolve")) resolve_ret = -ENOENT;
+        ret = init_validation();
+        if (!strcmp(c, "validate_success")) { CHECK(ret == 0); CHECK(alloc_calls == 1 && free_calls == 1); }
+        else if (!strcmp(c, "validate_busy")) { CHECK(ret == -EBUSY); CHECK(alloc_calls == 1 && !free_calls); }
+        else { CHECK(ret < 0); CHECK(!alloc_calls && !free_calls); }
+        if (!strcmp(c, "validate_model") || !strcmp(c, "validate_no_model")) CHECK(ret == -ENODEV);
+        if (!strcmp(c, "validate_no_ram")) CHECK(ret == -ERANGE);
+        if (!strcmp(c, "validate_resolve")) CHECK(ret == -ENOENT);
+        if (!strcmp(c, "validate_model") || !strcmp(c, "validate_no_model")) CHECK(resolve_calls == 0);
+        CHECK(!destination_owned && !page_frees && !wrong_args);
+        return 0;
+    }
     if (!strcmp(c, "busy") || !strcmp(c, "staging_cleanup")) result = -EBUSY;
     if (!strcmp(c, "hole")) hole = 1;
     if (!strcmp(c, "reserved")) reserved = 1;

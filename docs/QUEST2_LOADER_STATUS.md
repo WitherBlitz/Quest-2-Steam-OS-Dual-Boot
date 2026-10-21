@@ -69,6 +69,15 @@ is recorded below; the earlier unpatched artifacts are separate.
 
 ## Host verification
 
+The default no-jump build now also accepts an explicit `validate_ram=1`
+diagnostic. It checks Kona/Hollywood, verifies System RAM coverage, makes one
+native claim attempt for the fixed 52 MiB destination, releases successful
+ownership immediately, and returns before any payload open or shutdown path.
+It rejects combinations with hardware, CPU, reset and other diagnostic modes.
+Allocation can migrate/reclaim pages and has no hard real-time deadline. This
+mode tests RAM acceptance only; it cannot establish DMA or secure handoff safety.
+The new build and live test results will be recorded separately below.
+
 Run with Python 3.11+ and a native GCC/Clang compiler:
 
 ```sh
@@ -76,8 +85,8 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The full suite has 63 passing host tests: 21 readiness-collector tests, 22
-loader regression tests, 8 RAM-ownership tests and 12 build-audit tests.
+The full suite has 70 passing host tests: 21 readiness-collector tests, 23
+loader regression tests, 14 RAM-ownership tests and 12 build-audit tests.
 The RAM/shutdown regressions were observed failing before these changes.
 The original loader failed 9
 of the first 11 new regressions before the source fix. An independent source
@@ -129,6 +138,19 @@ One minor test-coverage improvement remains: combined successful destination
 claim followed by a staging failure; current tests cover those cleanup branches
 separately. The initial run 39557198852 was intentionally cancelled before
 completion when the Syncboss suspend-abort correction was identified.
+
+### On-headset validation preparation
+
+The RAM-only diagnostic and its seven new regressions passed the host suite.
+A fresh source review found no Critical or Important issue in this path. Native
+build verification and the live claim/release result remain pending for this
+new mode. No GPU/Syncboss suspend rehearsal is enabled by this diagnostic.
+
+The pinned ARM SMMU, camera request-manager, camera SMMU and ADSP-loader driver
+registrations lack shutdown callbacks. Generic device shutdown does not invoke
+their remove/suspend paths or close frozen userspace camera handles. IOMMU
+groups, runtime PM state and quiet IRQ counters therefore cannot establish DMA
+quiescence. An explicit device-lifecycle and DMA-fencing design is still needed.
 
 ### Earlier baseline
 

@@ -64,6 +64,7 @@ struct device { const char *name; struct device_driver *driver; struct device_no
 struct bus_type { int unused; };
 struct qkx_log_header { u32 magic, write_pos, wraps, reserved; };
 static bool execute, preserve_watchdog, watchdog_recovery, watchdog_control;
+static bool validate_ram;
 static bool test_transition, test_full_copy, post_shutdown_probe, warm_reset_test;
 static bool flush_rpmh, suspend_syncboss, disconnect_qmp, write_test, clear;
 static unsigned int test_cpus, phase_delay_ms, preflight_only = 1;
@@ -262,6 +263,20 @@ int main(int argc, char **argv)
         test_cpus = 1; CHECK(check_options() == -EOPNOTSUPP); test_cpus = 0;
         core_hang_control = 1; CHECK(check_options() == -EOPNOTSUPP); core_hang_control = 0;
         secure_watchdog_control = 1; CHECK(check_options() == -EOPNOTSUPP);
+    } else if (!strcmp(which, "ram_validation_options")) {
+        bool *actions[] = { &execute, &test_transition, &test_full_copy, &warm_reset_test,
+                            &suspend_syncboss, &disconnect_qmp, &flush_rpmh, &preserve_watchdog };
+        unsigned int *modes[] = { &test_cpus, &core_hang_control, &secure_watchdog_control, &phase_delay_ms };
+        unsigned int i;
+        preflight_only = 0;
+        validate_ram = true;
+        CHECK(check_options() == 0);
+        for (i = 0; i < sizeof(actions)/sizeof(actions[0]); i++) {
+            *actions[i] = true; CHECK(check_options() == -EINVAL); *actions[i] = false;
+        }
+        for (i = 0; i < sizeof(modes)/sizeof(modes[0]); i++) {
+            *modes[i] = 1; CHECK(check_options() == -EINVAL); *modes[i] = 0;
+        }
     } else if (!strcmp(which, "staging")) {
         preflight_only = 0;
         CHECK(check_options() == 0);

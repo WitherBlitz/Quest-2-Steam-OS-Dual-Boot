@@ -100,6 +100,9 @@ class LoaderSafetyTests(unittest.TestCase):
     def test_plain_staging_options_accepted(self):
         self.case("staging")
 
+    def test_ram_validation_cannot_mix_with_hardware_actions(self):
+        self.case("ram_validation_options")
+
     def test_real_jump_requires_destination_ownership_before_shutdown(self):
         self.case("unowned_jump")
 

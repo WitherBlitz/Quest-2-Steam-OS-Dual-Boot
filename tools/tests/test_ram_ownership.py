@@ -20,11 +20,17 @@ class RamOwnershipTests(unittest.TestCase):
         claim = (function(loader, "qkx_claim_destination") if "qkx_claim_destination(" in loader
                  else "static int qkx_claim_destination(void) { return 0; }")
         release = function(loader, "qkx_release")
+        validation = (function(loader, "qkx_validate_ram") if "qkx_validate_ram(" in loader
+                      else "static int qkx_validate_ram(void) { return -ENOSYS; }")
+        init = function(loader, "qkx_init").split('\n\tret = qkx_resolve();')[0]
+        init = ("static int init_validation(void) {" + init[init.index('\n\tif (test_cpus'):]
+                + "\nreturn -ENOSYS;\n}")
+        ram = function(loader, "qkx_ram_cb")
         harness = Path(__file__).with_name("ram_ownership_harness.c").read_text()
         cls.temp = tempfile.TemporaryDirectory(prefix="qkx-ram-test-")
         cls.addClassCleanup(cls.temp.cleanup)
         source = Path(cls.temp.name) / "ram.c"
-        source.write_text(harness.replace("/* PRODUCTION */", claim + "\n" + release))
+        source.write_text(harness.replace("/* PRODUCTION */", "\n".join((claim, release, ram, validation, init))))
         cls.binary = Path(cls.temp.name) / ("ram.exe" if os.name == "nt" else "ram")
         linker = ["-fuse-ld=lld"] if os.name == "nt" else []
         result = subprocess.run([compiler, *linker, "-std=gnu11", "-Werror", str(source),
@@ -59,3 +65,21 @@ class RamOwnershipTests(unittest.TestCase):
 
     def test_failed_claim_does_not_leak_staging_allocations(self):
         self.case("staging_cleanup")
+
+    def test_validation_init_claims_and_releases_without_payload_path(self):
+        self.case("validate_success")
+
+    def test_validation_rejects_wrong_model_before_resolving_symbols(self):
+        self.case("validate_model")
+
+    def test_validation_rejects_unreadable_model(self):
+        self.case("validate_no_model")
+
+    def test_validation_requires_system_ram_coverage(self):
+        self.case("validate_no_ram")
+
+    def test_validation_propagates_busy_without_freeing_unowned_pages(self):
+        self.case("validate_busy")
+
+    def test_validation_handles_symbol_resolution_failure(self):
+        self.case("validate_resolve")
