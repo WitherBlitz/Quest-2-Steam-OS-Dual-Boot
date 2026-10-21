@@ -80,8 +80,12 @@ The full suite has 63 passing host tests: 21 readiness-collector tests, 22
 loader regression tests, 8 RAM-ownership tests and 12 build-audit tests.
 The RAM/shutdown regressions were observed failing before these changes.
 The original loader failed 9
-of the first 11 new regressions before the source fix. An independent source review also reproduced
-the full passing suite and found no Critical or Important issue in this scope.
+of the first 11 new regressions before the source fix. An independent source
+review reproduced the 62-test suite before the final Syncboss suspend-abort
+regression was added, and found no Critical or Important issue in that scope.
+Subsequent pinned-source inspection found the duplicate-resume hazard on
+Syncboss suspend failure; its regression was observed failing, then passing
+with the correction, and the full 63-test suite passed.
 
 The C harnesses compile the actual RAM claim/release and `qkx_execute` functions and the actual
 initialization option/log guard prefixes, ending before their first external
@@ -95,9 +99,38 @@ the host test compiler does not replace the pinned Android build compiler.
 
 ## Verified offline rebuild
 
-The RAM-ownership and shutdown changes above have passed host tests and source
-review; their new matching rebuild is pending. The run below is the previously
-verified baseline and does not contain those subsequent changes.
+### RAM-ownership and shutdown rebuild
+
+[Actions run 39557599099](https://github.com/WitherBlitz/quest-kexec-q2/actions/runs/39557599099)
+completed successfully from corrected source commit
+`cdfc84a4bc30d9cfcc997ea5f4713bba3c6dfc02`. All 63 host tests passed on Linux,
+and the matching kernel and three modules built without warning/error log lines.
+The artifact was downloaded and locally checked against its transport digest,
+12-file allowlist, all 11 checksum entries, pinned provenance, stage-only
+compile command, ELF/vermagic metadata and generated/stock symbol CRCs.
+
+ZIP SHA-256: `015fc4eea6c3d478212ee1c9c65fb1e197445addd83570e0bcdc92cc3a578fb3`.
+
+| Module | Version records | SHA-256 |
+| --- | ---: | --- |
+| `quest_kexec.ko` | 39 | `562e6c33618b197299c8b4e68fbd8a3b2f91d2ba56efbb695a40c83d07b67cd1` |
+| `marker_read.ko` | 15 | `251820730e1023e858e254c4af230070c4ba99cf658c583373159c0a11591605` |
+| `usb_log.ko` | 20 | `d43889ccff99e01703836a8082c2df92da57d64c89c8d8ec0b3ca7e5b45f6753` |
+
+All 74 version records and 71 undefined-symbol references passed the checks.
+The two new built-in import CRCs (`pfn_valid`, `contig_page_data`) were also
+independently rederived directly from the hash-pinned stock Image. All 12,362
+`Module.symvers` records equal the baseline below after sorting; the rebuilt
+kernel Image has the same SHA-256 as that baseline. Native `llvm-readelf`
+separately confirmed the three AArch64 relocatable headers and exact vermagic.
+No module was loaded. These remain offline checks, not a hardware boot test.
+
+One minor test-coverage improvement remains: combined successful destination
+claim followed by a staging failure; current tests cover those cleanup branches
+separately. The initial run 39557198852 was intentionally cancelled before
+completion when the Syncboss suspend-abort correction was identified.
+
+### Earlier baseline
 
 [Actions run 39551869780](https://github.com/WitherBlitz/quest-kexec-q2/actions/runs/39551869780)
 completed successfully from source commit
@@ -168,6 +201,16 @@ No loading, reboot, flashing, partition change or boot-policy change was part of
 this source fix. Staging itself allocates memory and uses a temporary kprobe;
 it is not a read-only device test.
 
+The pinned shutdown implementation also sets these limits on future tests:
+
+| Area | Source evidence | Still needed before hardware readiness |
+| --- | --- | --- |
+| RAM | Successful native claim removes the copy window from the allocator. | Live claim acceptance and a target DT that preserves all Android secure/dynamic reservations. |
+| GPU/Syncboss | PM callbacks can defer work or hide errors. | Completion and failure detection on this firmware, including rollback. |
+| USB | Gadget suspend stops/disconnects gadget traffic. | Controller/glue DMA quiescence and target USB reprobe. |
+| Storage | UFS shutdown drains requests and powers down the link, but returns zero even after logged errors. | Observed shutdown completion and target reinitialization; no shutdown bypass is implemented here. |
+| CPUs/other devices | ARM64 `machine_shutdown` disables nonboot CPUs; generic `device_shutdown` invokes bus/driver hooks without an aggregate success result. | An audit of remaining DMA masters, firmware references and recovery. |
+
 The eventual goal is Horizon/Linux switching with only one full OS running.
 Display, tracking, controllers, audio, networking, suspend and a SteamOS runtime
 require subsequent implementation and physical validation.
@@ -189,6 +232,10 @@ All links below refer to the matching immutable kernel source, not a newer API:
   existing return-to-apps cleanup as a complete USB restoration protocol.
 - [`kernel/reboot.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/kernel/reboot.c):
   `kernel_restart_prepare` invokes reboot notifiers and device shutdown.
+- [`drivers/base/core.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/base/core.c),
+  [`arch/arm64/kernel/process.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/arch/arm64/kernel/process.c)
+  and [`drivers/scsi/ufs/ufshcd.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/scsi/ufs/ufshcd.c):
+  device/CPU shutdown coverage and UFS error-reporting limits in the table above.
 - [`drivers/staging/oculus/mcu/syncboss/syncboss_spi_core.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/staging/oculus/mcu/syncboss/syncboss_spi_core.c)
   and [`drivers/gpu/msm/adreno.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/gpu/msm/adreno.c):
   deferred Syncboss resume and unreported GPU power-state errors limit what a
