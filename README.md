@@ -1,5 +1,7 @@
 **To improve and hopefully finish  the goat who made this, feel free to use my improvements on the main branch or this code in any other way machachu56.**
 
+**To whoever is looking at this, this is MASSIVELY incomplete! Don't expect this to be in a week or anything either.**
+
 # Quest 2 Steam OS Port
 
 The original project, [quest-kexec-q2](https://github.com/machachu56/quest-kexec-q2),
