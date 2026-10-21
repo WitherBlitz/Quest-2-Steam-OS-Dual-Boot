@@ -4,8 +4,10 @@ This branch contains a read-only readiness collector and source fixes for
 `hollywood`, Horizon build `52242990024200150`, kernel
 `4.19.325-cip128-st12-g49638c7a8637`. It is an experimental development branch.
 The patched Android kernel module has **been rebuilt and its symbol versions
-verified**. It has not been loaded on the headset. This branch does not provide
-a complete SteamOS port, validated dual boot, or full tracking.
+verified**. One RAM-only initialization attempt on the headset safely refused
+the fixed destination with `-EBUSY`; no ownership was acquired or payload run.
+Home and tracking remained normal. This branch does not provide a complete
+SteamOS port, validated dual boot, or full tracking.
 
 ## Branch and build provenance
 
@@ -76,7 +78,7 @@ ownership immediately, and returns before any payload open or shutdown path.
 It rejects combinations with hardware, CPU, reset and other diagnostic modes.
 Allocation can migrate/reclaim pages and has no hard real-time deadline. This
 mode tests RAM acceptance only; it cannot establish DMA or secure handoff safety.
-The new build and live test results will be recorded separately below.
+The new build and live test results are recorded below.
 
 Run with Python 3.11+ and a native GCC/Clang compiler:
 
@@ -139,18 +141,62 @@ claim followed by a staging failure; current tests cover those cleanup branches
 separately. The initial run 39557198852 was intentionally cancelled before
 completion when the Syncboss suspend-abort correction was identified.
 
-### On-headset validation preparation
+### RAM-only rebuild and on-headset validation
 
 The RAM-only diagnostic and its seven new regressions passed the host suite.
-A fresh source review found no Critical or Important issue in this path. Native
-build verification and the live claim/release result remain pending for this
-new mode. No GPU/Syncboss suspend rehearsal is enabled by this diagnostic.
+A fresh source review found no Critical or Important issue in this path.
+[Actions run 39562556932](https://github.com/WitherBlitz/quest-kexec-q2/actions/runs/39562556932)
+completed successfully from source commit
+`6410b712e8a489b54d2d10c30bf004457844cf11`. All 70 tests passed on Linux and
+the matching kernel and three modules built. Local checks reproduced the ZIP
+digest, 12-file allowlist, 11 checksums, source/compiler/config pins, no-jump
+compile command, ELF/vermagic metadata and all 76 version records / 73 undefined
+references against generated and stock references.
+
+ZIP SHA-256: `a67f14afe81cc8f309d1f6aac62bfbaf747dbde0b6c45f0c915d889b6b57f486`.
+
+The tested `quest_kexec.ko` has 41 version records and SHA-256
+`c88968617455a10b28f9fd8f70f7eca9ce669935578553973971b939284f6d62`.
+The other two modules retain their hashes from the preceding rebuild and were
+not loaded.
+
+On 2026-10-21, exactly one `validate_ram=1` attempt returned:
+
+```text
+quest_kexec: RAM validation result=-16 elapsed_ns=6273646 owned=0
+```
+
+`insmod` returned "Device or resource busy". The result follows the model,
+symbol and System RAM checks; no per-PFN refusal message appeared, indicating
+the native allocator refused the fixed `[0x90000000, 0x93400000)` window. No
+ownership was acquired. The precise busy page/owner is unresolved; earlier
+non-atomic page metadata snapshots cannot establish the cause. No retry or
+forced claim was made.
+
+The boot ID, CPUs 0-7 and original 20 stock module names were unchanged.
+Failed initialization left no project module loaded. The temporary module
+file was hash-checked and removed. Taint changed from 1028 to 5124, exactly the
+expected out-of-tree-module flag, which persists until reboot. The captured
+log difference contained no matched panic, BUG, WARNING, OOM or fault patterns.
+The user confirmed Home and tracking were normal. No payload open, shutdown,
+CPU offlining, USB stop, reboot, flashing or boot-policy change occurred.
+
+Passive topology, runtime device-tree and IRQ checks also completed. They
+showed bound devices and activity in GPU, USB, Syncboss and CDSP IRQ paths;
+camera-frame operation was not established. No GPU/Syncboss suspend rehearsal
+was performed: the callbacks currently lack an adequate recovery oracle.
 
 The pinned ARM SMMU, camera request-manager, camera SMMU and ADSP-loader driver
 registrations lack shutdown callbacks. Generic device shutdown does not invoke
 their remove/suspend paths or close frozen userspace camera handles. IOMMU
 groups, runtime PM state and quiet IRQ counters therefore cannot establish DMA
-quiescence. An explicit device-lifecycle and DMA-fencing design is still needed.
+quiescence. Parent/bus/domain effects still require tracing; an absent callback
+alone does not prove DMA continues after all shutdown paths. An explicit
+device-lifecycle and DMA-fencing design is still needed.
+
+Minor review follow-ups remain for early refusal-stage logging and negative
+walker, partial-coverage, incompatible-Kona and timing/log tests. These do not
+change the observed allocator refusal or establish hardware readiness.
 
 ### Earlier baseline
 
@@ -213,21 +259,25 @@ this source repository alone. Each subsequent rebuild needs its own recorded aud
 
 ## Remaining work
 
-Runtime RAM claim acceptance, DMA quiescence, secure-watchdog handling,
-CPU/MMU transition and recovery remain unproven. Panicking after irreversible
+The fixed RAM window was refused by the live allocator. A justified placement
+or reservation strategy is needed while retaining that refusal; forcing busy
+pages or guessing alternate addresses is not a solution. DMA quiescence,
+secure-watchdog handling, CPU/MMU transition and recovery remain unproven.
+Panicking after irreversible
 failure prevents further handoff but does not prove safe recovery. The target
 DT must preserve Android's secure/dynamic reservations; an allocator claim of
 the copy window does not fence all target RAM. The broad `qcom,kona` guard is
 not exact-board proof.
-No loading, reboot, flashing, partition change or boot-policy change was part of
-this source fix. Staging itself allocates memory and uses a temporary kprobe;
-it is not a read-only device test.
+The scoped live initialization above exercised RAM validation only. No reboot,
+flashing, partition change or boot-policy change occurred. Staging and RAM
+validation allocate or migrate memory and use a temporary kprobe; they are not
+read-only device tests.
 
 The pinned shutdown implementation also sets these limits on future tests:
 
 | Area | Source evidence | Still needed before hardware readiness |
 | --- | --- | --- |
-| RAM | Successful native claim removes the copy window from the allocator. | Live claim acceptance and a target DT that preserves all Android secure/dynamic reservations. |
+| RAM | The one live native claim refused the fixed window with `-EBUSY`. | A justified placement/reservation strategy and a target DT that preserves all Android secure/dynamic reservations. |
 | GPU/Syncboss | PM callbacks can defer work or hide errors. | Completion and failure detection on this firmware, including rollback. |
 | USB | Gadget suspend stops/disconnects gadget traffic. | Controller/glue DMA quiescence and target USB reprobe. |
 | Storage | UFS shutdown drains requests and powers down the link, but returns zero even after logged errors. | Observed shutdown completion and target reinitialization; no shutdown bypass is implemented here. |
@@ -262,3 +312,11 @@ All links below refer to the matching immutable kernel source, not a newer API:
   and [`drivers/gpu/msm/adreno.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/gpu/msm/adreno.c):
   deferred Syncboss resume and unreported GPU power-state errors limit what a
   successful PM callback establishes.
+- [`drivers/base/platform.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/base/platform.c),
+  [`drivers/iommu/arm-smmu.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/iommu/arm-smmu.c#L6228),
+  [`cam_req_mgr_dev.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/techpack/camera/drivers/cam_req_mgr/cam_req_mgr_dev.c#L861),
+  [`cam_smmu_api.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/techpack/camera/drivers/cam_smmu/cam_smmu_api.c#L3938)
+  and [`adsp-loader.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/techpack/audio/dsp/adsp-loader.c#L474):
+  platform shutdown calls the registered shutdown hook only; these driver
+  registrations provide no such hook. Remove/suspend and camera-client close
+  paths therefore cannot be assumed to run during generic shutdown.
