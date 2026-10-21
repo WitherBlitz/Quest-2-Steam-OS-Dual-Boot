@@ -1,3 +1,5 @@
+**To improve and hopefully finish  the goat who made this, feel free to use my improvements on the main branch or this code in any other way machachu56.**
+
 # Quest-KeXec
 
 > **Quest 2 firmware-specific development branch:** default builds stage only;
