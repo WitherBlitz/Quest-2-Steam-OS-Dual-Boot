@@ -98,10 +98,10 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-There are 18 source/model tests and 12 passive-collector tests; the full suite
-has 204 tests. Independent read-only review reproduced the source audit and
-tests with no remaining actionable findings. Native module/kernel sources did
-not change, so this phase requires no replacement module or target Image.
+That passive-only phase had 18 source/model tests and 12 passive-collector tests;
+its full suite had 204 tests. Independent read-only review reproduced the source
+audit and tests with no remaining actionable findings. That phase changed no
+native module/kernel sources and required no replacement module or target Image.
 
 ## Required before a disruptive test
 
@@ -153,8 +153,8 @@ python3 -B tools/quest2_diag_profile.py --btf /private/live-vmlinux.btf \
 HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py' -q
 ```
 
-The matching build and live module result are recorded separately after
-verification. A successful observational snapshot will still report
+The verified matching build and live result are recorded below. An observational
+snapshot still reports
 `handoff_ready=0`: it cannot establish producer drain, DMA quiescence, secure
 ownership, watchdog control or recovery.
 
@@ -172,6 +172,50 @@ Default `--vmlinux` mode retains the strict stock byte/placement checks. Selecte
 compiled/stock/live BTF, header, import CRC and vermagic checks remain hard gates.
 Unassessed build evidence is printed before layout validation so a failed check
 retains useful diagnostic data. No live load is allowed before its assessment.
+
+### Native build and live result
+
+On 2026-10-22 America/Denver, the
+[matching native build](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39730002859)
+passed at source `e5e357ca525b4c9f15a6793fb2192a9cedd5c955`. All 230 host tests,
+selected BTF/header checks and four-module ABI audits passed. The diagnostic is
+147,264 bytes, SHA-256
+`84b1326f32036b1988be8b8180e37f7015b0c5f0e54f4dbe0e9b3d2ca81b0664`,
+with 24 versioned CRC records. The independently checked build archive has
+SHA-256 `ffcc826439ea3a35ff3a097a883830594d49823a626ddec0b0f6c70e1bdecaac`.
+It contains no full kernel Image, vmlinux, private config or raw device capture.
+
+Independent code assessment found that the rebuilt getter's 17 instructions
+differ from stock only at offsets 12, 16, 28 and 48: address-bearing ADRP/ADD and
+two BL instructions. Decoding resolves `g_dev+60` for `open_cnt`, `g_dev+64` for
+`cam_lock`, and the expected mutex lock/unlock functions. ELF and raw Image
+extractions agree. The compiled hash and placement remain different from stock;
+the stock-match flags remain false. These bytes and placements are not loaded
+into the headset. The module retains its stock runtime fingerprint/constants.
+
+After artifact, assessment and fresh identity/boot/health gates, exactly one
+`observe=1` insertion completed. Its stock runtime fingerprint passed before
+private camera reads. Observations were:
+
+- Camera status `sampled`, no read fault or truncation, open count **1**,
+  registered subdevices **15**, sessions **5**, linked CRM slots **0**.
+  No live request-queue/workqueue path was exercised because no link was present;
+  those paths have host harness coverage only.
+- All eight subsystem entries (ADSP, CDSP, Venus, SPSS, CVPSS, A650 ZAP, WLAN and
+  NPU) sampled reference count **1**, embedded public state **ONLINE**, crash
+  count **0**, restart level **1**, no restart group and work/restart-work bits
+  **0**. These are individual advisory samples, not owned handles or DMA fences.
+- Normal unload completed and the exact temporary module file was removed;
+  absence was checked. Boot, root/build identity, CPUs 0-7, 20 stock module names,
+  taint 5124, panic/watchdog reads and passive DSP/camera/binding/IOMMU inventories
+  agreed before/after. No new matched fault patterns appeared in retained logs.
+- The user confirmed that Home and head/controller tracking remained normal.
+
+No client close, DSP handle release, service stop, suspend, unbind, SCM/MMIO,
+watchdog write, reboot or Linux payload operation occurred. The diagnostic is no
+longer resident; no diagnostic startup job was created. Raw logs and device identifiers stay
+private. **Camera/DSP shutdown, DMA quiescence, watchdog recovery and Linux
+handoff remain unproven.** No automatic boot or hardware gate was enabled.
 
 ### Remaining hardware prerequisites
 

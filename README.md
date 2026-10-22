@@ -18,8 +18,8 @@ The original Git history and branches are preserved. See the
 > before using the legacy upstream build or boot instructions below.
 
 The latest [camera/DSP/DMA and watchdog validation](docs/QUEST2_SHUTDOWN_VALIDATION.md)
-records source-model tests, passive headset evidence and the bounded read-only
-camera/DSP diagnostic. Physical shutdown and
+records source-model tests, passive headset evidence and a successful bounded
+read-only camera/DSP diagnostic on the matching headset. Physical shutdown and
 recovery remain unproven; Linux boot is blocked.
 
 A kernel module for Meta Quest headsets that allows you to load a custom kernel without unlocking the bootloader of the headset. Based on [kexec-at-home](https://github.com/provide-salad/kexec-at-home)

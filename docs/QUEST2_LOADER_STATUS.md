@@ -12,6 +12,12 @@ kernel profile now builds and passes offline checks, but has not been booted.
 This branch does not provide a complete SteamOS port, validated dual boot, or
 full tracking.
 
+The separate [read-only camera/DSP diagnostic](QUEST2_SHUTDOWN_VALIDATION.md#native-build-and-live-result)
+has now been built and tested once on the matching headset. It captured camera
+sessions and subsystem reference/state samples, then unloaded and removed its
+temporary file. Home/tracking remained normal. Shutdown, DMA quiescence and
+recovery are still unproven; this does not open the Linux handoff gate.
+
 ## Branch and build provenance
 
 The fixes start at loader commit
