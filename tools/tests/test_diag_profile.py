@@ -1,8 +1,12 @@
 """Bounded BTF/layout gates for the observational diagnostic, no device access."""
 import importlib.util
+import contextlib
+import io
 from pathlib import Path
 import struct
+import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -23,14 +27,15 @@ def btf_fixture(*, count_offset=256, duplicate=False, duplicate_mutex=False):
 
 def elf_fixture(*, elf_type=2, shifted=False, bad_code=False):
     names=b"\0.shstrtab\0.strtab\0.symtab\0.BTF\0.text\0.data\0"
-    strings=b"\0cam_req_mgr_is_open\0g_dev\0g_crm_core_dev\0"
+    strings=b"\0cam_req_mgr_is_open\0g_dev\0g_crm_core_dev\0_text\0"
     address=0xffffff8008b24518
     code=bytes.fromhex("fd7bbea9f44f01a9fd030091d49600b09452059193120091e00313aa8ad31394880240b9e00313aa1f010071f4079f1a98d31394e003142af44f41a9fd7bc2a8c0035fd6")
     if bad_code: code=b"\0"+code[1:]
     symbols=bytes(24)
     for name,section,value,size in [("cam_req_mgr_is_open",5,address,68),
                                    ("g_dev",6,address+0x12d8c00+int(shifted),112),
-                                   ("g_crm_core_dev",6,address+0x12d8210,8)]:
+                                   ("g_crm_core_dev",6,address+0x12d8210,8),
+                                   ("_text",5,address-64,0)]:
         symbols+=struct.pack("<IBBHQQ",strings.index(name.encode()),0x10,0,section,value,size)
     sections=[("",0,b"",0,0,0),(".shstrtab",3,names,0,0,0),
               (".strtab",3,strings,0,0,0),(".symtab",2,symbols,2,24,0),
@@ -119,6 +124,45 @@ class DiagnosticProfileTests(unittest.TestCase):
     def test_truncated_or_relocatable_object_vmlinux_refused(self):
         for data in (elf_fixture()[:-1],elf_fixture(elf_type=1),elf_fixture(elf_type=4)):
             with self.subTest(length=len(data)),self.assertRaises(ValueError): self.module().elf_data(data)
+
+    def test_build_evidence_records_differences_without_claiming_runtime_identity(self):
+        for kwargs in ({"bad_code":True},{"shifted":True}):
+            with self.subTest(kwargs=kwargs):
+                btf,code=self.module().elf_data(elf_fixture(**kwargs),build_only=True)
+                self.assertEqual(btf,btf_fixture())
+                self.assertTrue(code["compiled_evidence_only"])
+                self.assertTrue(code["runtime_anchor_check_required"])
+                self.assertFalse(code["stock_anchor_bytes_match"] and code["static_relative_addresses_match"])
+                self.assertEqual(len(bytes.fromhex(code["entry_window_hex"])),68)
+
+    def test_build_evidence_still_rejects_invalid_elf(self):
+        for data in (elf_fixture()[:-1],elf_fixture(elf_type=1)):
+            with self.subTest(length=len(data)),self.assertRaises(ValueError):
+                self.module().elf_data(data,build_only=True)
+
+    def test_build_image_crosscheck_is_independent_and_bounded(self):
+        module=self.module();data=elf_fixture()
+        code=bytes.fromhex(module.elf_data(data)[1]["entry_window_hex"])
+        raw=bytes(64)+code
+        evidence=module.elf_data(data,build_only=True,image=raw)[1]
+        self.assertTrue(evidence["image_entry_window_matches_elf"])
+        self.assertEqual(evidence["getter_offset_from_text"],64)
+        changed=raw[:64]+bytes([raw[64]^1])+raw[65:]
+        self.assertFalse(module.elf_data(data,build_only=True,image=changed)[1]["image_entry_window_matches_elf"])
+        with self.assertRaises(ValueError):module.elf_data(data,build_only=True,image=raw[:65])
+
+    def test_build_mode_still_refuses_layout_mismatch_before_report(self):
+        module=self.module()
+        with tempfile.TemporaryDirectory() as directory:
+            source=Path(directory)/"vmlinux";source.write_bytes(elf_fixture())
+            output=Path(directory)/"report.json"
+            stderr=io.StringIO()
+            with patch.object(module,"layout_profile",return_value={"wrong":{}}),contextlib.redirect_stderr(stderr),contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(SystemExit) as error:
+                    module.main(["--build-vmlinux",str(source),"--output",str(output)])
+            self.assertEqual(error.exception.code,2)
+            self.assertIn("diagnostic layout differs",stderr.getvalue())
+            self.assertFalse(output.exists())
 
 
 if __name__ == "__main__": unittest.main()

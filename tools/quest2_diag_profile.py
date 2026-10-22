@@ -140,7 +140,7 @@ def header(layout):
     return "\n".join(lines+["#endif", ""])
 
 
-def elf_data(data):
+def elf_data(data, *, build_only=False, image=None):
     if (len(data)<64 or data[:7]!=b"\x7fELF\x02\x01\x01" or
             struct.unpack_from("<H",data,16)[0] not in (2,3) or struct.unpack_from("<H",data,18)[0]!=183):
         raise ValueError("AArch64 ELF64 little-endian vmlinux required")
@@ -166,48 +166,92 @@ def elf_data(data):
     try: btf=content(named[".BTF"]); table=named[".symtab"]
     except KeyError as exc: raise ValueError("vmlinux BTF/symbols required") from exc
     if table[9]!=24 or table[5]%24 or table[6]>=count: raise ValueError("invalid vmlinux symbols")
-    symbols={}; names=content(sections[table[6]])
+    symbols={}; names=content(sections[table[6]]); functions={}
     for no,info,other,section,value,size in struct.iter_unpack("<IBBHQQ",content(table)):
         if not no or not 0<section<count: continue
         name=string(names,no)
-        if name in ("cam_req_mgr_is_open","g_dev","g_crm_core_dev"):
+        if info&15==2: functions.setdefault(value,[]).append(name)
+        if name in ("cam_req_mgr_is_open","g_dev","g_crm_core_dev","_text"):
             if name in symbols: raise ValueError("ambiguous diagnostic vmlinux symbol")
             symbols[name]=(value,size,section)
-    if set(symbols)!={"cam_req_mgr_is_open","g_dev","g_crm_core_dev"}:
+    if not {"cam_req_mgr_is_open","g_dev","g_crm_core_dev"}<=symbols.keys():
         raise ValueError("missing diagnostic vmlinux symbols")
     address,size,index=symbols["cam_req_mgr_is_open"]; section=sections[index]
     relative=address-section[3]
-    if relative<0 or relative+size>section[5]: raise ValueError("invalid diagnostic code mapping")
+    if relative<0 or relative>=section[5] or size>4096 or relative+size>section[5]:
+        raise ValueError("invalid diagnostic code mapping")
     code=content(section)[relative:relative+size]
-    if len(code)!=68 or hashlib.sha256(code).hexdigest()!="5c9dab3747b8aabe38c43a3cbf33e24703759e9244ab784b70c4925055a796b0":
+    window=content(section)[relative:relative+min(max(size,68),256)]
+    code_sha=hashlib.sha256(code).hexdigest()
+    same_code=len(code)==68 and code_sha=="5c9dab3747b8aabe38c43a3cbf33e24703759e9244ab784b70c4925055a796b0"
+    deltas={name:symbols[name][0]-address for name in ("g_dev","g_crm_core_dev")}
+    same_addresses=deltas=={"g_dev":0x12d8c00,"g_crm_core_dev":0x12d8210}
+    if not build_only and not same_code:
         raise ValueError("compiled camera anchor differs from stock code")
-    if symbols["g_dev"][0]-address!=0x12d8c00 or symbols["g_crm_core_dev"][0]-address!=0x12d8210:
+    if not build_only and not same_addresses:
         raise ValueError("compiled camera static addresses differ from stock relationships")
-    return btf, {"elf_type":elf_type,"anchor_bytes":len(code),"anchor_sha256":hashlib.sha256(code).hexdigest(),
-                 "static_relative_addresses_match":True}
+    calls=[]
+    for offset in range(0,len(window)-3,4):
+        instruction=struct.unpack_from("<I",window,offset)[0]
+        if instruction&0xfc000000==0x94000000:
+            immediate=instruction&0x3ffffff
+            if immediate&0x2000000: immediate-=0x4000000
+            delta=offset+immediate*4
+            calls.append({"offset":offset,"relative_target":delta,
+                          "symbols":functions.get(address+delta,[])[:8]})
+    extra={"calls":calls}
+    if image is not None:
+        if not build_only or "_text" not in symbols:
+            raise ValueError("built Image cross-check requires build mode and _text")
+        raw_offset=address-symbols["_text"][0]
+        if raw_offset<0 or raw_offset+len(window)>len(image):
+            raise ValueError("built Image code window is out of bounds")
+        raw=image[raw_offset:raw_offset+len(window)]
+        extra.update(getter_offset_from_text=raw_offset,
+                     image_sha256=hashlib.sha256(image).hexdigest(),
+                     image_entry_window_sha256=hashlib.sha256(raw).hexdigest(),
+                     image_entry_window_matches_elf=raw==window)
+    # A module imports the running kernel's export, not the rebuilt function's
+    # code or static placement. Build mode gates layouts and records code for
+    # inspection; it never supplies replacement runtime constants or readiness.
+    return btf, {"elf_type":elf_type,"anchor_bytes":len(code),"anchor_sha256":code_sha,
+                 "entry_window_hex":window.hex(),"static_relative_addresses":deltas,
+                 "stock_anchor_bytes_match":same_code,"static_relative_addresses_match":same_addresses,
+                 "compiled_evidence_only":build_only,"runtime_anchor_check_required":True,**extra}
 
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     source=parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--btf",type=Path); source.add_argument("--vmlinux",type=Path)
+    source.add_argument("--build-vmlinux",type=Path,
+                        help="Verify compiled BTF; record built code without claiming stock binary identity")
+    parser.add_argument("--built-image",type=Path,help="Cross-check build-only ELF extraction against its raw Image")
     parser.add_argument("--output",type=Path,required=True)
     args=parser.parse_args(argv)
     try:
         code={"runtime_anchor_check_required":True}
         if args.vmlinux: data,code=elf_data(args.vmlinux.read_bytes())
+        elif args.build_vmlinux:
+            data,code=elf_data(args.build_vmlinux.read_bytes(),build_only=True,
+                               image=args.built_image.read_bytes() if args.built_image else None)
+            print("DIAGNOSTIC_BUILD_CODE_EVIDENCE_UNASSESSED "+json.dumps(code,separators=(",",":")))
         else: data=args.btf.read_bytes()
+        if args.built_image and not args.build_vmlinux:
+            raise ValueError("built Image is only valid with --build-vmlinux")
         actual=layout_profile(data)
+        if args.build_vmlinux:
+            print("DIAGNOSTIC_BUILD_LAYOUT_EVIDENCE_UNVERIFIED "+json.dumps(actual,separators=(",",":")))
         expected=json.loads((ROOT/"module/diag_profile.json").read_text())
         compare_layout(actual,expected)
         if header(expected)!=(ROOT/"module/diag_profile.h").read_text():
             raise ValueError("compiled profile header differs from verified layout")
         report={"layouts":actual,"code":code,"handoff_ready":False,
-                "scope":"Selected data layouts and camera anchor only; no shutdown or full binary equivalence"}
+                "scope":"Selected layouts verified; built code is evidence only. Stock runtime anchor remains required; no shutdown or full binary equivalence"}
         with args.output.open("x",encoding="utf-8") as stream: json.dump(report,stream,indent=2);stream.write("\n")
     except (OSError,ValueError,struct.error) as exc:
         parser.exit(2,f"DIAGNOSTIC_PROFILE_FAILED: {exc}\n")
-    print("DIAGNOSTIC_PROFILE_VERIFIED; HANDOFF_BLOCKED")
+    print("DIAGNOSTIC_LAYOUT_VERIFIED; RUNTIME_ANCHOR_REQUIRED; HANDOFF_BLOCKED")
 
 
 if __name__ == "__main__": main()

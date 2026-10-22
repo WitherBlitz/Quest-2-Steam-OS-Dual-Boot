@@ -116,9 +116,10 @@ address, control, shutdown or watchdog parameters.
 
 The selected private layouts in `module/diag_profile.json` were derived from
 the running kernel's BTF. The generated header must agree exactly. The matching
-kernel build separately verifies its BTF, camera instruction SHA-256 and static
-symbol relationships before publishing the module. This checks selected layout
-and code agreement; it does not establish complete binary equivalence. Live
+kernel build separately verifies its BTF and records bounded compiled getter
+bytes, size, SHA-256, call targets and relative symbol placement as build evidence.
+ELF extraction is cross-checked against that build's raw Image. This checks
+selected layouts; it does not establish complete binary equivalence. Live
 symbol addresses were masked, so the runtime instruction check remains required;
 kernel pointer visibility was not changed.
 
@@ -143,7 +144,7 @@ The build includes `diagnostic-profile.json`, `diagnostic.compile.txt` and the
 fourth module in its existing checksum/provenance/import-CRC gates. Host tests
 execute the actual snapshot and guard functions with API doubles. They cover
 busy locks, cleanup, sparse links, read faults, bounded traversal, DSP capacity,
-wrong targets and changed code/layouts. The full suite currently has 226 tests.
+wrong targets and changed code/layouts. The full suite currently has 230 tests.
 These tests do not simulate hardware or prove concurrent driver correctness.
 
 ```sh
@@ -161,6 +162,16 @@ The profile verifier accepts both executable and dynamically linked kernel ELF
 formats. The approved ARM64 `CONFIG_RELOCATABLE` build uses `-shared` and produces
 `ET_DYN`; this does not relax its AArch64, symbol, BTF or instruction checks.
 Relocatable module objects (`ET_REL`) are rejected as `vmlinux` inputs.
+
+CI uses explicit `--build-vmlinux --built-image` mode: rebuilt code is evidence
+for offline assessment, not replacement runtime code or constants. The module's
+undefined getter import resolves against the running kernel. Its stock 68-byte
+runtime fingerprint and stock-relative constants remain unchanged. Complete
+rebuilt getter byte/placement identity is therefore not an ABI requirement.
+Default `--vmlinux` mode retains the strict stock byte/placement checks. Selected
+compiled/stock/live BTF, header, import CRC and vermagic checks remain hard gates.
+Unassessed build evidence is printed before layout validation so a failed check
+retains useful diagnostic data. No live load is allowed before its assessment.
 
 ### Remaining hardware prerequisites
 
