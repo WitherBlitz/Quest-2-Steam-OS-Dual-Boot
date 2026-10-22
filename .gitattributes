@@ -1,0 +1,2 @@
+# Unified-diff context prefixes are data; git apply checks added-code whitespace.
+kernel/patches/quest2-startup/*.patch text eol=lf -whitespace

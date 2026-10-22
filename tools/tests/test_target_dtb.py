@@ -150,4 +150,35 @@ class TargetDtbTests(unittest.TestCase):
                 self.assertFalse((root/"bad").exists())
 
 
+    def test_exact_startup_build_profile_is_accepted_but_tampered_profile_is_not(self):
+        from ci.quest2_startup import profile_record
+        runtime,image,rd,live = self.inputs()
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            data={"Image":image,"initramfs.gz":rd,"target.config":CONFIG.encode(),"live.dtb":live}
+            for name,value in data.items(): (root/name).write_bytes(value)
+            provenance=profile_record("startup-gic-pending")
+            provenance["files"]={name:{"bytes":len(data[name]),"sha256":hashlib.sha256(data[name]).hexdigest()}
+                                 for name in ("Image","initramfs.gz","target.config")}
+            path=root/"provenance.json";path.write_text(json.dumps(provenance))
+            args=["--capture",str(root),"--kernel-image",str(root/"Image"),
+                  "--initramfs",str(root/"initramfs.gz"),"--kernel-config",str(root/"target.config"),
+                  "--live-fdt",str(root/"live.dtb"),"--build-provenance",str(path),
+                  "--output",str(root/"prepared")]
+            with patch.object(self.tool,"load_capture",return_value=(runtime,IOMEM)),contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(self.tool.main(args),3)
+                manifest=json.loads((root/"prepared/manifest.json").read_text())
+                self.assertFalse(manifest["baseline_only"])
+                self.assertTrue(manifest["development_only"])
+                self.assertEqual(manifest["target_profile"],"startup-gic-pending")
+                args[-1]=str(root/"bad")
+                provenance["kernel_patches"][0]["sha256"]="0"*64
+                for invalid in (provenance,[]):
+                    path.write_text(json.dumps(invalid))
+                    with contextlib.redirect_stderr(io.StringIO()),self.assertRaises(SystemExit) as caught:
+                        self.tool.main(args)
+                    self.assertEqual(caught.exception.code,2)
+                    self.assertFalse((root/"bad").exists())
+
+
 if __name__ == "__main__": unittest.main()

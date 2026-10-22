@@ -1,7 +1,16 @@
-name: Quest 2 offline Linux baseline build
+name: Quest 2 offline Linux target build
 
 on:
   workflow_dispatch:
+    inputs:
+      target_profile:
+        description: Offline development profile; hardware handoff stays blocked
+        required: true
+        default: baseline
+        type: choice
+        options:
+          - baseline
+          - startup-gic-pending
 
 permissions:
   contents: read
@@ -26,13 +35,15 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends build-essential bc bison flex libssl-dev libelf-dev dwarves libtinfo5 binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user curl
-      - name: Build public-config Linux baseline and BusyBox initramfs
+      - name: Build public-config Linux target and BusyBox initramfs
+        env:
+          QKX_TARGET_PROFILE: ${{ inputs.target_profile || 'baseline' }}
         run: bash tools/ci/quest2_target_build.sh
       - name: Upload allowlisted baseline outputs
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: quest2-linux-baseline-${{ github.run_id }}
+          name: quest2-linux-${{ inputs.target_profile || 'baseline' }}-${{ github.run_id }}
           path: ci-target-artifacts/
           if-no-files-found: warn
           retention-days: 7

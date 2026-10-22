@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare a private Linux-baseline DTB; never contacts a device or permits boot."""
+"""Prepare a private Linux development DTB; never contacts a device or permits boot."""
 import argparse
 import hashlib
 import json
@@ -8,6 +8,7 @@ import struct
 
 from quest2_handoff_plan import block_argument, candidates, load_capture, plan, read_payload
 from quest2_payload_check import check, parse_dtb
+from ci.quest2_startup import validate_provenance
 
 
 def validate_reserve_map(data):
@@ -133,7 +134,7 @@ def prepare(runtime, iomem, image, initramfs, live_fdt, config, *, exclude_block
                    exclude_blocks=exclude_blocks)
     if report["findings"]:
         raise ValueError("prepared baseline rejected: "+"; ".join(report["findings"]))
-    report.update({"baseline_only":True,"ownership":"unclaimed",
+    report.update({"development_only":True,"ownership":"unclaimed",
                    "bootloader_reserve_map_preserved":True,
                    "live_tree_properties_match":True,"device_access":False,
                    "handoff_ready":False,"auto_boot_allowed":False})
@@ -153,9 +154,7 @@ def main(argv=None):
                  "target.config":read_payload(args.kernel_config)}
         live = read_payload(args.live_fdt)
         provenance = json.loads(read_payload(args.build_provenance))
-        if (provenance.get("baseline_only") is not True or provenance.get("kernel_patches") != [] or
-                provenance.get("kernel_commit") != "6bde5fc06b252c97761bc0963dd13c1abcf377ab"):
-            raise ValueError("matching unmodified-kernel baseline provenance required")
+        profile = validate_provenance(provenance)
         for name,data in files.items():
             if provenance.get("files",{}).get(name) != {
                     "bytes":len(data),"sha256":hashlib.sha256(data).hexdigest()}:
@@ -163,12 +162,14 @@ def main(argv=None):
         files["boot.dtb"], report = prepare(*load_capture(args.capture),files["Image"],files["initramfs.gz"],
                                           live,files["target.config"].decode("utf-8"),
                                           exclude_blocks=args.exclude_block)
-        manifest = {"status":"HANDOFF_BLOCKED","baseline_only":True,"ownership":"unclaimed",
+        report.update({"target_profile":profile,"baseline_only":profile == "baseline"})
+        manifest = {"status":"HANDOFF_BLOCKED","baseline_only":profile == "baseline",
+                    "development_only":True,"target_profile":profile,"ownership":"unclaimed",
                     "source_build":provenance,"source_live_fdt_sha256":hashlib.sha256(live).hexdigest(),
                     "exclude_blocks":args.exclude_block,"base":report["base"],
                     "files":{name:{"bytes":len(data),"sha256":hashlib.sha256(data).hexdigest()}
                              for name,data in files.items()},
-                    "scope":"PRIVATE offline baseline; manifest hashes are not a signature or boot authorization"}
+                    "scope":"PRIVATE offline development profile; hashes are not a signature or boot authorization"}
         args.output.mkdir()
         for name,data in files.items():
             with (args.output/name).open("xb") as stream: stream.write(data)

@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Noninteractive build baseline. No device inputs, private config or deployment.
 set -euo pipefail
+profile="${QKX_TARGET_PROFILE:-baseline}"
+case "$profile" in
+  baseline) localversion=-qkx-q2-baseline ;;
+  startup-gic-pending) localversion=-qkx-q2-startup ;;
+  *) echo 'Unknown offline target profile' >&2; exit 2 ;;
+esac
 repo="$(pwd)"
 work="${RUNNER_TEMP:?}/quest2-target"
 artifacts="$repo/ci-target-artifacts"
@@ -14,6 +20,8 @@ git -C "$kernel" remote add origin https://github.com/facebookincubator/oculus-l
 git -C "$kernel" fetch --depth=1 origin 6bde5fc06b252c97761bc0963dd13c1abcf377ab
 git -C "$kernel" checkout --detach FETCH_HEAD
 test "$(git -C "$kernel" rev-parse HEAD^{tree})" = 62f9948a604fdb0c363382a9886b06f809d9ce53
+python3 -B tools/ci/quest2_startup.py --kernel "$kernel" --profile "$profile" \
+  --action apply --output "$work/target-profile.json"
 curl --fail --location --retry 3 \
   https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/425c8149f17c8d9914bf690b4d5abe45a13fb993/clang-r450784e.tar.gz \
   | tar -xz -C "$compiler"
@@ -34,7 +42,7 @@ unset KCFLAGS KCPPFLAGS CFLAGS CPPFLAGS CXXFLAGS MAKEFLAGS
   --enable BLK_DEV_INITRD --enable RD_GZIP --enable USB_CONFIGFS_ECM
 flags=(ARCH=arm64 LLVM=1 LLVM_IAS=1 CC=clang REAL_CC=clang LD=ld.lld
   HOSTCC=clang HOSTCXX=clang++ CROSS_COMPILE=aarch64-linux-gnu-
-  CLANG_TRIPLE=aarch64-linux-gnu- LOCALVERSION=-qkx-q2-baseline
+  CLANG_TRIPLE=aarch64-linux-gnu- "LOCALVERSION=$localversion"
   "CFLAGS_pinctrl-lpi.o=-I$kernel/drivers/pinctrl"
   "CFLAGS_pinctrl-lpi-legacy.o=-I$kernel/drivers/pinctrl"
   "CFLAGS_pinctrl-wcd.o=-I$kernel/drivers/pinctrl"
@@ -43,7 +51,7 @@ flags=(ARCH=arm64 LLVM=1 LLVM_IAS=1 CC=clang REAL_CC=clang LD=ld.lld
 make -C "$kernel" O="$out" "${flags[@]}" olddefconfig
 HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py' -v 2>&1 | tee "$artifacts/host-tests.log"
 make -C "$kernel" O="$out" -j4 "${flags[@]}" Image 2>&1 | tee "$artifacts/target-build.log"
-test "$(cat "$out/include/config/kernel.release")" = 4.19.325-cip128-st12-qkx-q2-baseline
+test "$(cat "$out/include/config/kernel.release")" = "4.19.325-cip128-st12$localversion"
 env CC=aarch64-linux-gnu-gcc CROSS_COMPILE=aarch64-linux-gnu- \
   bash initramfs/busybox.sh "$work/busybox" 2>&1 | tee "$artifacts/busybox-build.log"
 qemu-aarch64 "$work/busybox" sh -n initramfs/quest2-baseline-init.sh
@@ -53,16 +61,18 @@ python3 -B initramfs/build.py --busybox "$work/busybox" \
 cp "$out/arch/arm64/boot/Image" "$artifacts/Image"
 cp "$out/.config" "$artifacts/target.config"
 cp LICENSE "$artifacts/LICENSE"
-# Accompany binaries with the exact sources, configs and build recipes.
+# Corresponding source = pinned base archive plus exact patches/build recipes
+# in port-source.tar.gz, with applied source hashes recorded in provenance.
 git -C "$kernel" archive --format=tar.gz --prefix=kernel/ HEAD > "$artifacts/kernel-source.tar.gz"
 git archive --format=tar.gz --prefix=quest2-port/ HEAD > "$artifacts/port-source.tar.gz"
 cp "$work/busybox-build/busybox-1.36.1.tar.bz2" "$artifacts/busybox-source.tar.bz2"
 cp "$work/busybox-build/busybox-1.36.1/.config" "$artifacts/busybox.config"
-python3 - "$artifacts" "$kernel" "$compiler" <<'PY'
+python3 - "$artifacts" "$kernel" "$compiler" "$work/target-profile.json" <<'PY'
 import hashlib, json, pathlib, struct, subprocess, sys
 sys.path.insert(0, 'tools')
 from quest2_payload_check import check_initramfs
-artifacts, kernel, compiler = map(pathlib.Path, sys.argv[1:])
+artifacts, kernel, compiler, profile_path = map(pathlib.Path, sys.argv[1:])
+target_profile = json.loads(profile_path.read_text())
 cfg = (artifacts/'target.config').read_text()
 for name in ('ARM64', 'ARM64_4K_PAGES', 'BLK_DEV_INITRD', 'DEVTMPFS', 'RD_GZIP', 'BINFMT_ELF', 'BINFMT_SCRIPT', 'USB_CONFIGFS_ECM'):
     assert f'CONFIG_{name}=y\n' in cfg, name
@@ -80,7 +90,7 @@ sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
 data = {
  'source_commit': subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
  'kernel_commit': subprocess.check_output(['git','-C',str(kernel),'rev-parse','HEAD'],text=True).strip(),
- 'kernel_patches': [], 'baseline_only': True, 'hardware_handoff': 'BLOCKED', 'deployment_performed': False,
+ **target_profile, 'deployment_performed': False,
  'config_source': 'machachu56/quest-kexec-q2@9c96c192d4a4a80f95ba0013294977e85c6eae11',
  'config_source_sha256': 'e814b47c1106d6516620ead5d9b7c8d73a0d8f44fcdef28d1f6daf9252a432a5',
  'compiler_commit': '425c8149f17c8d9914bf690b4d5abe45a13fb993',
@@ -90,10 +100,11 @@ data = {
            for name in ('Image','initramfs.gz','target.config','kernel-source.tar.gz',
                         'port-source.tar.gz','busybox-source.tar.bz2','busybox.config')},
  'image': {'text_offset': offset,'memory_bytes': memory,'flags': flags}, 'initramfs_profile': profile,
- 'scope': 'Noninteractive public-config unmodified-kernel baseline. Handoff patches and physical boot unvalidated.'}
+ 'source_archive_scope': 'Unmodified kernel base plus pinned patches and recipes in port-source.tar.gz',
+ 'scope': 'Noninteractive '+target_profile['target_profile']+' development build. Hardware handoff and physical boot unvalidated.'}
 (artifacts/'target-build-provenance.json').write_text(json.dumps(data,indent=2)+'\n')
 PY
-git -C "$kernel" diff --exit-code
+python3 -B tools/ci/quest2_startup.py --kernel "$kernel" --profile "$profile" --action verify
 git diff --exit-code
 (cd "$artifacts" && sha256sum Image initramfs.gz target.config ./*.json ./*.log LICENSE ./*.tar.* busybox.config > SHA256SUMS)
-echo 'Offline Linux baseline built. No DTB, private config, device access or handoff.'
+echo "Offline Linux $profile built. No DTB, private config, device access or handoff."
