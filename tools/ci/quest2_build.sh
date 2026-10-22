@@ -47,14 +47,17 @@ make -C "$kernel" O="$out" -j4 "${flags[@]}" Image modules 2>&1 | tee "$artifact
 config_check
 test "$(cat "$out/include/config/kernel.release")" = 4.19.325-cip128-st12-g49638c7a8637
 cp "$out/Module.symvers" "$artifacts/Module.symvers"
+python3 -B tools/quest2_diag_profile.py --vmlinux "$out/vmlinux" \
+  --output "$artifacts/diagnostic-profile.json"
 make -C "$out" -j4 "${flags[@]}" M="$repo/module" QKX_EXPERIMENTAL=0 modules 2>&1 | tee "$artifacts/loader-build.log"
 config_check
 python3 -B tools/ci/quest2_audit.py modules --symvers "$out/Module.symvers" \
   --config "$out/.config" --loader-command module/.loader.o.cmd \
   --output "$artifacts/module-audit.json" \
-  module/quest_kexec.ko module/marker_read.ko module/usb_log.ko
-cp module/quest_kexec.ko module/marker_read.ko module/usb_log.ko "$artifacts/"
+  module/quest_kexec.ko module/marker_read.ko module/usb_log.ko module/camera_dsp_diag.ko
+cp module/quest_kexec.ko module/marker_read.ko module/usb_log.ko module/camera_dsp_diag.ko "$artifacts/"
 cp module/.loader.o.cmd "$artifacts/loader.compile.txt"
+cp module/.camera_dsp_diag.o.cmd "$artifacts/diagnostic.compile.txt"
 cp LICENSE "$artifacts/"
 python3 - "$kernel" "$compiler" "$out" "$artifacts" <<'PY'
 import hashlib, json, pathlib, subprocess, sys
@@ -75,5 +78,5 @@ data = {
 PY
 git -C "$kernel" diff --exit-code
 git diff --exit-code
-(cd "$artifacts" && sha256sum ./*.ko ./*.json ./*.log Module.symvers loader.compile.txt LICENSE > SHA256SUMS)
+(cd "$artifacts" && sha256sum ./*.ko ./*.json ./*.log Module.symvers ./*.compile.txt LICENSE > SHA256SUMS)
 echo 'Offline matching-module build and ABI gates complete. No hardware handoff performed.'

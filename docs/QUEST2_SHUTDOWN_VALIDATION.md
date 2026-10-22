@@ -105,6 +105,60 @@ not change, so this phase requires no replacement module or target Image.
 
 ## Required before a disruptive test
 
+### Read-only camera/DSP module
+
+`camera_dsp_diag.ko` is a separate, opt-in observational module. It requires
+`observe=1`, the exact kernel release and a Hollywood/Kona board. It never calls
+the blocking camera getter: it checks the exported getter's 68 instruction bytes
+before using the stock-verified relative addresses of the camera roots. A
+mismatch refuses initialization before private state is accessed. There are no
+address, control, shutdown or watchdog parameters.
+
+The selected private layouts in `module/diag_profile.json` were derived from
+the running kernel's BTF. The generated header must agree exactly. The matching
+kernel build separately verifies its BTF, camera instruction SHA-256 and static
+symbol relationships before publishing the module. This checks selected layout
+and code agreement; it does not establish complete binary equivalence. Live
+symbol addresses were masked, so the runtime instruction check remains required;
+kernel pointer visibility was not changed.
+
+Camera enumeration holds a device reference and tries the device lock before
+checking the bound driver. This excludes removal and root deallocation. It then
+tries camera, CRM, link and request locks in source order; busy paths release
+acquired locks and report missing observations. CRM ownership pins sessions and
+links; link ownership pins workqueues. At most eight sessions and all seven
+possibly sparse link slots per session are inspected. The module copies queue
+indices and counts, without walking request payloads or camera frames. It never
+takes the session mutex, avoiding workers' request-to-session lock order.
+
+DSP enumeration pins each embedded device and copies bounded embedded fields,
+without following provider descriptors or restart-group pointers. Reference
+counts, public states, crash counts and `work_busy` bits are separate advisory
+samples. Group tracking is deliberately unavailable: `embedded_state_advisory`
+does not represent a restart group's private state. Work counters can change
+during a callback; pending zero does not mean no running work. Output is buffered
+until camera locks are released and contains no kernel addresses.
+
+The build includes `diagnostic-profile.json`, `diagnostic.compile.txt` and the
+fourth module in its existing checksum/provenance/import-CRC gates. Host tests
+execute the actual snapshot and guard functions with API doubles. They cover
+busy locks, cleanup, sparse links, read faults, bounded traversal, DSP capacity,
+wrong targets and changed code/layouts. The full suite currently has 225 tests.
+These tests do not simulate hardware or prove concurrent driver correctness.
+
+```sh
+python3 -B tools/quest2_diag_profile.py --btf /private/live-vmlinux.btf \
+  --output /private/new-layout-check.json
+HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py' -q
+```
+
+The matching build and live module result are recorded separately after
+verification. A successful observational snapshot will still report
+`handoff_ready=0`: it cannot establish producer drain, DMA quiescence, secure
+ownership, watchdog control or recovery.
+
+### Remaining hardware prerequisites
+
 1. Establish source/binary agreement for each called private API. Determine camera
    clients, active requests, workers, stream-stop completion and error reporting.
    Resolve the close-path lock/error limitations before relying on that path.

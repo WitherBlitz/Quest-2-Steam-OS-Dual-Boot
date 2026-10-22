@@ -1,0 +1,346 @@
+{
+  "CAM": {
+    "type": "cam_req_mgr_device",
+    "size": 112,
+    "fields": {
+      "OPEN": {
+        "offset": 60,
+        "kind": 1,
+        "size": 4,
+        "encoding": 1,
+        "bits": 32
+      },
+      "LOCK": {
+        "offset": 64,
+        "kind": 4,
+        "size": 32
+      },
+      "SUBDEVS": {
+        "offset": 20,
+        "kind": 1,
+        "size": 4,
+        "encoding": 1,
+        "bits": 32
+      },
+      "SHUTDOWN": {
+        "offset": 108,
+        "kind": 1,
+        "size": 1,
+        "encoding": 4,
+        "bits": 8
+      }
+    }
+  },
+  "CORE": {
+    "type": "cam_req_mgr_core_device",
+    "size": 56,
+    "fields": {
+      "HEAD": {
+        "offset": 0,
+        "kind": 4,
+        "size": 16
+      },
+      "LOCK": {
+        "offset": 16,
+        "kind": 4,
+        "size": 32
+      }
+    }
+  },
+  "SESSION": {
+    "type": "cam_req_mgr_core_session",
+    "size": 120,
+    "fields": {
+      "LINKS": {
+        "offset": 8,
+        "kind": 3,
+        "size": 56,
+        "count": 7,
+        "element": {
+          "kind": 2,
+          "size": 8,
+          "target": "cam_req_mgr_core_link"
+        }
+      },
+      "ENTRY": {
+        "offset": 64,
+        "kind": 4,
+        "size": 16
+      },
+      "COUNT": {
+        "offset": 4,
+        "kind": 1,
+        "size": 4,
+        "encoding": 0,
+        "bits": 32
+      }
+    }
+  },
+  "LINK": {
+    "type": "cam_req_mgr_core_link",
+    "size": 360,
+    "fields": {
+      "WORKQ": {
+        "offset": 16,
+        "kind": 2,
+        "size": 8,
+        "target": "cam_req_mgr_core_workq"
+      },
+      "REQUEST": {
+        "offset": 40,
+        "kind": 4,
+        "size": 128
+      },
+      "LOCK": {
+        "offset": 224,
+        "kind": 4,
+        "size": 32
+      },
+      "OPEN": {
+        "offset": 284,
+        "kind": 1,
+        "size": 4,
+        "encoding": 1,
+        "bits": 32
+      },
+      "DEVS": {
+        "offset": 4,
+        "kind": 1,
+        "size": 4,
+        "encoding": 1,
+        "bits": 32
+      }
+    }
+  },
+  "REQUEST": {
+    "type": "cam_req_mgr_req_data",
+    "size": 128,
+    "fields": {
+      "QUEUE": {
+        "offset": 0,
+        "kind": 2,
+        "size": 8,
+        "target": "cam_req_mgr_req_queue"
+      },
+      "LOCK": {
+        "offset": 96,
+        "kind": 4,
+        "size": 32
+      }
+    }
+  },
+  "QUEUE": {
+    "type": "cam_req_mgr_req_queue",
+    "size": 1560,
+    "fields": {
+      "COUNT": {
+        "offset": 0,
+        "kind": 1,
+        "size": 4,
+        "encoding": 1,
+        "bits": 32
+      },
+      "READ": {
+        "offset": 1544,
+        "kind": 1,
+        "size": 4,
+        "encoding": 1,
+        "bits": 32
+      },
+      "WRITE": {
+        "offset": 1548,
+        "kind": 1,
+        "size": 4,
+        "encoding": 1,
+        "bits": 32
+      },
+      "APPLIED": {
+        "offset": 1552,
+        "kind": 1,
+        "size": 4,
+        "encoding": 1,
+        "bits": 32
+      }
+    }
+  },
+  "WQ": {
+    "type": "cam_req_mgr_core_workq",
+    "size": 176,
+    "fields": {
+      "WORK": {
+        "offset": 0,
+        "kind": 4,
+        "size": 48
+      },
+      "PENDING": {
+        "offset": 104,
+        "kind": 1,
+        "size": 4,
+        "encoding": 1,
+        "bits": 32
+      },
+      "FREE": {
+        "offset": 108,
+        "kind": 1,
+        "size": 4,
+        "encoding": 1,
+        "bits": 32
+      },
+      "TASKS": {
+        "offset": 168,
+        "kind": 1,
+        "size": 4,
+        "encoding": 0,
+        "bits": 32
+      }
+    }
+  },
+  "DSP": {
+    "type": "subsys_device",
+    "size": 1464,
+    "fields": {
+      "DEV": {
+        "offset": 240,
+        "kind": 4,
+        "size": 952
+      },
+      "NAME": {
+        "offset": 64,
+        "kind": 3,
+        "size": 64,
+        "count": 64,
+        "element": {
+          "kind": 1,
+          "size": 1,
+          "encoding": 0,
+          "bits": 8
+        }
+      },
+      "WORK": {
+        "offset": 8,
+        "kind": 4,
+        "size": 48
+      },
+      "RESTART_WORK": {
+        "offset": 128,
+        "kind": 4,
+        "size": 48
+      },
+      "COUNT": {
+        "offset": 1200,
+        "kind": 1,
+        "size": 4,
+        "encoding": 1,
+        "bits": 32
+      },
+      "CRASH": {
+        "offset": 1212,
+        "kind": 1,
+        "size": 4,
+        "encoding": 1,
+        "bits": 32
+      },
+      "LEVEL": {
+        "offset": 1208,
+        "kind": 1,
+        "size": 4,
+        "encoding": 1,
+        "bits": 32
+      },
+      "TRACK": {
+        "offset": 176,
+        "kind": 4,
+        "size": 48
+      },
+      "GROUP": {
+        "offset": 1216,
+        "kind": 2,
+        "size": 8,
+        "target": "subsys_soc_restart_order"
+      }
+    }
+  },
+  "TRACK": {
+    "type": "subsys_device.track",
+    "size": 48,
+    "fields": {
+      "STATE": {
+        "offset": 8,
+        "kind": 6,
+        "size": 4,
+        "values": {
+          "SUBSYS_OFFLINING": 0,
+          "SUBSYS_OFFLINE": 1,
+          "SUBSYS_ONLINE": 2
+        }
+      },
+      "PRIVATE": {
+        "offset": 0,
+        "kind": 6,
+        "size": 4,
+        "values": {
+          "SUBSYS_NORMAL": 0,
+          "SUBSYS_CRASHED": 1,
+          "SUBSYS_RESTARTING": 2
+        }
+      }
+    }
+  },
+  "DEVICE": {
+    "type": "subsys_device.dev",
+    "size": 952,
+    "fields": {
+      "LOCK": {
+        "offset": 128,
+        "kind": 4,
+        "size": 32
+      },
+      "DRIVER": {
+        "offset": 168,
+        "kind": 2,
+        "size": 8,
+        "target": "device_driver"
+      }
+    }
+  },
+  "DRIVER": {
+    "type": "subsys_device.dev.driver",
+    "size": 168,
+    "fields": {
+      "NAME": {
+        "offset": 0,
+        "kind": 2,
+        "size": 8,
+        "target": "char"
+      }
+    }
+  },
+  "MUTEX": {
+    "type": "cam_req_mgr_device.cam_lock",
+    "size": 32,
+    "fields": {}
+  },
+  "WORK": {
+    "type": "subsys_device.work",
+    "size": 48,
+    "fields": {}
+  },
+  "LIST": {
+    "type": "cam_req_mgr_core_device.session_head",
+    "size": 16,
+    "fields": {
+      "NEXT": {
+        "offset": 0,
+        "kind": 2,
+        "size": 8,
+        "target": "list_head"
+      },
+      "PREV": {
+        "offset": 8,
+        "kind": 2,
+        "size": 8,
+        "target": "list_head"
+      }
+    }
+  }
+}

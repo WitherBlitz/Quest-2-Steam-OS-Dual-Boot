@@ -7,6 +7,7 @@
 ifneq ($(KERNELRELEASE),)
 obj-m += quest_kexec.o marker_read.o
 obj-m += usb_log.o
+obj-m += camera_dsp_diag.o
 quest_kexec-y := loader.o transition.o
 # Default builds stage only. Hardware actions require an explicit rebuild and
 # a separate board shutdown/memory review; this flag does not establish safety.
