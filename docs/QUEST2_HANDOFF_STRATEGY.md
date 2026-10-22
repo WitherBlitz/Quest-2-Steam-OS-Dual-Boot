@@ -210,7 +210,44 @@ The available Android reference set produced 15 findings: model/memory and
 reservation differences, unprepared initrd addresses, unsuitable config values
 and an Android init rather than the expected BusyBox script. Separately, the
 actual native checker accepted its sizing and refused its DTB with `-EINVAL`.
-No built target Linux payload or selected target DTB has been validated.
+Those references are not the Linux baseline described below.
+
+## Private Linux baseline DTB preparation
+
+`tools/quest2_target_dtb.py` prepares offline inputs for the noninteractive
+baseline build. It requires a matching rooted preflight capture, the live
+flattened FDT and the build's Image, initramfs, resolved config and provenance.
+It never contacts a device. The manifest binds file lengths and hashes; it is
+not a signature or independent proof of a build's authenticity.
+
+The live FDT must agree with every captured non-`name` property. The producer
+preserves its node set, including empty nodes, boot CPU and complete bootloader
+reserve map. Generated `name` properties are omitted. It replaces only the
+chosen bootargs with `rdinit=/init loglevel=7` and the two initrd address
+properties with matching 64-bit cells. Both chosen aliases together are refused.
+Bootloader reservations join captured and caller-supplied exclusions before
+candidate selection. Every selected copy extent is still unclaimed.
+
+```sh
+python3 -B tools/quest2_target_dtb.py --capture /private/capture \
+  --live-fdt /private/bootloader-live.dtb --kernel-image /private/build/Image \
+  --initramfs /private/build/initramfs.gz --kernel-config /private/build/target.config \
+  --build-provenance /private/build/target-build-provenance.json \
+  --exclude-block 0x102c00000:0x103000000 --output /private/new-baseline
+```
+
+Use a new private directory. Success writes Image, initramfs, config, prepared
+`boot.dtb`, a zero-finding structural/profile report and a completion manifest
+last. An interrupted directory without that manifest is incomplete. Success
+exits 3 with `HANDOFF_BLOCKED`; invalid inputs or existing output exit 2. These
+files can contain device-specific data and must not be published.
+
+The baseline kernel has no handoff patches and its public config enables no
+console. Init mounts temporary filesystems, logs a baseline marker and idles;
+there is no interactive shell or network service. QEMU user-mode BusyBox echo
+and shell-syntax checks establish those limited operations only. They do not
+execute PID 1, boot the kernel or validate Quest hardware. The hardware gate is
+unchanged, and a valid copy layout cannot establish RAM ownership or DMA safety.
 
 ## DMA shutdown handling
 
@@ -276,7 +313,8 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The full host suite has 152 tests, including 28 offline planner tests, 16 offline
+The full host suite has 165 tests, including 13 baseline DTB producer tests,
+28 offline planner tests, 16 offline
 payload-profile tests and 15 native payload/layout tests. The latter compile actual layout, DTB, staging and
 initialization functions against host API doubles, including failed staging
 after a successful claim and compact-jump refusal before opening payloads. The
