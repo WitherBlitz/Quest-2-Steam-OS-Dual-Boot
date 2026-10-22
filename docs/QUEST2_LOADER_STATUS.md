@@ -18,6 +18,11 @@ sessions and subsystem reference/state samples, then unloaded and removed its
 temporary file. Home/tracking remained normal. Shutdown, DMA quiescence and
 recovery are still unproven; this does not open the Linux handoff gate.
 
+The subsequent [ownership and stop-contract audit](QUEST2_OWNER_AUDIT.md)
+distinguishes sampled FD holders from session/reference owners and records
+source paths that discard shutdown errors. Its proposed stop/drain sequence
+requires producer-specific completion and recovery evidence before execution.
+
 ## Branch and build provenance
 
 The fixes start at loader commit

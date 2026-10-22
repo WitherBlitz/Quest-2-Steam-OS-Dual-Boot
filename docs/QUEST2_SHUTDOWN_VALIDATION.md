@@ -219,6 +219,10 @@ handoff remain unproven.** No automatic boot or hardware gate was enabled.
 
 ### Remaining hardware prerequisites
 
+The follow-up [ownership and stop-contract audit](QUEST2_OWNER_AUDIT.md) records
+the passive process/device collector, source-backed attribution limits and the
+proposed checked stop/drain order. It does not satisfy the hardware gates below.
+
 1. Establish source/binary agreement for each called private API. Determine camera
    clients, active requests, workers, stream-stop completion and error reporting.
    Resolve the close-path lock/error limitations before relying on that path.

@@ -22,6 +22,10 @@ records source-model tests, passive headset evidence and a successful bounded
 read-only camera/DSP diagnostic on the matching headset. Physical shutdown and
 recovery remain unproven; Linux boot is blocked.
 
+The [camera/DSP ownership audit](docs/QUEST2_OWNER_AUDIT.md) adds a passive
+process/device collector and a proposed checked stop/drain sequence. FD holders
+do not establish session ownership, and several stock stop paths discard errors.
+
 A kernel module for Meta Quest headsets that allows you to load a custom kernel without unlocking the bootloader of the headset. Based on [kexec-at-home](https://github.com/provide-salad/kexec-at-home)
 
 > **Note:** This project has only been developed and tested on Meta Quest Pro.
