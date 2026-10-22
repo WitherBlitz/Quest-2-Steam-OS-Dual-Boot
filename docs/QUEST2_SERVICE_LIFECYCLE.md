@@ -5,6 +5,11 @@ completion checkpoints for Hollywood build `52242990024200150`, kernel
 `4.19.325-cip128-st12-g49638c7a8637`. It follows the
 [descriptor ownership audit](QUEST2_OWNER_AUDIT.md).
 
+The follow-up [tracking delegate/runtime attribution audit](QUEST2_TRACKING_OWNERSHIP.md)
+found null delegate/user-data values in a matched candidate object at two samples
+and corroborated 19 character-device FDs. Exact session/remote ownership and
+checked hardware release remain unproven.
+
 **No verified global service-stop/drain protocol was established.** Init control
 success, process exit and the inspected shutdown logs cannot establish camera
 or DSP quiescence. Camera shutdown can discard failures; tracking cleanup can
@@ -218,8 +223,9 @@ established in this resolved path.
 The callback then invokes an **optional delegate** at glue `+0x68`, with user
 data at `+0x70`, if non-null (`0x350168–0x350180`). These fields initialize to
 zero; setter T `0x34fac0` stores supplied function/user-data values. The supplied
-delegate's installation and function identity remain unresolved. This is the
-next exact callback boundary, not evidence of an absent teardown implementation.
+delegate's installation and function identity were unresolved in this static
+pass. The linked follow-up narrows the inspected startup graph and samples a
+matched candidate object; it does not establish lifetime nullness or hardware release.
 
 The explicit library load and matching registrations support the compiled
 adapter chain. Actual registry population/instance selection and delegate

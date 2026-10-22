@@ -31,6 +31,10 @@ the matching shipped services and init. It identifies forced-kill paths,
 discarded camera-stop results and tracking cleanup waits; a checked global
 shutdown protocol is still unproven.
 
+The [tracking delegate/runtime attribution follow-up](docs/QUEST2_TRACKING_OWNERSHIP.md)
+found a null delegate in a matched candidate object and corroborated camera/FastRPC
+FD holders. Exact session ownership and successful hardware release remain open.
+
 A kernel module for Meta Quest headsets that allows you to load a custom kernel without unlocking the bootloader of the headset. Based on [kexec-at-home](https://github.com/provide-salad/kexec-at-home)
 
 > **Note:** This project has only been developed and tested on Meta Quest Pro.
