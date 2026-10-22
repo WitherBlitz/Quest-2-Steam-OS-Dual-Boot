@@ -43,4 +43,3 @@ class CameraDspTests(unittest.TestCase):
     def test_read_fault_releases_all_locks(self): self.case("fault")
     def test_malformed_session_cycle_is_bounded(self): self.case("cycle")
     def test_dsp_embedded_advisory_fields_and_capacity(self): self.case("dsp")
-
