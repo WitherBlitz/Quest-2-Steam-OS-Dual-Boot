@@ -141,8 +141,11 @@ def header(layout):
 
 
 def elf_data(data):
-    if len(data)<64 or data[:7]!=b"\x7fELF\x02\x01\x01" or struct.unpack_from("<HH",data,16)!=(2,183):
+    if (len(data)<64 or data[:7]!=b"\x7fELF\x02\x01\x01" or
+            struct.unpack_from("<H",data,16)[0] not in (2,3) or struct.unpack_from("<H",data,18)[0]!=183):
         raise ValueError("AArch64 ELF64 little-endian vmlinux required")
+    # arm64/Makefile links CONFIG_RELOCATABLE kernels with -shared (ET_DYN).
+    elf_type="ET_EXEC" if struct.unpack_from("<H",data,16)[0]==2 else "ET_DYN"
     offset = struct.unpack_from("<Q",data,40)[0]
     stride,count,names = struct.unpack_from("<HHH",data,58)
     if stride!=64 or not count or names>=count or offset+stride*count>len(data):
@@ -180,7 +183,7 @@ def elf_data(data):
         raise ValueError("compiled camera anchor differs from stock code")
     if symbols["g_dev"][0]-address!=0x12d8c00 or symbols["g_crm_core_dev"][0]-address!=0x12d8210:
         raise ValueError("compiled camera static addresses differ from stock relationships")
-    return btf, {"anchor_bytes":len(code),"anchor_sha256":hashlib.sha256(code).hexdigest(),
+    return btf, {"elf_type":elf_type,"anchor_bytes":len(code),"anchor_sha256":hashlib.sha256(code).hexdigest(),
                  "static_relative_addresses_match":True}
 
 

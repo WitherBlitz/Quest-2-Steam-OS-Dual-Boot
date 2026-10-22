@@ -143,7 +143,7 @@ The build includes `diagnostic-profile.json`, `diagnostic.compile.txt` and the
 fourth module in its existing checksum/provenance/import-CRC gates. Host tests
 execute the actual snapshot and guard functions with API doubles. They cover
 busy locks, cleanup, sparse links, read faults, bounded traversal, DSP capacity,
-wrong targets and changed code/layouts. The full suite currently has 225 tests.
+wrong targets and changed code/layouts. The full suite currently has 226 tests.
 These tests do not simulate hardware or prove concurrent driver correctness.
 
 ```sh
@@ -156,6 +156,11 @@ The matching build and live module result are recorded separately after
 verification. A successful observational snapshot will still report
 `handoff_ready=0`: it cannot establish producer drain, DMA quiescence, secure
 ownership, watchdog control or recovery.
+
+The profile verifier accepts both executable and dynamically linked kernel ELF
+formats. The approved ARM64 `CONFIG_RELOCATABLE` build uses `-shared` and produces
+`ET_DYN`; this does not relax its AArch64, symbol, BTF or instruction checks.
+Relocatable module objects (`ET_REL`) are rejected as `vmlinux` inputs.
 
 ### Remaining hardware prerequisites
 

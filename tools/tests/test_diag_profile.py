@@ -21,7 +21,7 @@ def btf_fixture(*, count_offset=256, duplicate=False, duplicate_mutex=False):
     return struct.pack("<HBBIIIII",0xeb9f,1,0,24,0,len(types),len(types),len(strings))+types+strings
 
 
-def elf_fixture(*, executable=True, shifted=False, bad_code=False):
+def elf_fixture(*, elf_type=2, shifted=False, bad_code=False):
     names=b"\0.shstrtab\0.strtab\0.symtab\0.BTF\0.text\0.data\0"
     strings=b"\0cam_req_mgr_is_open\0g_dev\0g_crm_core_dev\0"
     address=0xffffff8008b24518
@@ -42,7 +42,7 @@ def elf_fixture(*, executable=True, shifted=False, bad_code=False):
         headers.append(struct.pack("<IIQQQQIIQQ",names.index(name.encode()+b"\0") if name else 0,
                                    kind,0,va,offset,len(blob),link,0,1,entsize))
     table=len(data);data+=b"".join(headers)
-    data[:64]=struct.pack("<16sHHIQQQIHHHHHH",b"\x7fELF\x02\x01\x01"+bytes(9),2 if executable else 1,
+    data[:64]=struct.pack("<16sHHIQQQIHHHHHH",b"\x7fELF\x02\x01\x01"+bytes(9),elf_type,
                          183,1,0,0,table,0,64,0,0,64,len(headers),1)
     return bytes(data)
 
@@ -105,13 +105,19 @@ class DiagnosticProfileTests(unittest.TestCase):
         self.assertTrue(code["static_relative_addresses_match"])
         self.assertEqual(code["anchor_bytes"],68)
 
+    def test_relocatable_kernel_et_dyn_retains_all_code_and_layout_checks(self):
+        self.assertEqual(self.module().elf_data(elf_fixture(elf_type=3))[0],btf_fixture())
+        for kwargs in ({"bad_code":True},{"shifted":True}):
+            with self.subTest(kwargs=kwargs),self.assertRaises(ValueError):
+                self.module().elf_data(elf_fixture(elf_type=3,**kwargs))
+
     def test_changed_compiled_code_or_static_relationship_refused(self):
         for kwargs in ({"bad_code":True},{"shifted":True}):
             with self.subTest(kwargs=kwargs),self.assertRaises(ValueError):
                 self.module().elf_data(elf_fixture(**kwargs))
 
-    def test_truncated_or_non_executable_vmlinux_refused(self):
-        for data in (elf_fixture()[:-1],elf_fixture(executable=False)):
+    def test_truncated_or_relocatable_object_vmlinux_refused(self):
+        for data in (elf_fixture()[:-1],elf_fixture(elf_type=1),elf_fixture(elf_type=4)):
             with self.subTest(length=len(data)),self.assertRaises(ValueError): self.module().elf_data(data)
 
 

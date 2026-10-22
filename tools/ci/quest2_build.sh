@@ -47,6 +47,7 @@ make -C "$kernel" O="$out" -j4 "${flags[@]}" Image modules 2>&1 | tee "$artifact
 config_check
 test "$(cat "$out/include/config/kernel.release")" = 4.19.325-cip128-st12-g49638c7a8637
 cp "$out/Module.symvers" "$artifacts/Module.symvers"
+aarch64-linux-gnu-readelf --file-header "$out/vmlinux"
 python3 -B tools/quest2_diag_profile.py --vmlinux "$out/vmlinux" \
   --output "$artifacts/diagnostic-profile.json"
 make -C "$out" -j4 "${flags[@]}" M="$repo/module" QKX_EXPERIMENTAL=0 modules 2>&1 | tee "$artifacts/loader-build.log"
