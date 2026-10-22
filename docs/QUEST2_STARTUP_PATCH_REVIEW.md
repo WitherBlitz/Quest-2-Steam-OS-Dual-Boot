@@ -76,6 +76,28 @@ fixtures are compared against the actual source before CI patch application.
 This model does not validate real GIC timing, EL/security state, interrupts from
 live devices, CPU/MMU entry, watchdogs, recovery or a Linux boot.
 
-Further handoff work still requires an accepted RAM claim, all producer/DMA and
-secure/watchdog shutdown protocols, diagnostic visibility and recovery. This
-partial startup port provides no override for those missing prerequisites.
+## Verified build and limited live result
+
+[Actions run 39714699023](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39714699023)
+passed from `d6c64f1c592d29a137fc637b1d251033ec186585` with the startup
+profile. All 174 host tests passed on Linux. Local verification checked the
+archive digest, 14-file allowlist, 13 inner checksums, source/config/compiler
+pins and embedded release. Independently reconstructing the patched file from
+the two source archives reproduced SHA-256
+`119c3ed40d3cf1645a52a057fb3fa850f286b94b3626cee31012d1b0c9629abc`;
+the common helper remained unchanged. The patch's LF application is tested even
+when the host Git config has `core.autocrlf=true`.
+
+The private prepared DTB has zero structural/profile findings. Actual native
+layout and DTB helpers, compiled with host API doubles, both returned zero for
+the 36 MiB envelope. This checks the supplied bytes and layout, not hardware
+startup. The [recorded build hashes and RAM result](QUEST2_LOADER_STATUS.md#reviewed-startup-build)
+separate this target build from the unchanged native diagnostic module.
+
+One live RAM-only diagnostic subsequently claimed and released that 36 MiB
+window. The startup Image and GIC patch were **not executed on the headset**.
+The claim was released immediately; it is not a retained reservation or a
+guarantee of future acceptance. Further handoff work still requires all
+producer/DMA and secure/watchdog shutdown protocols, CPU/MMU entry, diagnostic
+visibility and recovery. This partial startup port provides no override for
+those missing prerequisites.

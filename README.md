@@ -28,11 +28,14 @@ The changes done to the kernel are in `kernel/patches/` as patches.
 
 ## Basic build
 
-The owner-only `Quest 2 offline Linux baseline build` workflow builds the
-firmware-matching, unmodified kernel with a pinned public Quest 2 config and
-a static BusyBox initramfs. This is a noninteractive build baseline: no console
-is enabled, hardware handoff patches are absent, and it is not a bootable-port
-claim. Its artifacts include corresponding sources, configs and build recipes;
+The owner-only `Quest 2 offline Linux target build` workflow builds the
+firmware-matching kernel with a pinned public Quest 2 config and a static
+BusyBox initramfs. It defaults to the unmodified `baseline`; the reviewed
+`startup-gic-pending` profile adds one interrupt-initialization patch. See the
+[startup review and verified build](docs/QUEST2_STARTUP_PATCH_REVIEW.md) and
+[successful 36 MiB RAM diagnostic](docs/QUEST2_LOADER_STATUS.md#compact-36-mib-ram-claim-and-release).
+Both profiles are noninteractive development builds with no console enabled.
+Their artifacts include corresponding sources, configs and build recipes;
 device captures and prepared DTBs remain private. The Quest 2 loader gate stays
 closed. The legacy instructions below describe the upstream project.
 

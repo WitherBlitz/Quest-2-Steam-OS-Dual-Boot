@@ -4,7 +4,8 @@ Scope: Hollywood, Horizon `52242990024200150`, stock kernel
 `4.19.325-cip128-st12-g49638c7a8637`. This is a staged development strategy,
 not boot support. Separate live claims refused the original fixed window and
 the first planned high window with `-EBUSY`. Neither result nor a free-page
-snapshot identifies which pages prevented allocation.
+snapshot identifies which pages prevented allocation. A later compact 36 MiB
+diagnostic succeeded and released its ownership; see the result below.
 
 ## RAM ownership
 
@@ -59,6 +60,15 @@ native allocator diagnostic:
    It reports native stages and a first unmovable block, never an exact owner.
    Missed events and probe allocation/timing limit interpretation. See the
    [diagnostic scope and verification](QUEST2_LOADER_STATUS.md#opt-in-allocator-refusal-observation).
+
+One subsequent diagnostic on 2026-10-22 UTC claimed all 9,216 pages in
+`[0x100000000, 0x102400000)` and immediately released them. Native result was
+zero with `owned=1`, in 36,110,368 ns; all four observers reported zero missed
+events. Normal module unload, exact temporary-file removal, unchanged passive
+health and user-confirmed normal Home/tracking completed the scope. This proves
+one temporary allocation, not a retained reservation, DMA safety or a future
+claim. The [complete compact result](QUEST2_LOADER_STATUS.md#compact-36-mib-ram-claim-and-release)
+also records the artifact gates and host-only log-parser correction.
 
 Offline use:
 
@@ -215,8 +225,9 @@ Those references are not the Linux baseline described below.
 ## Private Linux baseline DTB preparation
 
 `tools/quest2_target_dtb.py` prepares offline inputs for the noninteractive
-baseline build. It requires a matching rooted preflight capture, the live
-flattened FDT and the build's Image, initramfs, resolved config and provenance.
+baseline or exact reviewed startup build. It requires a matching rooted preflight
+capture, the live flattened FDT and the build's Image, initramfs, resolved config
+and provenance.
 It never contacts a device. The manifest binds file lengths and hashes; it is
 not a signature or independent proof of a build's authenticity.
 
@@ -226,7 +237,8 @@ reserve map. Generated `name` properties are omitted. It replaces only the
 chosen bootargs with `rdinit=/init loglevel=7` and the two initrd address
 properties with matching 64-bit cells. Both chosen aliases together are refused.
 Bootloader reservations join captured and caller-supplied exclusions before
-candidate selection. Every selected copy extent is still unclaimed.
+candidate selection. The producer always labels the result unclaimed; it does
+not perform or preserve the separate live diagnostic's temporary ownership.
 
 ```sh
 python3 -B tools/quest2_target_dtb.py --capture /private/capture \
@@ -242,7 +254,9 @@ last. An interrupted directory without that manifest is incomplete. Success
 exits 3 with `HANDOFF_BLOCKED`; invalid inputs or existing output exit 2. These
 files can contain device-specific data and must not be published.
 
-The baseline kernel has no handoff patches and its public config enables no
+The baseline kernel has no handoff patches. The strict `startup-gic-pending`
+profile adds only the [reviewed pending-SPI clear](QUEST2_STARTUP_PATCH_REVIEW.md);
+unknown or altered patch provenance is refused. The public config enables no
 console. Init mounts temporary filesystems, logs a baseline marker and idles;
 there is no interactive shell or network service. QEMU user-mode BusyBox echo
 and shell-syntax checks establish those limited operations only. They do not
@@ -313,7 +327,8 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The full host suite has 165 tests, including 13 baseline DTB producer tests,
+The full host suite has 174 tests, including 14 DTB producer tests and 8
+startup patch/profile tests,
 28 offline planner tests, 16 offline
 payload-profile tests and 15 native payload/layout tests. The latter compile actual layout, DTB, staging and
 initialization functions against host API doubles, including failed staging
@@ -329,5 +344,7 @@ inputs. Host doubles do not validate kernel layouts, allocator acceptance or
 hardware shutdown. The matching native build and local ABI audit for this source
 passed in [archived run 39567877831](https://github.com/WitherBlitz/Quest-2-Steam-OS-Port/releases/tag/old-fork-build-evidence);
 see the [recorded checksums and scope](QUEST2_LOADER_STATUS.md#placement-strategy-and-hollywood-dma-gate).
-That build phase was offline. The subsequent one-window diagnostic refused
-ownership as recorded above; no shutdown protocol has been tested on hardware.
+That build phase was offline. Later verified native builds support the refused
+52 MiB and successful 36 MiB diagnostics recorded above; no shutdown protocol
+has been tested on hardware. The partial startup build passed Linux CI and
+offline source/payload checks; its GIC patch has not run on the headset.

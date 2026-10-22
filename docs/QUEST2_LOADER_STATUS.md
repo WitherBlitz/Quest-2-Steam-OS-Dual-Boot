@@ -4,12 +4,13 @@ This branch contains a read-only readiness collector and source fixes for
 `hollywood`, Horizon build `52242990024200150`, kernel
 `4.19.325-cip128-st12-g49638c7a8637`. It is an experimental development branch.
 The patched Android kernel module has **been rebuilt and its symbol versions
-verified**. Separate RAM-only attempts refused the original fixed destination
-and one capture-planned window above 4 GiB with `-EBUSY`; neither acquired RAM
-ownership or ran a payload. The latest attempt preserved the boot, CPUs and stock
-modules; the user confirmed normal Home/tracking after the recorded attempts. This
-branch does not provide a complete SteamOS port, validated dual boot, or full
-tracking.
+verified**. Earlier 52 MiB RAM-only attempts were refused with `-EBUSY`.
+A subsequent **36 MiB claim and release succeeded** at `0x100000000`; the
+module was unloaded and its temporary file removed. Boot, CPUs and stock modules
+were preserved; the user confirmed normal Home/tracking. A partial startup
+kernel profile now builds and passes offline checks, but has not been booted.
+This branch does not provide a complete SteamOS port, validated dual boot, or
+full tracking.
 
 ## Branch and build provenance
 
@@ -76,8 +77,8 @@ is recorded below; the earlier unpatched artifacts are separate.
 
 The default no-jump build now also accepts an explicit `validate_ram=1`
 diagnostic. It checks Kona/Hollywood, verifies System RAM coverage, makes one
-native claim attempt for the fixed 52 MiB destination, releases successful
-ownership immediately, and returns before any payload open or shutdown path.
+native claim attempt for the selected destination (52 MiB by default), releases
+successful ownership immediately, and returns before any payload open or shutdown path.
 It rejects combinations with hardware, CPU, reset and other diagnostic modes.
 Allocation can migrate/reclaim pages and has no hard real-time deadline. This
 mode tests RAM acceptance only; it cannot establish DMA or secure handoff safety.
@@ -90,9 +91,10 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The full suite has 152 passing host tests: 21 readiness-collector tests, 27
+The full suite has 174 passing host tests: 21 readiness-collector tests, 27
 loader regression tests, 30 RAM-ownership tests, 28 handoff-planner tests,
-15 native payload/layout tests, 16 offline payload-profile tests and 15 build-audit tests.
+15 native payload/layout tests, 16 offline payload-profile tests, 15 build-audit
+tests, 14 private DTB producer tests and 8 startup patch/profile tests.
 The RAM/shutdown regressions were observed failing before these changes.
 The original loader failed 9
 of the first 11 new regressions before the source fix. An independent source
@@ -553,19 +555,97 @@ completion manifest bind these exact inputs. No physical staging or boot was
 performed. A passing offline baseline does not validate the missing target
 handoff patches, secure ownership, device shutdown or Linux hardware startup.
 
+## Reviewed startup build
+
+The [startup patch review](QUEST2_STARTUP_PATCH_REVIEW.md) selects one GICv3
+pending-SPI clear after the stock disable/deactivate helper. Other inherited
+hardware changes remain deferred. The owner-only workflow preserves the default
+unmodified baseline and accepts only the exact reviewed `startup-gic-pending`
+patch profile, with release `4.19.325-cip128-st12-qkx-q2-startup`.
+
+[Actions run 39714699023](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39714699023)
+passed from `d6c64f1c592d29a137fc637b1d251033ec186585`. All 174 host tests
+passed on Linux. Local verification matched the archive digest/size, 14-file
+allowlist, all 13 checksums, kernel/config/compiler pins, Image header/release
+and static ARM64 initramfs profile. BusyBox echo and init script syntax ran
+under QEMU user mode. The BusyBox build has 58 upstream compiler/linker warning
+lines; neither saved build log contains a matched compiler/build error.
+Reconstructing the patched source from the unmodified kernel archive and the
+port archive reproduced the exact pinned driver hash; the common helper and
+the archived build/init recipes also matched their source pins.
+
+ZIP SHA-256: `8b88428b05d057e2be79be3641952301f47b32dc4b68e4d40d6c0e633c755e2a`.
+
+| Public startup file | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `Image` | 30,435,344 | `aab25dd416744e606959fce84bd9d1f7d43a4d1db690e8457d15e12e5e294c2a` |
+| `initramfs.gz` | 1,177,854 | `1d807a4a1c9f6917b2500f62780c9154b9c3e01ad4ec975762d18e023ca30542` |
+| `target.config` | 153,624 | `80d470298cccdb792903fe6eb724a30f76e8dbf482f206228ffde4f31672143b` |
+
+A new matching passive capture/live FDT supplied a private prepared DTB of
+506,829 bytes. All 3,044 live nodes, boot CPU and complete bootloader reserve-map
+bytes were preserved. Ignoring generated `name` properties, only chosen bootargs
+and the two initrd address properties changed. The structural/profile report
+has zero findings, and actual native layout/DTB helpers compiled with host API
+doubles both returned zero. The Image declares 32,251,904 bytes of memory with
+`text_offset=0x80000`; the complete envelope is 36 MiB at
+`[0x100000000, 0x102400000)`, avoiding the previously observed unmovable block.
+These are offline checks; no Image, initramfs or DTB was staged on the headset.
+
+## Compact 36 MiB RAM claim and release
+
+On 2026-10-22 UTC, after the user confirmed idle usable Home, exactly one
+instrumented RAM diagnostic used `validate_ram=1 ram_diagnose=1`,
+`ram_base=0x100000000` and `ram_bytes=0x2400000`. The unchanged native module
+from source `9157b54e8bdc72dfa4c7dd0a5ef7caafba9ae3f0` was reverified
+against its archive/module hashes, source, no-jump build and ABI audit above.
+The new target startup patch was not loaded or executed.
+
+The native result was:
+
+```text
+RAM validation range=[100000000,102400000)
+RAM validation result=0 elapsed_ns=36110368 owned=1
+start_isolate_page_range calls=1 result=0
+has_unmovable_pages calls=9 result=0
+test_pages_isolated calls=1 result=0
+isolate_freepages_range calls=1 result_pfn=102400
+RAM validation released destination; no payload or shutdown
+```
+
+Both missed-event counters were zero for all four observers, whose summaries
+were emitted after probe removal. All 9,216 pages were temporarily owned;
+allocation took about 36.11 ms. The module was normally unloaded and its exact
+hash-verified temporary file removed, with absence confirmed. Fresh passive
+checks recorded the same boot, CPUs 0-7, stock module set and taint, no matched
+new fault signatures, and resumed Home. The user confirmed **Home and tracking
+are normal**. This scope made one claim attempt only. A host log parser failed
+on ANSI-colored prefixes after cleanup; offline normalization of the saved
+captures recovered the complete result without repeating the device operation.
+
+This demonstrates allocator acceptance for that attempt. Ownership was released
+inside initialization; there is no retained reservation, future allocation
+guarantee, payload relocation result or DMA/secure ownership proof. Allocation
+and probes can perturb runtime memory. No PM/device shutdown, CPU/MMU action,
+watchdog operation, reboot, flashing or boot-policy change occurred. Raw device
+captures and the prepared DTB remain private. `HANDOFF_BLOCKED` is unchanged.
+
 ## Remaining work
 
 The original fixed window and first capture-planned high window were refused.
 The instrumented attempt identifies initial pageblock isolation and an unmovable
 4 MiB block. Offline planning now accounts for caller-supplied observed blocks
 and supplied payload sizes. The native source now coordinates compact ownership
-and relocation. The noninteractive baseline Image/initramfs and private prepared
-DTB now pass offline profile/native checks. Target handoff patches still need
-porting and review before this can become a handoff target. Any live claim needs
-the verified native artifact, fresh evidence and a justified scope; `ram_base`
+and relocation. The baseline and partial GIC startup Image/initramfs profiles
+and private prepared DTBs pass offline profile/native checks. The compact
+36 MiB diagnostic demonstrated one successful claim/release. Remaining target
+handoff patches still need porting and review before this can become a handoff
+target. Any subsequent live claim needs the verified native artifact, fresh
+evidence and a justified scope; `ram_base`
 alone retains the default 52 MiB length, while `ram_bytes` selects the test size.
 Snapshots alone cannot identify the refusing owner or prove other windows free.
-A usable reservation and runtime use of compact payload relocation remain unproven.
+A reservation held through staging/handoff and runtime use of compact payload
+relocation remain unproven.
 Forcing busy pages or repeatedly guessing addresses is not a solution. DMA
 quiescence, secure-watchdog handling, CPU/MMU transition and recovery remain unproven.
 Panicking after irreversible
@@ -582,7 +662,7 @@ The pinned shutdown implementation also sets these limits on future tests:
 
 | Area | Source evidence | Still needed before hardware readiness |
 | --- | --- | --- |
-| RAM | Fixed/high claims refused; an unmovable block is excluded in offline proposals; variable-length diagnostics and compact staging have a matching verified native build. Baseline Linux files and a reservation-preserving private DTB pass offline checks. | Reviewed target handoff patches, an accepted reservation and runtime preservation of secure/dynamic reservations. |
+| RAM | Earlier 52 MiB claims refused; one compact 36 MiB claim/release succeeded. The matching native build and baseline/partial-startup payloads pass offline checks. | Ownership held through staging/handoff, remaining target handoff patches and runtime preservation of secure/dynamic reservations. |
 | GPU/Syncboss | PM callbacks can defer work or hide errors. | Completion and failure detection on this firmware, including rollback. |
 | USB | Gadget suspend stops/disconnects gadget traffic. | Controller/glue DMA quiescence and target USB reprobe. |
 | Storage | UFS shutdown drains requests and powers down the link, but returns zero even after logged errors. | Observed shutdown completion and target reinitialization; no shutdown bypass is implemented here. |
