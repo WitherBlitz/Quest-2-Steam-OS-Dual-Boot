@@ -28,6 +28,14 @@ The changes done to the kernel are in `kernel/patches/` as patches.
 
 ## Basic build
 
+The owner-only `Quest 2 offline Linux baseline build` workflow builds the
+firmware-matching, unmodified kernel with a pinned public Quest 2 config and
+a static BusyBox initramfs. This is a noninteractive build baseline: no console
+is enabled, hardware handoff patches are absent, and it is not a bootable-port
+claim. Its artifacts include corresponding sources, configs and build recipes;
+device captures and prepared DTBs remain private. The Quest 2 loader gate stays
+closed. The legacy instructions below describe the upstream project.
+
 Install Clang/LLD, an `aarch64-linux-gnu-` toolchain, Python 3, `adb`, `dtc`, `fdtput`, `curl` and `make`.
 
 Build the kexec modules against the exact Android kernel running on the headset:
