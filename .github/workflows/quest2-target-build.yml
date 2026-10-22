@@ -25,7 +25,7 @@ jobs:
       - name: Install offline build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends build-essential bc bison flex libssl-dev libelf-dev dwarves libtinfo5 binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu qemu-user curl
+          sudo apt-get install -y --no-install-recommends build-essential bc bison flex libssl-dev libelf-dev dwarves libtinfo5 binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user curl
       - name: Build public-config Linux baseline and BusyBox initramfs
         run: bash tools/ci/quest2_target_build.sh
       - name: Upload allowlisted baseline outputs
