@@ -26,6 +26,11 @@ The [camera/DSP ownership audit](docs/QUEST2_OWNER_AUDIT.md) adds a passive
 process/device collector and a proposed checked stop/drain sequence. FD holders
 do not establish session ownership, and several stock stop paths discard errors.
 
+The [sensors/tracking lifecycle audit](docs/QUEST2_SERVICE_LIFECYCLE.md) traces
+the matching shipped services and init. It identifies forced-kill paths,
+discarded camera-stop results and tracking cleanup waits; a checked global
+shutdown protocol is still unproven.
+
 A kernel module for Meta Quest headsets that allows you to load a custom kernel without unlocking the bootloader of the headset. Based on [kexec-at-home](https://github.com/provide-salad/kexec-at-home)
 
 > **Note:** This project has only been developed and tested on Meta Quest Pro.

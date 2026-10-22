@@ -8,6 +8,11 @@ remains closed.
 
 ## Passive collector
 
+The subsequent [service lifecycle audit](QUEST2_SERVICE_LIFECYCLE.md) maps the
+identified holders to startup definitions and compiled cleanup paths. It
+distinguishes init/signal/process completion from producer release; the
+shutdown proposal below remains gated on that missing proof.
+
 ```sh
 python3 -B tools/quest2_owner_probe.py --adb /path/to/adb \
   --serial YOUR_USB_SERIAL --output /path/to/new-private-owner-capture
