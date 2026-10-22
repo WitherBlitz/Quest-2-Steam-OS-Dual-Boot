@@ -495,14 +495,73 @@ the expected BusyBox shell init. These are rejected references, not a validated
 Linux payload. The new offline checker's final independent review is outstanding;
 the native source review was approved after the two FDT fixes above.
 
+## Noninteractive Linux build baseline
+
+The owner-only offline workflow now builds the matching kernel source without
+target handoff patches, using the public Quest 2 config pinned to upstream
+`9c96c192d4a4a80f95ba0013294977e85c6eae11`. Its config disables ION pool
+auto-refill and embedded config/initramfs data, enables the external BusyBox
+profile, and uses localversion `-qkx-q2-baseline`. The baseline init has no
+interactive console or network listener. The source archives, resolved configs
+and build recipes accompany the binaries. No raw DTB or device capture is
+published.
+
+The private [DTB producer](QUEST2_HANDOFF_STRATEGY.md#private-linux-baseline-dtb-preparation)
+requires agreement between the live flattened FDT and captured runtime tree.
+It preserves empty nodes, secure/dynamic reservations, bootloader reserve-map
+bytes and boot CPU, then sets minimal bootargs and the compact initrd addresses.
+Its 13 regressions and the full 165-test host suite pass; independent review of
+this new producer found no remaining actionable findings after two placement
+fixes. That review did not cover the prior profile checker internals or hardware.
+
+A fresh passive capture and bounded live-FDT read completed on the known
+matching headset. All non-`name` properties agree; the live bootloader reserve
+map has no nonzero entries. The boot ID stayed unchanged across the FDT read.
+No module, allocation, tracking/PM, settings, reboot or filesystem change was
+performed on the headset during this phase. Device-specific files stay private.
+
+The initial baseline CI run compiled the Image and passed all 152 tests in its
+source revision, then failed building BusyBox because ARM64 libc development
+headers were absent from the runner. The workflow now explicitly installs
+`libc6-dev-arm64-cross`.
+The [rebuild, run 39707716030](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39707716030),
+completed successfully from `2c0f7891227f3bf1119d52ad7fb95116c7d592e6`.
+Local verification matched its GitHub ZIP digest, 14-file allowlist and all
+13 inner checksums, source/config/compiler pins, embedded kernel release and
+static ARM64 initramfs profile. All 165 tests passed on Linux; BusyBox echo and
+init script syntax executed under QEMU user mode. The kernel log contains one
+missing WLAN defconfig warning and BusyBox has 58 upstream compiler/linker
+warnings; neither log contains a matched compiler/build error. This is not a
+warning-free build, and compilation does not establish working peripherals.
+
+ZIP SHA-256: `9d0c488c2b706292e26e8abe610f2cd510afa64f0798cb6cedb714f065a39b0e`.
+
+| Public baseline file | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `Image` | 30,435,344 | `8ade16120b8b2990dad5cdd4a10d6d628b58ee3de215a13395cced43dedc059f` |
+| `initramfs.gz` | 1,177,854 | `ab568dc18162b3e1f871da7a5928923dc206190aa406cd53d432c8499dc43436` |
+| `target.config` | 153,624 | `80d470298cccdb792903fe6eb724a30f76e8dbf482f206228ffde4f31672143b` |
+
+The private prepared DTB is 506,829 bytes. Its profile report has zero findings;
+the actual native layout and DTB functions, compiled with host API doubles,
+both returned zero against the same files. The resulting copy envelope is
+36 MiB at `0x100000000`, avoiding the observed block beginning `0x102c00000`.
+That address remains an unclaimed snapshot candidate. The prepared tree retains
+the live node set and bootloader reserve-map bytes; the copied initrd addresses
+agree with both host and native calculations. The hashes in the private
+completion manifest bind these exact inputs. No physical staging or boot was
+performed. A passing offline baseline does not validate the missing target
+handoff patches, secure ownership, device shutdown or Linux hardware startup.
+
 ## Remaining work
 
 The original fixed window and first capture-planned high window were refused.
 The instrumented attempt identifies initial pageblock isolation and an unmovable
 4 MiB block. Offline planning now accounts for caller-supplied observed blocks
 and supplied payload sizes. The native source now coordinates compact ownership
-and relocation. A built target Linux Image/initramfs and a prepared, reservation-
-preserving DTB still need validation before compact staging. Any live claim needs
+and relocation. The noninteractive baseline Image/initramfs and private prepared
+DTB now pass offline profile/native checks. Target handoff patches still need
+porting and review before this can become a handoff target. Any live claim needs
 the verified native artifact, fresh evidence and a justified scope; `ram_base`
 alone retains the default 52 MiB length, while `ram_bytes` selects the test size.
 Snapshots alone cannot identify the refusing owner or prove other windows free.
@@ -523,7 +582,7 @@ The pinned shutdown implementation also sets these limits on future tests:
 
 | Area | Source evidence | Still needed before hardware readiness |
 | --- | --- | --- |
-| RAM | Fixed/high claims refused; an unmovable block is excluded in offline proposals; variable-length diagnostics and compact staging have a matching verified native build. | A target Linux payload/DT, an accepted reservation and preservation of secure/dynamic reservations. |
+| RAM | Fixed/high claims refused; an unmovable block is excluded in offline proposals; variable-length diagnostics and compact staging have a matching verified native build. Baseline Linux files and a reservation-preserving private DTB pass offline checks. | Reviewed target handoff patches, an accepted reservation and runtime preservation of secure/dynamic reservations. |
 | GPU/Syncboss | PM callbacks can defer work or hide errors. | Completion and failure detection on this firmware, including rollback. |
 | USB | Gadget suspend stops/disconnects gadget traffic. | Controller/glue DMA quiescence and target USB reprobe. |
 | Storage | UFS shutdown drains requests and powers down the link, but returns zero even after logged errors. | Observed shutdown completion and target reinitialization; no shutdown bypass is implemented here. |
