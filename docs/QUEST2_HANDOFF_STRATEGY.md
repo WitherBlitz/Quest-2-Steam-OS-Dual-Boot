@@ -318,6 +318,12 @@ override parameter. This phase implements planning and refusal handling; it does
 not implement camera/DSP teardown, certify a usable RAM reservation, or enable
 a Linux jump. No headset change is required to run the offline planner.
 
+The subsequent [shutdown validation](QUEST2_SHUTDOWN_VALIDATION.md) verifies
+source behavior and records a passive current-firmware inventory. Camera/DSP
+models expose additional completion/locking limits, and watchdog models separate
+software disable/panic behavior from physical reset. No producer was stopped;
+that evidence does not open the gate.
+
 ## Verification
 
 Run the existing host suite with a configured native compiler:
@@ -327,8 +333,9 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The full host suite has 174 tests, including 14 DTB producer tests and 8
-startup patch/profile tests,
+The full host suite has 204 tests, including 14 DTB producer tests, 8
+startup patch/profile tests, 18 shutdown source/model tests and 12 passive
+shutdown-probe tests,
 28 offline planner tests, 16 offline
 payload-profile tests and 15 native payload/layout tests. The latter compile actual layout, DTB, staging and
 initialization functions against host API doubles, including failed staging

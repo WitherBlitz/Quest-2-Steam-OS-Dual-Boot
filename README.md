@@ -17,6 +17,10 @@ The original Git history and branches are preserved. See the
 > Read [the port status and verification limits](docs/QUEST2_LOADER_STATUS.md)
 > before using the legacy upstream build or boot instructions below.
 
+The latest [camera/DSP/DMA and watchdog validation](docs/QUEST2_SHUTDOWN_VALIDATION.md)
+records source-model tests and passive headset evidence. Physical shutdown and
+recovery remain unproven; Linux boot is blocked.
+
 A kernel module for Meta Quest headsets that allows you to load a custom kernel without unlocking the bootloader of the headset. Based on [kexec-at-home](https://github.com/provide-salad/kexec-at-home)
 
 > **Note:** This project has only been developed and tested on Meta Quest Pro.

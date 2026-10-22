@@ -91,10 +91,11 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The full suite has 174 passing host tests: 21 readiness-collector tests, 27
+The full suite has 204 passing host tests: 21 readiness-collector tests, 27
 loader regression tests, 30 RAM-ownership tests, 28 handoff-planner tests,
 15 native payload/layout tests, 16 offline payload-profile tests, 15 build-audit
-tests, 14 private DTB producer tests and 8 startup patch/profile tests.
+tests, 14 private DTB producer tests, 8 startup patch/profile tests,
+18 shutdown source/model tests and 12 passive shutdown-probe tests.
 The RAM/shutdown regressions were observed failing before these changes.
 The original loader failed 9
 of the first 11 new regressions before the source fix. An independent source
@@ -629,6 +630,23 @@ guarantee, payload relocation result or DMA/secure ownership proof. Allocation
 and probes can perturb runtime memory. No PM/device shutdown, CPU/MMU action,
 watchdog operation, reboot, flashing or boot-policy change occurred. Raw device
 captures and the prepared DTB remain private. `HANDOFF_BLOCKED` is unchanged.
+
+## Shutdown and recovery evidence
+
+The [shutdown validation record](QUEST2_SHUTDOWN_VALIDATION.md) adds an exact
+nine-file source audit, seven copied function comparisons, source models and
+one fixed-command passive capture. ADSP/CDSP and six other subsystem states
+reported ONLINE; camera/SMMU drivers remained bound. Watchdog software disable
+was zero and current panic timeout was -1. The capture preserved boot, identity,
+CPUs, stock module names and taint without device mutation.
+
+Host tests reproduce the published camera close path's nonfinal retained write
+lock and discarded subdevice errors, shared DSP reference behavior, watchdog
+disable failure/teardown and panic limits. These are source branch results,
+not demonstrated stock-device defects or hardware completion. No shutdown,
+watchdog/reset, recovery or Linux boot test was performed. All 204 host tests
+pass; independent source/probe review found no remaining actionable findings.
+The loader, kernel patches and hardware gate are unchanged by this phase.
 
 ## Remaining work
 
