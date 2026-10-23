@@ -1,0 +1,24 @@
+Subject: [PATCH] usb: dwc3-msm: find available controller child by compatible
+
+Base kernel:6bde5fc06b252c97761bc0963dd13c1abcf377ab.
+The first available child can be a different device, such as qcom,usbbam.
+Select an available snps,dwc3 child regardless of the device-tree ordering.
+The iterator releases skipped children; breaking retains the matching node
+for the existing of_node_put paths after population or on population error.
+No shutdown, logging, clock, PHY or deferred-probe behavior is changed.
+
+diff --git a/drivers/usb/dwc3/dwc3-msm.c b/drivers/usb/dwc3/dwc3-msm.c
+--- a/drivers/usb/dwc3/dwc3-msm.c
++++ b/drivers/usb/dwc3/dwc3-msm.c
+@@ -3919,6 +3919,9 @@ static int dwc3_msm_probe(struct platform_device *pdev)
+-	/* Assumes dwc3 is the first DT child of dwc3-msm */
+-	dwc3_node = of_get_next_available_child(node, NULL);
++	/* Find the available DWC3 controller independently of DT ordering. */
++	for_each_available_child_of_node(node, dwc3_node) {
++		if (of_device_is_compatible(dwc3_node, "snps,dwc3"))
++			break;
++	}
+ 	if (!dwc3_node) {
+ 		dev_err(&pdev->dev, "failed to find dwc3 child\n");
+ 		ret = -ENODEV;
+ 		goto err;

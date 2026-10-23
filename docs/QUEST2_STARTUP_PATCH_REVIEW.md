@@ -101,3 +101,38 @@ guarantee of future acceptance. Further handoff work still requires all
 producer/DMA and secure/watchdog shutdown protocols, CPU/MMU entry, diagnostic
 visibility and recovery. This partial startup port provides no override for
 those missing prerequisites.
+
+## Native USB rescue development profile
+
+`startup-usb-child` retains the GIC pending-state patch and adds a narrow
+`dwc3-msm` probe fix: iterate available children until `snps,dwc3` matches,
+instead of assuming the first available child is the controller. The existing
+selected-node references and error cleanup are retained. No IOMMU, power,
+shutdown or watchdog failure is bypassed. The release suffix is `-qkx-q2-usb`.
+The unchanged `baseline` remains the workflow default.
+
+This profile packs `initramfs/quest2-linux-init.sh`, a native RAM-only PID 1,
+instead of the noninteractive baseline init. It mounts the runtime filesystems,
+configures one USB controller and supplies a root rescue shell bound only to
+`10.42.0.2:23`. RNDIS is the default; `qkx.usb=ecm` selects ECM. A one-address
+DHCP pool assigns the host `10.42.0.1` without a default router or DNS setting.
+The init keeps bounded kernel-log snapshots in RAM and supports manual
+`reboot -f`; it does not assemble Android, mount userdata or depend on an
+unported boot-completion proc entry. Physical recovery remains unvalidated.
+
+The pinned source audit verifies the complete original and patched DWC3 file
+hashes. Seven compiled C scenarios exercise child ordering, unavailable and
+incompatible children, missing controllers and node-reference cleanup. Eight
+shell/selection tests exercise ECM/RNDIS descriptors, bounded controller
+discovery, ambiguous controllers, failed writes, invalid modes, the USB-only
+listener and build-profile selection. All 256 host tests passed locally, as
+did shell syntax and whitespace checks. An independent review found no
+actionable issues. A host repack with the retained verified static ARM64
+BusyBox produced a structurally valid 19-entry, 1,172,547-byte initramfs.
+
+The workflow also runs the shell fixtures using the freshly built ARM64
+BusyBox under QEMU user mode and checks the required applets and kernel
+configuration. These checks do not execute the complete PID 1 lifecycle or
+prove Windows enumeration, DMA shutdown, CPU/MMU entry, physical boot or
+recovery. The Hollywood handoff gate remains closed. Native CI build evidence
+for this profile will be recorded after its run is verified.

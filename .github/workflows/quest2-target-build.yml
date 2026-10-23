@@ -11,6 +11,7 @@ on:
         options:
           - baseline
           - startup-gic-pending
+          - startup-usb-child
 
 permissions:
   contents: read
@@ -39,7 +40,7 @@ jobs:
         env:
           QKX_TARGET_PROFILE: ${{ inputs.target_profile || 'baseline' }}
         run: bash tools/ci/quest2_target_build.sh
-      - name: Upload allowlisted baseline outputs
+      - name: Upload allowlisted target outputs
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

@@ -52,7 +52,13 @@ BusyBox initramfs. It defaults to the unmodified `baseline`; the reviewed
 `startup-gic-pending` profile adds one interrupt-initialization patch. See the
 [startup review and verified build](docs/QUEST2_STARTUP_PATCH_REVIEW.md) and
 [successful 36 MiB RAM diagnostic](docs/QUEST2_LOADER_STATUS.md#compact-36-mib-ram-claim-and-release).
-Both profiles are noninteractive development builds with no console enabled.
+Those two profiles are noninteractive development builds with no console enabled.
+The additional `startup-usb-child` profile selects the available compatible
+DWC3 child independently of DT ordering and packs a native RAM-only USB rescue
+init. It defaults to RNDIS, with `qkx.usb=ecm` available for ECM. Its shell and
+DHCP configuration are tested with host fixtures; headset boot, Windows USB
+enumeration and recovery remain unvalidated. See the
+[native rescue development profile](docs/QUEST2_STARTUP_PATCH_REVIEW.md#native-usb-rescue-development-profile).
 Their artifacts include corresponding sources, configs and build recipes;
 device captures and prepared DTBs remain private. The Quest 2 loader gate stays
 closed. The legacy instructions below describe the upstream project.
