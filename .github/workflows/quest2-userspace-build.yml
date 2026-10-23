@@ -27,7 +27,7 @@ jobs:
         run: |
           test "$(uname -m)" = aarch64
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends clang gcc-x86-64-linux-gnu
+          sudo apt-get install -y --no-install-recommends clang gcc-x86-64-linux-gnu libc6-dev-amd64-cross
       - name: Build and test the isolated gaming userspace
         run: bash tools/ci/quest2_userspace_build.sh
       - name: Upload build, corresponding source and CI-owned evidence
