@@ -144,6 +144,10 @@ retention-across-reset, tracking-health or Horizon-fallback test is claimed.
 The schema-2 selector-binding update passed all 40 focused recovery/source tests
 and all 457 host regression tests on Windows, with no skips. These are host
 tests; this update issued no headset commands and demonstrates no physical reset.
+The [Ubuntu run](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/40001696994)
+at source `92b52ec91a174b57502a44ec1ebb000ea648e338` also passed all 457 tests
+without skips and the seven existing Linux/QEMU reader cases. Downloaded source
+and binary hashes matched their receipts; this does not establish headset recovery.
 
 ```sh
 HOST_TEST_CC=clang python3 -B -m unittest tools.tests.test_recovery_probe tools.tests.test_shutdown_source
