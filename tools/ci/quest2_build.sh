@@ -60,6 +60,8 @@ python3 -B tools/ci/quest2_audit.py modules --symvers "$out/Module.symvers" \
 cp module/quest_kexec.ko module/marker_read.ko module/usb_log.ko module/camera_dsp_diag.ko "$artifacts/"
 cp module/.loader.o.cmd "$artifacts/loader.compile.txt"
 cp module/.camera_dsp_diag.o.cmd "$artifacts/diagnostic.compile.txt"
+cp module/.shutdown.o.cmd "$artifacts/shutdown.compile.txt"
+cp module/.shutdown_io.o.cmd "$artifacts/shutdown-io.compile.txt"
 cp LICENSE "$artifacts/"
 python3 - "$kernel" "$compiler" "$out" "$artifacts" <<'PY'
 import hashlib, json, pathlib, subprocess, sys

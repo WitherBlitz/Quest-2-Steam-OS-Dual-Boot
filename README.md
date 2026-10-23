@@ -22,6 +22,11 @@ records source-model tests, passive headset evidence and a successful bounded
 read-only camera/DSP diagnostic on the matching headset. Physical shutdown and
 recovery remain unproven; Linux boot is blocked.
 
+The [checked shutdown implementation](docs/QUEST2_CHECKED_SHUTDOWN.md) adds a
+native owner coordinator and bounded read-only USB/UFS/AOP completion primitives.
+Host fixtures exercise ordering, errors and rollback. Stock hardware backends
+remain unbound; these checks do not establish physical shutdown or recovery.
+
 The [camera/DSP ownership audit](docs/QUEST2_OWNER_AUDIT.md) adds a passive
 process/device collector and a proposed checked stop/drain sequence. FD holders
 do not establish session ownership, and several stock stop paths discard errors.
