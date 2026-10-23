@@ -50,10 +50,7 @@ class TargetModulesTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("quest2_target_modules", SCRIPT)
         self.tool = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.tool)
-        temp_root = Path("D:/quest2-shutdown-test-temp") if os.name == "nt" else None
-        if temp_root is not None:
-            temp_root.mkdir(parents=True, exist_ok=True)
-        self.temp = tempfile.TemporaryDirectory(prefix="qkx-target-modules-", dir=temp_root)
+        self.temp = tempfile.TemporaryDirectory(prefix="qkx-target-modules-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.out = self.root / "kernel-out"
@@ -141,6 +138,22 @@ class TargetModulesTests(unittest.TestCase):
         for path in self.stage.rglob("*"):
             os.utime(path, (1234567890, 1234567890))
         self.assertEqual(self.bundle(), (archive, report))
+
+    def test_kmod29_metadata_outputs_are_preserved(self):
+        # kmod v29 tools/depmod.c depfiles[], plus Kbuild order/builtin inputs.
+        names = {"modules.dep", "modules.dep.bin", "modules.alias", "modules.alias.bin",
+                 "modules.softdep", "modules.symbols", "modules.symbols.bin",
+                 "modules.builtin.bin", "modules.builtin.alias.bin", "modules.devname",
+                 "modules.order", "modules.builtin"}
+        for name in names - set(METADATA):
+            self.write_stage(name, b"\0binary fixture" if name.endswith(".bin") else b"# metadata\n")
+        archive, report = self.bundle()
+        prefix = "lib/modules/" + RELEASE + "/"
+        with tarfile.open(fileobj=io.BytesIO(archive)) as package:
+            for name in names:
+                data = package.extractfile(prefix + name).read()
+                self.assertEqual(data, (self.installed / name).read_bytes())
+                self.assertEqual(report["files"][prefix + name]["sha256"], hashlib.sha256(data).hexdigest())
 
     def test_missing_required_module_is_not_hidden_by_consistent_order(self):
         for name in REQUIRED:

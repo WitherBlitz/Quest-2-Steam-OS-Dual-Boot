@@ -67,6 +67,9 @@ if [ "$profile" = startup-usb-child ]; then
     "DEPMOD=$(command -v depmod)" modules_install 2>&1 | tee -a "$artifacts/target-build.log"
   stat -c 'Installed WLAN module after debug stripping: %s bytes' \
     "$work/modules/lib/modules/4.19.325-cip128-st12$localversion/kernel/drivers/staging/qcacld-3.0/wlan.ko" | tee -a "$artifacts/target-build.log"
+  depmod --version | tee -a "$artifacts/target-build.log"
+  find "$work/modules/lib/modules/4.19.325-cip128-st12$localversion" -maxdepth 1 -type f \
+    -printf '%f %s bytes\n' | sort | tee -a "$artifacts/target-build.log"
   python3 -B tools/ci/quest2_target_modules.py --kernel-out "$out" --staging "$work/modules" \
     --archive "$artifacts/target-modules.tar.gz" --output "$artifacts/target-modules.json"
   cp "$out/Module.symvers" "$artifacts/target.Module.symvers"

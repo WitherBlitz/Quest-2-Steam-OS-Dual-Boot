@@ -35,7 +35,7 @@ REQUIRED_MODULES = (
 )
 METADATA = {"modules.dep", "modules.dep.bin", "modules.alias", "modules.alias.bin",
             "modules.symbols", "modules.symbols.bin", "modules.softdep", "modules.devname",
-            "modules.order", "modules.builtin", "modules.builtin.bin"}
+            "modules.order", "modules.builtin", "modules.builtin.bin", "modules.builtin.alias.bin"}
 REQUIRED_METADATA = {"modules.dep", "modules.alias", "modules.symbols",
                      "modules.order", "modules.builtin"}
 MAX_FILE = 128 * 1024 * 1024
