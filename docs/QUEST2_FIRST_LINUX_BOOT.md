@@ -1,8 +1,9 @@
 # First Linux boot prerequisites
 
-The first recoverable Linux boot is **blocked**. This increment fixes offline
-loader defects found while checking that prerequisite; it does not enable a
-jump or deploy a module. The supported development identity remains Hollywood,
+The first recoverable Linux boot is **blocked**. The original offline increment
+fixed loader defects; the follow-up below executes the transition in a system
+emulator. Neither enables a Quest jump nor deploys a module. The supported
+development identity remains Hollywood,
 Horizon `52242990024200150`, kernel
 `4.19.325-cip128-st12-g49638c7a8637`.
 
@@ -61,8 +62,21 @@ assertion shim checking MMU-off state, exception masking and the Linux x0-x3
 register convention. The x0 value is a cookie, not a Linux DTB or boot proof.
 
 Negative controls deliberately shorten the copy loop, corrupt an entry register
-and hang a guest, checking assertion failure and bounded host termination. The local cross-build succeeded;
-system-emulator execution is pending. No headset access, kernel-module change,
+and hang a guest, checking assertion failure and bounded host termination.
+The [EL1 execution run](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/40004756850)
+passed at source `0a9906dfb2f6a8813aac79edf400ab76b1f13d2e`, using Clang/LLD
+18.1.3 and QEMU 8.2.2. Production execution reached every expected marker and
+exited zero. Both faulty variants exited one at the specific expected assertion;
+the hanging guest reached its deliberate loop and was killed by the two-second
+host timeout. The same job passed all 457 host tests with no skips.
+
+Downloaded verification checked the 12-file allowlist, all six archived source
+hashes against the exact Git blobs, GPL license, generated assembly against the
+unchanged production fixture, and ELF entry/load bounds in emulated RAM. The
+production ELF SHA-256 is
+`ec286fcd68939d07b7a46e49bd36614ada6d3135da7f4078cf27a6742371ea0c`.
+Windows independently cross-built the fixture and passed all 457 host tests;
+independent review found no blocking issue. No headset access, kernel-module change,
 hardware adapter, startup bypass or boot-policy change is introduced.
 
 This is an architectural execution check, not proof of Qualcomm/secure-firmware
@@ -71,6 +85,16 @@ QEMU's [`virt` board](https://www.qemu.org/docs/master/system/arm/virt.html) mod
 a generic virtual platform. [Semihosting](https://www.qemu.org/docs/master/about/emulation.html#semihosting)
 uses only this trusted fixture's console/exit operations. An emulator exit is not
 a Horizon recovery event. All first-boot gates below remain required.
+
+```sh
+python3 -B tools/ci/quest2_transition_el1.py --output /private/new-transition-check
+```
+
+Clang, LLD and system `qemu-system-aarch64` are required. `--build-only` reports
+`BUILT_NOT_EXECUTED`, separately from `PASSED`. Each build command is bounded at
+30 seconds and each ordinary guest at 20 seconds. These host limits do not
+provide a watchdog/reset deadline for the headset. Receipt fields
+`handoff_ready`, `auto_boot_allowed` and `device_access` remain false.
 
 ## Verification and limits
 
