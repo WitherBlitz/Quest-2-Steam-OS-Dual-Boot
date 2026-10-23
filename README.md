@@ -33,7 +33,9 @@ shutdown protocol is still unproven.
 
 The [tracking delegate/runtime attribution follow-up](docs/QUEST2_TRACKING_OWNERSHIP.md)
 found a null delegate in a matched candidate object and corroborated camera/FastRPC
-FD holders. Exact session ownership and successful hardware release remain open.
+FD holders. The [additional FastRPC resource observation](docs/QUEST2_FASTRPC_RESOURCES.md)
+records 18 forward handles, seven local cleanup IDs and ten registered buffers.
+Complete kernel/firmware ownership and successful hardware release remain open.
 
 A kernel module for Meta Quest headsets that allows you to load a custom kernel without unlocking the bootloader of the headset. Based on [kexec-at-home](https://github.com/provide-salad/kexec-at-home)
 

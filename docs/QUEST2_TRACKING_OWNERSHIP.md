@@ -2,10 +2,11 @@
 
 **The matched candidate API-glue object's optional delegate and user data were both
 null at two samples.** Static tracing found no installation in the inspected
-normal startup paths. The descriptor follow-up attributed 19 non-`O_PATH`
-character-device FDs to five processes, including the sensors service and
-trackingservice. Exact CRM session/stream owners and remote FastRPC bindings
-remain unproven; these results do not validate shutdown or Linux handoff.
+normal startup paths. Subsequent observations attributed five userspace CSL
+sessions and 18 forward FastRPC handles. The [additional resource follow-up](QUEST2_FASTRPC_RESOURCES.md)
+observed seven local cleanup IDs and ten registered buffers across four RPC
+holders. Kernel/firmware ownership and successful release remain unproven;
+these results do not validate shutdown or Linux handoff.
 
 This follows the [service lifecycle audit](QUEST2_SERVICE_LIFECYCLE.md) and
 [ownership audit](QUEST2_OWNER_AUDIT.md), on 2026-10-22 America/Denver. The target
@@ -265,10 +266,21 @@ FD sharing/reuse, remap ABA and kernel/firmware ownership remain unresolved.
 library's 16 domain lists and legacy remote-handle list. It preserves raw
 tagged handles, normalizes addresses only for reads/structural checks, and
 rejects busy domains, malformed lists, repeated/overlapping nodes and an
-exhausted aggregate node cap. Thirteen focused tests and independent review
-passed. The separate local `mod_table_open` lists, registered buffers and other
-FastRPC resources are outside this remote-handle inventory. No live FastRPC
-memory observation has been performed for this decoder.
+exhausted aggregate node cap. Seventeen focused tests and independent review
+passed for two exact ADSP/CDSP artifact profiles. The separate local
+`mod_table_open` lists, registered buffers and other resources remain outside
+this forward-handle decoder; the [additional decoder and release analysis](QUEST2_FASTRPC_RESOURCES.md)
+cover selected bookkeeping classes independently.
+
+One paired forward observation completed across four verified holders. It
+reported 18 handles (six remote64 and twelve legacy32), with four positive
+domain FDs corroborated as matching non-`O_PATH` character devices. Selected
+values/mappings and before/after basic-health checks agreed. It transferred
+147,648 bytes across 52 reads, within the shared 1 MiB allowance. Independent
+review reconciled the receipts. One process-disappearance inventory gap was
+retained, so complete system-wide ownership was not claimed. The later combined
+resource observation and its separate coverage gaps are recorded in the
+additional follow-up.
 
 Both modules are offline interpretation tools. A matched userspace table is
 still not an atomic kernel session inventory. Empty tables, negative FDs and
@@ -276,7 +288,7 @@ stream flags do not prove successful release or DMA quiescence. The optional
 delegate's lifetime and a checked producer-stop/drain/release protocol remain
 unproven. All hardware and handoff gates stay closed.
 
-All **295 host regression tests** passed with the configured host compiler,
+All **312 host regression tests** passed with the configured host compiler,
 along with the private transport/planner tests, source reviews, syntax,
 whitespace and privacy checks. These checks establish the limited results
 above, not full tracking, shutdown, recovery or a native Linux boot.

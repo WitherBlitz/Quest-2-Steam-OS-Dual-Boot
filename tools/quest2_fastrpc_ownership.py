@@ -1,9 +1,12 @@
-"""Pure decoder for the matched Quest 2 libcdsprpc.so process-state tables.
+"""Pure decoder for two hash-pinned Quest 2 FastRPC process-state layouts.
 
 Evidence linked VAs: 0x17e14..0x17e28 allocates 16*0x248 and stores 0x3fa28;
 0x17f04..0x17f90 initializes circular heads; 0x22a94..0x22af8 constructs
 0x28-byte remote64 nodes; 0x22444..0x22494 constructs legacy remote32 nodes.
 0x228d0..0x2292c and 0x20fbc establish deinit/in-progress counter meanings.
+For the ADSP hash: allocation/root 0x16e14..0x16e24, heads 0x16f04..0x16f90,
+remote64 nodes 0x21a68..0x21ac4, legacy nodes 0x21420..0x21460, legacy domain
+zero 0x21334..0x21340. All decoded field offsets and strides are identical.
 
 The caller must verify the actual artifact hash, process identity, mappings,
 heap-read eligibility, byte/time budgets and paired stability. TBI normalization
@@ -11,23 +14,41 @@ alone authorizes no access. Empty lists and negative FDs prove no release or
 shutdown: the stock close path can discard records even after remote failure.
 """
 import struct
+from types import MappingProxyType
 
 ARTIFACT_SHA256 = "1b5f80e8128b10e148f53aa61e47259f3becd648ca9efc23bc0fd1b5ef8a75a1"
+ADSP_ARTIFACT_SHA256 = "47882286b2500dbe509660e28bd39c6d7c87f2dd418da25abbcf2a6e22787404"
+LAYOUTS = MappingProxyType({
+    ARTIFACT_SHA256: MappingProxyType({"table_pointer_va": 0x3fa28,
+                                     "legacy_head_va": 0x3fa90,
+                                     "legacy_domain_index": 3}),
+    ADSP_ARTIFACT_SHA256: MappingProxyType({"table_pointer_va": 0x3ea28,
+                                          "legacy_head_va": 0x3ea90,
+                                          "legacy_domain_index": 0})})
 ADDRESS_LIMIT = 1 << 56
 ADDRESS_MASK = ADDRESS_LIMIT - 1
 
 
-def collect_fastrpc(read, base, *, node_cap=64):
+def profile_for(artifact_sha256):
+    """Return an immutable layout for an exact verified hash, never a filename."""
+    if type(artifact_sha256) is not str or artifact_sha256 not in LAYOUTS:
+        raise ValueError("unknown FastRPC artifact hash profile")
+    return LAYOUTS[artifact_sha256]
+
+
+def collect_fastrpc(read, base, *, node_cap=64, artifact_sha256=ARTIFACT_SHA256):
     """Decode one non-atomic snapshot or raise ValueError on refusal.
 
     The callback receives normalized, bounded addresses and must return exactly
     the requested bytes. Returned table/node/local-handle values preserve tags.
     Domain indices are raw table indices; no SDK domain encoding is inferred.
     node_cap is an analyst limit across all lists, including legacy entries.
-    ARTIFACT_SHA256 identifies this decoder's ABI, not a hash checked here.
+    artifact_sha256 selects the ABI; the caller must verify the actual hash.
     """
+    profile = profile_for(artifact_sha256)
+    root_end = max(profile["table_pointer_va"] + 8, profile["legacy_head_va"] + 16)
     if (not callable(read) or type(base) is not int or base < 0
-            or base + 0x3faa0 > ADDRESS_LIMIT or type(node_cap) is not int
+            or base + root_end > ADDRESS_LIMIT or type(node_cap) is not int
             or not 0 <= node_cap <= 64):
         raise ValueError("invalid FastRPC reader, base, address extent or node cap")
 
@@ -49,11 +70,13 @@ def collect_fastrpc(read, base, *, node_cap=64):
             raise ValueError("FastRPC memory read returned wrong type or length")
         return struct.unpack("<" + fmt, raw)
 
-    raw_table, = unpack(base + 0x3fa28, "Q")
-    legacy = base + 0x3fa90
+    table_slot = base + profile["table_pointer_va"]
+    raw_table, = unpack(table_slot, "Q")
+    legacy = base + profile["legacy_head_va"]
     legacy_head = unpack(legacy, "QQ")
-    result = {"artifact_sha256": ARTIFACT_SHA256, "initialized": raw_table != 0,
-              "table_pointer": raw_table, "domains": [], "legacy_domain_index": 3,
+    result = {"artifact_sha256": artifact_sha256, "initialized": raw_table != 0,
+              "table_pointer": raw_table, "domains": [],
+              "legacy_domain_index": profile["legacy_domain_index"],
               "legacy_handles": [], "hardware_shutdown_validated": False}
     if raw_table == 0:
         # Pristine BSS is zero; initialized and subsequently emptied heads are
@@ -96,7 +119,7 @@ def collect_fastrpc(read, base, *, node_cap=64):
             pointer(current_raw, 0x28)
             if (current < table + 16 * 0x248 and table < current + 0x28
                     or current < legacy + 16 and legacy < current + 0x28
-                    or current < base + 0x3fa30 and base + 0x3fa28 < current + 0x28
+                    or current < table_slot + 8 and table_slot < current + 0x28
                     or any(current < other + 0x28 and other < current + 0x28
                            for other in visited)):
                 raise ValueError("FastRPC cycle, overlapping node or ambiguous list membership")

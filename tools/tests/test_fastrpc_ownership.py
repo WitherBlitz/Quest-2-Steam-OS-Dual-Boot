@@ -10,6 +10,7 @@ TABLE = 0x7100000000
 LEGACY = BASE + 0x3fa90
 NODE = 0x7200000000
 TAG = 0xab00000000000000
+ADSP_SHA256 = "47882286b2500dbe509660e28bd39c6d7c87f2dd418da25abbcf2a6e22787404"
 
 
 class SparseMemory:
@@ -58,6 +59,16 @@ def add_list(memory, index, addresses, *, tagged=False, legacy=False):
         memory.put(address, "QQQQQ", following | tag, previous | tag,
                    0 if legacy else head | tag,
                    0 if legacy else address | tag, 0x100 + position)
+
+
+def adsp_fixture(initialized=True):
+    memory = fixture(initialized)
+    for address, size in ((BASE + 0x3fa28, 8), (LEGACY, 16)):
+        for offset in range(size):
+            del memory.data[address + offset]
+    memory.put(BASE + 0x3ea28, "Q", TABLE if initialized else 0)
+    memory.put(BASE + 0x3ea90, "QQ", BASE + 0x3ea90, BASE + 0x3ea90)
+    return memory
 
 
 class FastRPCOwnershipTests(unittest.TestCase):
@@ -232,6 +243,58 @@ class FastRPCOwnershipTests(unittest.TestCase):
             raise OSError("mapping refused")
         with self.assertRaises(ValueError):
             module.collect_fastrpc(refused, BASE)
+
+    def test_adsp_profile_decodes_tagged_domain_and_legacy_at_distinct_roots(self):
+        memory = adsp_fixture()
+        memory.put(BASE + 0x3ea28, "Q", TABLE | TAG)
+        add_list(memory, 15, [NODE], tagged=True)
+        sentinel = BASE + 0x3ea90
+        memory.put(sentinel, "QQ", (NODE + 0x40) | TAG, (NODE + 0x40) | TAG)
+        memory.put(NODE + 0x40, "QQQQQ", sentinel | TAG, sentinel | TAG, 0, 0, 0x321)
+        module = self.module()
+        result = module.collect_fastrpc(memory.read, BASE, artifact_sha256=ADSP_SHA256)
+        self.assertEqual(result["artifact_sha256"], ADSP_SHA256)
+        self.assertEqual(result["table_pointer"], TABLE | TAG)
+        self.assertEqual(result["legacy_domain_index"], 0)
+        self.assertEqual(result["domains"][15]["handles"][0]["local_handle"], NODE | TAG)
+        self.assertEqual(result["legacy_handles"], [{"node_pointer": (NODE + 0x40) | TAG,
+                         "local_handle": 0, "remote_handle": 0x321}])
+
+    def test_adsp_null_table_uses_its_profile_address_extent(self):
+        memory = SparseMemory()
+        high_base = (1 << 56) - 0x3eaa0
+        memory.put(high_base + 0x3ea28, "Q", 0)
+        memory.put(high_base + 0x3ea90, "QQ", 0, 0)
+        result = self.module().collect_fastrpc(memory.read, high_base,
+                                              artifact_sha256=ADSP_SHA256)
+        self.assertFalse(result["initialized"])
+        self.assertEqual(len(memory.calls), 2)
+
+    def test_adsp_busy_counters_and_bad_full_self_keep_shared_refusal_rules(self):
+        module = self.module()
+        for offset in (0x1bc, 0x1c0):
+            memory = adsp_fixture()
+            memory.put(TABLE + offset, "I", 1)
+            with self.subTest(offset=offset), self.assertRaisesRegex(ValueError, "busy"):
+                module.collect_fastrpc(memory.read, BASE, artifact_sha256=ADSP_SHA256)
+        memory = adsp_fixture()
+        add_list(memory, 1, [NODE], tagged=True)
+        memory.put(NODE + 0x18, "Q", (NODE + 0x100) | TAG)
+        with self.assertRaisesRegex(ValueError, "self"):
+            module.collect_fastrpc(memory.read, BASE, artifact_sha256=ADSP_SHA256)
+
+    def test_only_exact_pinned_hash_profiles_are_accepted_before_reads(self):
+        module = self.module()
+        profile = module.profile_for(ADSP_SHA256)
+        self.assertEqual((profile["table_pointer_va"], profile["legacy_head_va"],
+                          profile["legacy_domain_index"]), (0x3ea28, 0x3ea90, 0))
+        with self.assertRaises(TypeError):
+            profile["table_pointer_va"] = 0
+        for sha in (None, True, 7, [], {}, "libadsprpc.so", "0" * 64, ADSP_SHA256.upper()):
+            memory = fixture()
+            with self.subTest(sha=sha), self.assertRaises(ValueError):
+                module.collect_fastrpc(memory.read, BASE, artifact_sha256=sha)
+            self.assertEqual(memory.calls, [])
 
 
 if __name__ == "__main__":
