@@ -132,10 +132,10 @@ class Store:
 
     def create(self):
         self.path.mkdir(mode=0o700)
+        sync_directory(self.path.parent)
         self.acquire()
         self.write(initial())
         self.release()
-        sync_directory(self.path.parent)
 
     def acquire(self):
         if self.path.is_symlink() or not self.path.is_dir():
@@ -146,8 +146,9 @@ class Store:
         sync_directory(self.path)
 
     def release(self):
+        # No fallible sync after unlock: the record and marker are already synced.
+        # Power loss may resurrect this marker, conservatively requiring recovery.
         self.lock.unlink()
-        sync_directory(self.path)
 
     def load(self, *, locked=False):
         if (self.path.is_symlink() or not self.path.is_dir() or

@@ -240,6 +240,38 @@ class BootStoreTests(unittest.TestCase):
         self.assertTrue((self.path / "selection.lock").exists())
         with self.assertRaises(ValueError): self.store.load()
 
+    def test_completion_finalization_failure_cannot_leave_a_reusable_unlatched_store(self):
+        self.store.create()
+        self.store.transact(lambda s: self.tool.select(s, "valid", ATTEMPT))
+        synchronize = self.tool.sync_directory
+        def fault_after_unlock(path):
+            if not (self.path / "selection.lock").exists():
+                raise OSError("injected post-unlock I/O failure")
+            synchronize(path)
+        with mock.patch.object(self.tool, "sync_directory", side_effect=fault_after_unlock):
+            try:
+                self.store.transact(lambda s: self.update(self.tool.complete(s, ATTEMPT, "ready")))
+            except OSError:
+                with self.assertRaises((OSError, ValueError)): self.store.load()
+            else:
+                self.assertIsNone(self.store.load()["pending_attempt"])
+
+    def test_initialization_parent_sync_failure_leaves_no_usable_record(self):
+        synchronize = self.tool.sync_directory
+        def fault_parent(path):
+            if path == self.path.parent: raise OSError("injected parent sync failure")
+            synchronize(path)
+        with mock.patch.object(self.tool, "sync_directory", side_effect=fault_parent):
+            with self.assertRaises(OSError): self.store.create()
+        with self.assertRaises((OSError, ValueError)): self.store.load()
+
+    def test_unlock_failure_retains_marker_after_record_replacement(self):
+        self.store.create()
+        with mock.patch.object(Path, "unlink", side_effect=OSError("injected unlink failure")):
+            with self.assertRaises(OSError):
+                self.store.transact(lambda s: self.update(self.tool.request(s, "horizon")))
+        with self.assertRaises(ValueError): self.store.load()
+
     def test_invalid_request_does_not_poison_an_unchanged_record(self):
         self.store.create()
         with self.assertRaises(ValueError):

@@ -51,14 +51,19 @@ Horizon and exits 3 without resetting the record.
 The store uses one bounded 4 KiB JSON/checksum envelope, exclusive writer lock,
 exclusive temporary file, file fsync and atomic replacement. POSIX additionally
 syncs directory entries, including the interruption marker before replacement.
+Initialization syncs the parent before writing a record. All syncing finishes
+before unlocking; unlock is the final filesystem operation. Unlock is deliberately
+not followed by another sync: a power loss may resurrect a lock and conservatively
+require investigation even after a completed host transaction.
 Windows tests cover policy and replacement; they establish no power-loss
 durability. Even POSIX tests do not simulate storage-controller power loss.
 The SHA-256 checksum detects accidental damage, not a hostile writer.
 
 Duplicate keys, malformed records, invalid fields, oversized/nonregular records,
-checksum mismatch, abandoned locks and temporary files are refused. I/O failures
-leave the interruption marker. There is no automatic stale-lock cleanup, record
-reset, retry or repair command. Investigate an interrupted host store; preserve it
+checksum mismatch, abandoned locks and temporary files are refused. Transaction
+I/O failures leave the interruption marker; a new-store initialization failure
+before acquiring the marker leaves no new usable record. There is no automatic
+stale-lock cleanup, record reset, retry or repair command. Investigate an interrupted host store; preserve it
 and initialize a different directory for another simulation. The cooperating
 writer protocol assumes a trusted parent directory and is not a sandbox against
 another process with the same filesystem privileges.
