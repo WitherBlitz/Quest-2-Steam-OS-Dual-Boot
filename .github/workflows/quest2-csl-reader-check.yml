@@ -2,11 +2,20 @@ name: Quest 2 sparse reader Linux QEMU check
 
 on:
   workflow_dispatch:
+    inputs:
+      transition_el1:
+        description: Also execute the production transition in isolated QEMU EL1 RAM
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
+  transition:
+    if: inputs.transition_el1 && github.repository == 'WitherBlitz/Quest-2-Steam-OS-Dual-Boot' && github.actor == 'WitherBlitz'
+    uses: ./.github/workflows/quest2-transition-check.yml
+
   check:
     if: github.repository == 'WitherBlitz/Quest-2-Steam-OS-Dual-Boot' && github.actor == 'WitherBlitz'
     runs-on: ubuntu-22.04

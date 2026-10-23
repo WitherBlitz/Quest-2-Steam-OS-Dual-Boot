@@ -45,6 +45,33 @@ Horizon `52242990024200150`, kernel
   `alloc-ranges` constrain placement; they neither reveal a live secure allocation
   nor establish firmware ownership or all future target working-memory safety.
 
+## QEMU EL1 execution fixture
+
+`tools/ci/quest2_transition_el1.py` builds a freestanding test around production
+`module/transition.S`, using the existing pinned-header assembler fixture. Passing
+cases do not substitute privileged instructions. QEMU runs a single Cortex-A57
+on `virt-6.2`, with no disk/network/USB input and private emulated RAM.
+
+The fixture starts at EL1, establishes a high code/stack alias, and supplies a
+separate identity page table. It checks the physical probe, null/empty descriptor
+chains, one page and 256 pages crossing the 255-entry descriptor boundary. It
+compares every source/destination byte and adjacent guard pages, checks restored
+DAIF/TCR/TTBR0/SCTLR and a high-address return, then exercises `qkx_enter` into an
+assertion shim checking MMU-off state, exception masking and the Linux x0-x3
+register convention. The x0 value is a cookie, not a Linux DTB or boot proof.
+
+Negative controls deliberately shorten the copy loop, corrupt an entry register
+and hang a guest, checking assertion failure and bounded host termination. The local cross-build succeeded;
+system-emulator execution is pending. No headset access, kernel-module change,
+hardware adapter, startup bypass or boot-policy change is introduced.
+
+This is an architectural execution check, not proof of Qualcomm/secure-firmware
+behavior, cache coherency, secondary-CPU power-off, DMA shutdown or recovery.
+QEMU's [`virt` board](https://www.qemu.org/docs/master/system/arm/virt.html) models
+a generic virtual platform. [Semihosting](https://www.qemu.org/docs/master/about/emulation.html#semihosting)
+uses only this trusted fixture's console/exit operations. An emulator exit is not
+a Horizon recovery event. All first-boot gates below remain required.
+
 ## Verification and limits
 
 Regression tests first reproduced missing file exclusion, overwritten original

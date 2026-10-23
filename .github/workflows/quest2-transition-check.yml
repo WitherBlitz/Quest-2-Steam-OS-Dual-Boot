@@ -1,0 +1,51 @@
+name: Quest 2 ARM64 EL1 transition execution
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: github.repository == 'WitherBlitz/Quest-2-Steam-OS-Dual-Boot' && github.actor == 'WitherBlitz'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+      - name: Install official Ubuntu compiler and system QEMU packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clang lld llvm qemu-system-arm
+      - name: Execute production EL1 transition and negative controls
+        run: python3 -B tools/ci/quest2_transition_el1.py
+      - name: Run host regression tests
+        env:
+          HOST_TEST_CC: clang
+        run: python3 -B -m unittest discover -s tools/tests -p 'test_*.py' -v > build/transition-el1/host-tests.log 2>&1
+      - name: Upload allowlisted transition evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: quest2-transition-el1-${{ github.run_id }}
+          path: |
+            build/transition-el1/production.elf
+            build/transition-el1/production.S
+            build/transition-el1/transition.S
+            build/transition-el1/test_transition_assembly.py
+            build/transition-el1/transition_el1_start.S
+            build/transition-el1/transition_el1_harness.c
+            build/transition-el1/transition_el1.ld
+            build/transition-el1/quest2_transition_el1.py
+            build/transition-el1/LICENSE
+            build/transition-el1/proof.json
+            build/transition-el1/execution.log
+            build/transition-el1/host-tests.log
+          if-no-files-found: warn
+          retention-days: 7
