@@ -16,8 +16,9 @@ Horizon `52242990024200150`, kernel
   `kernel_read_file()`; it does not claim protection against another kernel or
   firmware agent changing memory. Completed staging uses separately owned pages.
 - Staging-initialization RAM-walker errors survive cleanup. Missing System RAM
-  coverage still returns `-ERANGE`. Destination ownership remains held until abort/unload or handoff;
-  staging/rehearsal modes do not gain permission to overwrite a fixed window.
+  coverage still returns `-ERANGE`. Destination ownership remains held until
+  abort/unload or handoff; staging/rehearsal modes do not gain permission to
+  overwrite a fixed window.
 - CPU tests preserve the first down/freeze/probe/up error while attempting all
   required restoration and the original affinity. A later online-mask mismatch
   does not replace an earlier failure. Restoration order matches the existing
@@ -66,9 +67,9 @@ enabled errata variants, validate MMU-off behavior or demonstrate hardware
 shutdown. The final 411-test suite also passed without skips in
 [Ubuntu run 39934839947](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39934839947)
 at `6d55061f241055f3a20e00031642f33ef1cd48a7`; its seven existing reader/QEMU
-cases and downloaded source/binary/license evidence passed. A matching-header
-native build must also be verified. Native CI now archives the transition compile command and object
-disassembly alongside its existing ABI/provenance evidence.
+cases and downloaded source/binary/license evidence passed. Native CI archives
+the transition compile command and object disassembly alongside its existing
+ABI/provenance evidence.
 
 The first native build, run `39933690788`, compiled but correctly failed its
 strict stock-CRC gate: file write exclusion introduced an atomic helper absent
@@ -78,6 +79,29 @@ offset `0x19d2edc`. All 11,137 stock exports decoded, all 78 existing curated
 CRCs agreed, and this helper matched the prior verified generated symvers.
 Only that independently derived reference was added; no ABI comparison was
 relaxed and no headset access was needed.
+
+### Verified matching native build
+
+[Run 39935894720](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39935894720)
+passed from `cac46877ec608fd87aec61743188027f4f52258b`, including all 411 Linux
+host tests without skips. Downloaded verification checked the 19-file allowlist,
+all 18 inner checksums, config/compiler/source pins and five effective compile
+commands. All four AArch64 modules passed an independent ELF/vermagic/import
+audit against both generated and stock CRCs: 44/15/20/24 version records for
+`quest_kexec`, `marker_read`, `usb_log` and `camera_dsp_diag` respectively.
+
+Six instruction-order/containment checks were also run against the actual
+matching-header `quest_kexec.ko`, rather than just the small assembler fixture.
+Copied relocation/probe/return ranges are 176/44/12 bytes, fit the control page
+and contain no ELF relocation entries. Literal/branch containment, complete SCTLR
+mask, DAIF save/restore, cache/barrier order and entry-register checks passed.
+No privileged instruction was executed by these checks.
+
+The loader is 398,912 bytes, SHA-256
+`efeda1054f05b1dad83ce1f5080eeac65b4d63006a2588791e93b33c917ec525`.
+The rebuild remains stage-only; no effective command enables experimental
+jumping. Compilation, static ABI agreement and disassembly do not prove live
+insertion, physical CPU shutdown, MMU execution, Linux boot or recovery.
 
 The retained `startup-usb-child` Image, initramfs and config from run
 `39909419709` were checked again with the corrected tool against the existing
