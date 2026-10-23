@@ -143,6 +143,15 @@ The source audit reports `HANDOFF_BLOCKED` even after all 16 hashes and exact
 function fixtures match. Record actual headset results separately from mocked
 transport tests and public-source facts.
 
+All 377 host tests passed on Windows and in the
+[Ubuntu regression run](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39929565569)
+at source `9c1c55cd741d15ed469735078d612fba2a1ac531`, with no skipped tests.
+The downloaded Linux evidence also passed the existing seven sparse-reader QEMU
+cases; its source and binary hashes matched. The
+[matching native build](QUEST2_CHECKED_SHUTDOWN.md#verified-matching-native-build)
+separately verified the unchanged native shutdown objects. Host transport tests,
+QEMU and native compilation do not establish a reset or Horizon fallback.
+
 ## Pinned primary sources
 
 - [Watchdog petting](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/soc/qcom/watchdog_v2.c#L640), [disable](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/soc/qcom/watchdog_v2.c#L276), [forced bite](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/soc/qcom/watchdog_v2.c#L743).

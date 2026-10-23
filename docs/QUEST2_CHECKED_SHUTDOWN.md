@@ -105,6 +105,26 @@ kernel build archives each new object's real compiler command alongside the
 existing ABI/provenance checks. Native build evidence is separate from host
 fixtures and physical validation.
 
+### Verified matching native build
+
+The [matching loader build](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39927475572)
+passed at source `14a10d95895dd779389896cc041d673dab82e1c4`. The downloaded
+artifact contains 17 allowlisted files; all 16 inner checksums matched. Kernel,
+compiler and config pins matched the existing build contract. Both new objects'
+actual compiler commands use GNU89/AArch64, and the module contains the
+coordinator plus all three IO entry points. Effective loader compilation remains
+stage-only, with no experimental-jump define.
+
+Independent ELF/vermagic/generated-and-stock CRC checks passed for all four
+modules, covering 42, 15, 20 and 24 versioned imports respectively. The loader is
+391,792 bytes, SHA-256
+`76d072bef847470ae90c2a4df5b2f788f1ef0d29b5aefa1901a1ecdcff6455f6`.
+That native build passed 358 host tests. The subsequent
+[Linux regression run](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39929565569)
+passed all 377 tests, including the recovery collector additions. Native module
+sources and their build script are unchanged between these two source revisions.
+No rebuilt module was loaded on the headset and no hardware shutdown was issued.
+
 ## Pinned public source
 
 All source references use kernel commit
