@@ -50,8 +50,10 @@ def main():
             raise RuntimeError("expected an explicit installed OpenXR library path")
         proof["elf"] = [elf(Path("/usr/local/bin/monado-service")), elf(runtime),
                         elf(Path("/usr/local/bin/box64")), elf(Path("/usr/games/chocolate-doom"))]
-        if not Path("/usr/share/games/doom/freedoom1.wad").is_file():
+        iwad = Path("/usr/share/games/doom/freedoom1.wad")
+        if not iwad.is_file():
             raise RuntimeError("installed Freedoom IWAD is missing")
+        proof["iwad"] = {"bytes": iwad.stat().st_size, "sha256": hashlib.sha256(iwad.read_bytes()).hexdigest()}
         guest = Path(sys.argv[1])
         data = guest.read_bytes()
         if data[:6] != b"\x7fELF\x02\x01" or struct.unpack_from("<H", data, 18)[0] != 62:
@@ -70,7 +72,7 @@ def main():
             started = time.monotonic()
             with output.open("wb") as out, errors.open("wb") as err:
                 session = subprocess.Popen(["qkx-session", "--", "qkx-freedoom",
-                    "-nosound", "-nomusic", "-warp", "1", "-skill", "1", "-nomonsters"],
+                    "-nosound", "-nomusic", "-warp", "1", "1", "-skill", "1", "-nomonsters"],
                     env=env, stdout=out, stderr=err)
                 try:
                     deadline = started + 40

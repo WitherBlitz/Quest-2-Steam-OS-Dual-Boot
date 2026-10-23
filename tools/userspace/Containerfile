@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxcb-randr0-dev libxcb-keysyms1-dev libxcb-xfixes0-dev libxcb-shm0-dev \
     libxcb-shape0-dev libxcb-render0-dev libxcb-icccm4-dev libxcb-ewmh-dev \
     libxcb-xinerama0-dev libxcb-present-dev libxcb-dri3-dev libxkbcommon-dev \
-    libwayland-dev wayland-protocols libdrm-dev libgl-dev libegl-dev libgles-dev \
+    libwayland-dev wayland-protocols libdrm-dev libgl-dev libopengl-dev libegl-dev libgles-dev \
     libbsd-dev libzstd-dev libffi-dev zlib1g-dev
 COPY tools/userspace/build-components.sh /build-components.sh
 COPY patches/monado/quest2/0001-controller-clock-and-stick-bounds.patch /controller.patch
@@ -23,7 +23,7 @@ FROM base AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates bash coreutils python3 binutils passwd \
     weston wayland-utils chocolate-doom freedoom alsa-utils \
-    mesa-vulkan-drivers libgl1-mesa-dri libegl1 libgl1 libgles2 libvulkan1 \
+    mesa-vulkan-drivers libgl1-mesa-dri libegl1 libgl1 libopengl0 libgles2 libvulkan1 \
     libudev1 libusb-1.0-0 libhidapi-libusb0 libjpeg62-turbo libx11-xcb1 \
     libxrandr2 libxxf86vm1 libxcb-randr0 libxcb-keysyms1 libxcb-xfixes0 libxcb-shm0 \
     libxcb-shape0 libxcb-render0 libxcb-icccm4 libxcb-ewmh2 libxcb-xinerama0 \
