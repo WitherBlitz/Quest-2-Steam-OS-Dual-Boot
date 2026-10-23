@@ -54,7 +54,7 @@ firmware, Mesa, gamescope, Monado, camera script or persistent rootfs.
 | Headset IMU | Blocked | Syncboss transport source is enabled; ordinary buffered IIO is not the implemented route. Packet decoding, units/axes, calibration, timestamp validity and a Linux consumer are missing from the rescue payload. Upstream Monado supplies 3DoF with fixed positions, not 6DoF. |
 | Cameras and frame timestamps | Blocked | Spectra, V4L2/subdevice and four Hollywood camera nodes exist. Upstream replays a firmware-specific Android startup recording through Meta stream-mode APIs; that script is absent. Camera calibration, exposure handling, buffer ownership, checked stop/drain, IMU clock correlation and SLAM remain prerequisites. |
 | Syncboss and Touch controllers | Blocked | `SYNCBOSS_SPI/POWERSTATE/NSYNC/MISCFIFO/STANDALONE=y`; timesync/direct-channel support is off. Pinned Hollywood DTS disables nsync and enables timesync, requiring compatible MCU firmware. Reconcile the actual prepared DTB and MCU firmware before selecting either mechanism. Radio/button/analog userspace is absent; upstream haptics are unimplemented. |
-| Wi-Fi | Blocked | CNSS2/QCA6390 platform support is enabled, but `QCA_CLD_WLAN=m` is outside the Image. Needs the exact target module/dependencies, matching firmware/board data, regulatory inputs and network userspace. A compiled CNSS platform driver alone is insufficient. |
+| Wi-Fi | Blocked | CNSS2/QCA6390 platform support is enabled, but `QCA_CLD_WLAN=m` is outside the Image. The exact target module/dependencies are prepared in a separate host bundle. Matching firmware/board data, regulatory inputs, network userspace and checked loading remain missing from rescue. A compiled CNSS platform driver alone is insufficient. |
 | Bluetooth | Blocked | Bluetooth core and QCA6390 board/power declarations exist, but `BT_HCIUART` is unset. A suitable HCI transport, matching controller initialization/firmware and userspace are missing. Power-driver presence does not establish an HCI adapter. |
 | Speakers / headphone output | Blocked | Hollywood uses CM710X plus AK4331; CM7120 is not the Quest 2 codec basis. Codec selection alone omits the forced Kona audio modules, DSP firmware and ALSA routes/mixer policy. CM710X requests `CM710X.bin`; userspace playback and endpoint routing are absent. |
 | Microphones | Blocked | Shares the CM710X/Kona DSP/module chain. Genuine microphone calibration (`mic` firmware input), capture routes, channel mapping and Linux capture userspace are missing. ALSA card enumeration alone would not establish capture. |
@@ -75,16 +75,24 @@ target config selects nsync and omits timesync. This corroborates the source
 finding against that stale capture; it does not establish current MCU firmware
 compatibility. No timing driver was enabled or substituted by this increment.
 
-The Image-only build omits selected `=m` drivers, including WLAN, the separate
+The prior Image-only build omitted selected `=m` drivers, including WLAN, the separate
 powerstate manager, USB audio/network/serial accessories, and the 12 effective
 Kona audio module targets forced by the techpack build. Inspecting target.config
 alone misses techpack configuration overrides.
 
-A separate ABI-checked module bundle is being implemented for
-`startup-usb-child` only. Its real target build, installed dependency metadata and
-per-module ABI evidence are **pending** in this document. It must be bound to the
-same Image, config, release and generated target symbol CRCs; stock-loader ABI
-checks remain separate. Packaging does not prove driver initialization.
+A separate ABI-checked module bundle is now built for `startup-usb-child` only.
+It contains all 28 installed target modules and 12 metadata files, bound to the
+same Image, config, release and generated target symbol CRCs. Every module passes
+ELF/vermagic/import-CRC checks and provider dependency-closure checks. Stock-loader
+ABI checks retain their original stock default and remain separate.
+
+Installed copies use Kbuild `INSTALL_MOD_STRIP=1` (`--strip-debug`); the packager
+rejects remaining debug sections and retains its 128 MiB/file and 512 MiB/total
+bounds. WLAN changes from 271,314,872 to 11,315,176 bytes after stripping. The
+metadata allowlist includes the exact outputs in
+[kmod v29's `depfiles[]`](https://github.com/kmod-project/kmod/blob/v29/tools/depmod.c)
+plus Kbuild's order/builtin files. Unknown files and unexpected links are refused.
+Packaging does not prove driver initialization.
 
 This work does not change the target config, Image selection, rescue init,
 autoload policy, firmware, calibration or deployment. A module archive on the host
@@ -198,7 +206,39 @@ reproducible without treating a source hash as hardware evidence:
 
 ## Verification for this increment
 
-The new module build and its CI/artifact verification remain pending. Append the
-verified run, source revision, module count, dependency/ABI results and artifact
-hashes here when available. Those results must remain separate from Linux boot,
-functional hardware operation, suspend residency and observed Horizon recovery.
+Build/test source revision:
+`b56caa2a7e77969cf43cfa4c452a8380dfb79996`. The evidence below covers offline
+preparation; it establishes no native hardware functionality.
+
+- Windows: all **442 host tests passed**. Python AST parsing, Bash syntax and
+  `git diff --check` passed. The new module suite has 30 tests, including the
+  observed debug-section and complete kmod-metadata regression failures/fixes.
+- [Ubuntu regression run 39945608678](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39945608678):
+  **442 tests passed, no skips**, plus seven existing reader cases under QEMU
+  against CI-owned memory. Its seven downloaded files, source/ELF/license hashes
+  and source revision were independently checked.
+- [Target build 39945605803](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39945605803):
+  Image, all **28 modules**, depmod metadata and static ARM64 BusyBox built.
+  BusyBox executed under QEMU; all eight rescue-init fixture tests passed there.
+  These are emulated userspace tests, not headset enumeration or boot evidence.
+- Download verification covered **17 allowlisted files, 16 checksums**, ten
+  provenance-bound outputs, exact startup patch/source records and archived
+  source bytes. Reconstructing the bundle inputs rechecked every module's ABI,
+  provider closure, debug absence and all **40 archive file** hashes and paths.
+  Installer build/source links are excluded; the archive contains regular files.
+- `target-modules.tar.gz`: **4,058,904 bytes**, SHA-256
+  `67b45a9d84c9f3b23e3cb8d777fa534e2cff037b8452ce78e517dcf621e40bc4`.
+  All hardware-validation, handoff, deployment, autoload and device-access flags
+  remain false; status is `OFFLINE_MODULES_VERIFIED_HANDOFF_BLOCKED`.
+- Image and target.config are byte-identical to retained USB build 39909419709.
+  The new initramfs has SHA-256
+  `1fc877584ae86367cc7546107fc1fafce5a131ce25b8fe3d950ba39867e7bb95`.
+  Its only changed CPIO entry is BusyBox: 26 changed ELF bytes comprise the
+  20-byte GNU build ID and six timestamp digits in its build-time banner.
+  Every other byte, archive entry and functional BusyBox config setting agrees.
+  The compressed initramfs is one byte larger than the retained one.
+
+The hardware drivers, target config, rescue init and boot gates were not changed.
+No headset command, module loading, Linux boot, shutdown/recovery test or
+boot-policy change was performed for this increment. The first-boot gates and
+all physical subsystem acceptance tests above remain open.
