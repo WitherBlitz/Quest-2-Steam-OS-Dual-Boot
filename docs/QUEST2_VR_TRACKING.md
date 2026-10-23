@@ -178,4 +178,18 @@ integer overflow, all 65,536 signed stick inputs and truncated decoded records.
 
 Patch check/application/reverse-check also passed against bytes read directly
 from the pinned upstream Git object, independently matching the fixture hash.
-Full-suite, Ubuntu CI and final review evidence will be recorded after completion.
+The Windows regression suite passed all **454 tests** with LLVM 23/MSVC. At
+source commit `9a6f6be8197f410a438f762d09e5691a5103d965`,
+[Ubuntu CI 39952790877](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39952790877)
+also passed all **454 tests without skips**, including the twelve controller
+cases. Its seven existing AArch64 reader/QEMU checks passed against CI-owned
+memory; these exercise the reader, not a VR runtime. The downloaded seven-file
+evidence bundle matched the source commit, reader source/ELF and license hashes.
+
+Independent source/document review reported no Critical or Important findings.
+Python syntax, relative document links, source/patch hashes, exact README credit
+and staged whitespace checks passed. Unified-diff context prefixes follow the
+existing patch attribute convention; `git apply --whitespace=error` checks the
+patch's actual added code. No full Monado build, ARM64 VR execution, native
+tracking accuracy, optics, safety behavior or headset recovery is validated by
+these checks. The kernel/initramfs payloads and boot gates are unchanged.
