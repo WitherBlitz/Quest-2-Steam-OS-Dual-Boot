@@ -92,6 +92,17 @@ class CIAuditTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             audit.inspect_module(elf_fixture(vermagic="different kernel"), CRC, CRC)
 
+    def test_explicit_target_vermagic_is_accepted_without_weakening_default(self):
+        self.require_audit()
+        target = "4.19.325-cip128-st12-qkx-q2-usb SMP preempt mod_unload modversions aarch64"
+        result = audit.inspect_module(elf_fixture(vermagic=target), CRC, CRC,
+                                      expected_vermagic=target)
+        self.assertEqual(result["vermagic"], target)
+        with self.assertRaises(ValueError):
+            audit.inspect_module(elf_fixture(vermagic=target), CRC, CRC)
+        with self.assertRaises(ValueError):
+            audit.inspect_module(elf_fixture(), CRC, CRC, expected_vermagic=target)
+
     def test_generated_crc_mismatch_rejected(self):
         self.require_audit()
         with self.assertRaises(ValueError):

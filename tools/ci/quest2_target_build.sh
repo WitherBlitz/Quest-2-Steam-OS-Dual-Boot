@@ -56,8 +56,17 @@ flags=(ARCH=arm64 LLVM=1 LLVM_IAS=1 CC=clang REAL_CC=clang LD=ld.lld
   KBUILD_BUILD_TIMESTAMP=2026-10-21T00:00:00Z)
 make -C "$kernel" O="$out" "${flags[@]}" olddefconfig
 HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py' -v 2>&1 | tee "$artifacts/host-tests.log"
-make -C "$kernel" O="$out" -j4 "${flags[@]}" Image 2>&1 | tee "$artifacts/target-build.log"
+targets=(Image)
+if [ "$profile" = startup-usb-child ]; then targets+=(modules); fi
+make -C "$kernel" O="$out" -j4 "${flags[@]}" "${targets[@]}" 2>&1 | tee "$artifacts/target-build.log"
 test "$(cat "$out/include/config/kernel.release")" = "4.19.325-cip128-st12$localversion"
+if [ "$profile" = startup-usb-child ]; then
+  make -C "$kernel" O="$out" "${flags[@]}" INSTALL_MOD_PATH="$work/modules" \
+    "DEPMOD=$(command -v depmod)" modules_install 2>&1 | tee -a "$artifacts/target-build.log"
+  python3 -B tools/ci/quest2_target_modules.py --kernel-out "$out" --staging "$work/modules" \
+    --archive "$artifacts/target-modules.tar.gz" --output "$artifacts/target-modules.json"
+  cp "$out/Module.symvers" "$artifacts/target.Module.symvers"
+fi
 env CC=aarch64-linux-gnu-gcc CROSS_COMPILE=aarch64-linux-gnu- \
   bash initramfs/busybox.sh "$work/busybox" 2>&1 | tee "$artifacts/busybox-build.log"
 qemu-aarch64 "$work/busybox" sh -n "$init_script"
@@ -107,6 +116,18 @@ offset, memory, flags = struct.unpack_from('<QQQ', image, 8)
 assert len(image) <= memory <= 0x4000000 and offset == 0x80000 and flags == 0xa
 profile = check_initramfs(rd)
 sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+module_files = ('target-modules.tar.gz','target-modules.json','target.Module.symvers') if rescue else ()
+if rescue:
+    modules = json.loads((artifacts/'target-modules.json').read_text())
+    assert modules['status'] == 'OFFLINE_MODULES_VERIFIED_HANDOFF_BLOCKED'
+    assert modules['module_count'] >= 14
+    assert all(modules[key] is False for key in ('hardware_validated','handoff_ready',
+               'deployment_performed','autoload_performed','device_access'))
+    for output, source in (('Image','arch/arm64/boot/Image'),('target.config','.config'),
+                           ('target.Module.symvers','Module.symvers')):
+        assert modules['inputs'][source] == {'bytes': (artifacts/output).stat().st_size,
+                                             'sha256': sha(artifacts/output)}
+    assert modules['archive_sha256'] == sha(artifacts/'target-modules.tar.gz')
 data = {
  'source_commit': subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
  'kernel_commit': subprocess.check_output(['git','-C',str(kernel),'rev-parse','HEAD'],text=True).strip(),
@@ -118,15 +139,18 @@ data = {
  'busybox_source_sha256': 'b8cc24c9574d809e7279c3be349795c5d5ceb6fdf19ca709f80cde50e47de314',
  'files': {name: {'bytes': (artifacts/name).stat().st_size, 'sha256': sha(artifacts/name)}
            for name in ('Image','initramfs.gz','target.config','kernel-source.tar.gz',
-                        'port-source.tar.gz','busybox-source.tar.bz2','busybox.config')},
+                        'port-source.tar.gz','busybox-source.tar.bz2','busybox.config') + module_files},
  'image': {'text_offset': offset,'memory_bytes': memory,'flags': flags}, 'initramfs_profile': profile,
  'init_source': {'path': str(init_source), 'sha256': sha(init_source)},
  'native_usb_rescue': rescue,
+ 'target_modules_bundled': rescue, 'target_modules_loaded': False,
  'source_archive_scope': 'Unmodified kernel base plus pinned patches and recipes in port-source.tar.gz',
  'scope': ('Native USB rescue ' if rescue else 'Noninteractive ')+target_profile['target_profile']+' development build. Hardware handoff and physical boot unvalidated.'}
 (artifacts/'target-build-provenance.json').write_text(json.dumps(data,indent=2)+'\n')
 PY
 python3 -B tools/ci/quest2_startup.py --kernel "$kernel" --profile "$profile" --action verify
 git diff --exit-code
-(cd "$artifacts" && sha256sum Image initramfs.gz target.config ./*.json ./*.log LICENSE ./*.tar.* busybox.config > SHA256SUMS)
+extra_sums=()
+if [ "$profile" = startup-usb-child ]; then extra_sums+=(target.Module.symvers); fi
+(cd "$artifacts" && sha256sum Image initramfs.gz target.config ./*.json ./*.log LICENSE ./*.tar.* busybox.config "${extra_sums[@]}" > SHA256SUMS)
 echo "Offline Linux $profile built. No DTB, private config, device access or handoff."

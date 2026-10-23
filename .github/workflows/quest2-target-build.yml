@@ -35,7 +35,7 @@ jobs:
       - name: Install offline build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends build-essential bc bison flex libssl-dev libelf-dev dwarves libtinfo5 binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user curl
+          sudo apt-get install -y --no-install-recommends build-essential bc bison flex libssl-dev libelf-dev dwarves libtinfo5 binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user curl kmod
       - name: Build public-config Linux target and BusyBox initramfs
         env:
           QKX_TARGET_PROFILE: ${{ inputs.target_profile || 'baseline' }}

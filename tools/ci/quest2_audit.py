@@ -35,7 +35,7 @@ def cstring(data, offset):
     return data[offset:data.index(b"\0", offset)].decode("ascii")
 
 
-def inspect_module(data, generated, stock):
+def inspect_module(data, generated, stock, *, expected_vermagic=VERMAGIC):
     if len(data) < 64 or data[:7] != b"\x7fELF\x02\x01\x01":
         raise ValueError("Expected ELF64 little-endian module")
     if struct.unpack_from("<HH", data, 16) != (1, 183):
@@ -62,8 +62,8 @@ def inspect_module(data, generated, stock):
         raise ValueError("Required ELF metadata section missing") from exc
     magic = [part[9:].decode("ascii").rstrip(" ") for part in info.split(b"\0")
              if part.startswith(b"vermagic=")]
-    if magic != [VERMAGIC]:
-        raise ValueError("Module vermagic differs from the pinned stock kernel")
+    if magic != [expected_vermagic]:
+        raise ValueError("Module vermagic differs from the expected kernel")
     if symbols[9] != 24 or symbols[5] % 24 or symbols[6] >= count:
         raise ValueError("Invalid ELF symbol table")
     strings = contents(sections[symbols[6]])
