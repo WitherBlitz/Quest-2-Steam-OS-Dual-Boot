@@ -61,7 +61,7 @@ firmware, Mesa, gamescope, Monado, camera script or persistent rootfs.
 | Storage and persistent rootfs | Blocked | UFS/QCOM and filesystem support exist. Controller/link/crypto state after handoff is unvalidated. Rescue init is RAM-only and mounts no userdata/rootfs. Read-only identity/geometry checks precede any separately authorized persistent-rootfs or write test. |
 | USB, accessories and charging | Untested | DWC3 dual-role, xHCI, gadget and Type-C/charger source exists. Rescue init prepares RNDIS/ECM only; native enumeration is unobserved. Host accessories, role switching, power delivery and charging need separate validation. USB network/serial/audio accessory drivers include modules outside the retained Image. |
 | Battery reporting | Untested | Power-supply, SMB5, FG and bq27xxx code exists; Hollywood DTS declares a TI bq27z561 and board battery profiles. Correct model/profile selection, units, temperature/current/SOC reporting and charger interaction remain unobserved. |
-| Thermal control and fan | Blocked | TSENS, cooling support and the PWM/tach fan driver exist; DTS includes kernel fan/CPU cooling as well as `user_space` zones. An Android thermal daemon is not supplied. Default CPU governor is `performance`. Establish a complete Linux policy and measured cooling response before sustained load. |
+| Thermal control and fan | Blocked | TSENS, cooling support and the PWM/tach fan driver exist; DTS includes kernel fan/CPU cooling as well as `user_space` zones. An Android thermal daemon is not supplied. The USB rescue build now selects `powersave` instead of the retained build's `performance` default; this requests the policy minimum and does not demonstrate a clock or cooling response. Establish a complete Linux policy and measured cooling response before sustained load. |
 | Physical buttons | Untested | `KEYBOARD_GPIO`, QPNP power-on and evdev support are enabled. Validate board mappings, press/release/repeat, wake semantics and recovery separately; an input node is not event evidence. |
 | Proximity | Blocked | Syncboss powerstate source exists. Opening its consumer can enable MCU activity and reads genuine `PROX_PS_CAL_VERSION`, `PROX_PS_CANC`, `PROX_PS_THDL` and `PROX_PS_THDH` inputs. Those calibration/firmware dependencies and Linux policy are missing; opening a node is not a passive probe. |
 | Power management | Untested | PM, wake locks, CPU-frequency and device PM code exist; `POWERSTATE_MANAGER=m` is outside the retained Image. Clock/regulator/runtime-PM transitions, wake-source ownership and actual low-power residency need observation. Successful sysfs writes/callbacks do not prove residency or power savings. |
@@ -98,6 +98,28 @@ This work does not change the target config, Image selection, rescue init,
 autoload policy, firmware, calibration or deployment. A module archive on the host
 does not make these modules available in the running rescue image. Firmware and
 per-device calibration must retain their provenance and are not supplied here.
+
+## USB rescue CPU default
+
+The `startup-usb-child` build selects the existing builtin `powersave` CPU
+governor. Other development profiles retain their original defaults. The build
+checks the effective config after `olddefconfig`, before compilation, and again
+when writing provenance: CPU frequency support and the governor must be builtin,
+with exactly one selected default. Missing, duplicate, conflicting or modular
+defaults are refused. Provenance records `rescue_default_cpu_governor=powersave`
+separately from `cpu_frequency_runtime_validated=false`.
+
+The pinned kernel's [`cpufreq_powersave.c`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/cpufreq/cpufreq_powersave.c)
+requests `policy->min` using `CPUFREQ_RELATION_L`; it discards the driver's return
+value. The previous `performance` default requests `policy->max`. Configuration
+and a successful build therefore establish a default request, not an actual
+frequency, lower temperature, working cooling policy or recovery. No frequency,
+temperature or fan value is guessed; trips, driver error handling, init,
+autoload and handoff gates are unchanged. Hardware statuses remain unchanged.
+
+Focused config tests and the host regression suite pass locally. A fresh native
+Image/module build and its artifact verification are pending; the historical
+module/config hashes below describe the retained earlier build.
 
 ## Dependency order
 

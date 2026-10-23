@@ -100,6 +100,32 @@ class TargetProfileTests(unittest.TestCase):
                   "baseline_only":True,"kernel_patches":[]}
         self.assertEqual(self.tool.validate_provenance(baseline),"baseline")
 
+    def test_usb_rescue_requires_one_builtin_powersave_default(self):
+        config = ("CONFIG_CPU_FREQ=y\nCONFIG_CPU_FREQ_GOV_POWERSAVE=y\n"
+                  "CONFIG_CPU_FREQ_DEFAULT_GOV_POWERSAVE=y\n"
+                  "# CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE is not set\n")
+        self.assertEqual(self.tool.validate_cpu_default(config, "startup-usb-child"), "powersave")
+
+    def test_usb_rescue_refuses_missing_conflicting_duplicate_and_modular_policy(self):
+        valid = ("CONFIG_CPU_FREQ=y\nCONFIG_CPU_FREQ_GOV_POWERSAVE=y\n"
+                 "CONFIG_CPU_FREQ_DEFAULT_GOV_POWERSAVE=y\n")
+        for config in ("", valid.replace("DEFAULT_GOV_POWERSAVE", "DEFAULT_GOV_PERFORMANCE"),
+                       valid + "CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE=y\n",
+                       valid + "CONFIG_CPU_FREQ_DEFAULT_GOV_POWERSAVE=y\n",
+                       valid + "# CONFIG_CPU_FREQ_DEFAULT_GOV_POWERSAVE is not set\n",
+                       valid + "CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE=m\n",
+                       valid.replace("CONFIG_CPU_FREQ_GOV_POWERSAVE=y", "CONFIG_CPU_FREQ_GOV_POWERSAVE=m"),
+                       valid.replace("CONFIG_CPU_FREQ=y", "# CONFIG_CPU_FREQ is not set"),
+                       valid.replace("CONFIG_CPU_FREQ_DEFAULT_GOV_POWERSAVE=y\n", "")):
+            with self.subTest(config=config), self.assertRaises(ValueError):
+                self.tool.validate_cpu_default(config, "startup-usb-child")
+
+    def test_other_profiles_do_not_claim_or_require_the_rescue_cpu_default(self):
+        for profile in ("baseline", "startup-gic-pending"):
+            with self.subTest(profile=profile):
+                self.assertIsNone(self.tool.validate_cpu_default("CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE=y\n", profile))
+        with self.assertRaises(ValueError): self.tool.validate_cpu_default("", "unknown")
+
     def test_only_exact_reviewed_startup_profile_is_accepted(self):
         data=self.tool.profile_record("startup-gic-pending")
         self.assertEqual(self.tool.validate_provenance(data),"startup-gic-pending")

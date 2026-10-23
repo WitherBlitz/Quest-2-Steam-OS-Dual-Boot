@@ -38,6 +38,33 @@ def profile_record(profile):
     return record
 
 
+def validate_cpu_default(config, profile):
+    """Check the rescue build selection; never attest to actual CPU frequency."""
+    profile_record(profile)
+    if profile != USB_CHILD:
+        return None
+    values = {}
+    for line in config.splitlines():
+        if line.startswith("CONFIG_CPU_FREQ") and "=" in line:
+            name, value = line.split("=", 1)
+        elif line.startswith("# CONFIG_CPU_FREQ") and line.endswith(" is not set"):
+            name, value = line[2:-11], "n"
+        else:
+            continue
+        if name in values:
+            raise ValueError("duplicate CPU-frequency config symbol")
+        if name.startswith("CONFIG_CPU_FREQ_DEFAULT_GOV_") and value not in ("y", "n"):
+            raise ValueError("CPU default governor must be a Kconfig boolean")
+        values[name] = value
+    defaults = [name for name, value in values.items()
+                if name.startswith("CONFIG_CPU_FREQ_DEFAULT_GOV_") and value == "y"]
+    if (defaults != ["CONFIG_CPU_FREQ_DEFAULT_GOV_POWERSAVE"] or
+            values.get("CONFIG_CPU_FREQ") != "y" or
+            values.get("CONFIG_CPU_FREQ_GOV_POWERSAVE") != "y"):
+        raise ValueError("USB rescue requires a single builtin powersave CPU default")
+    return "powersave"
+
+
 def validate_provenance(data):
     if not isinstance(data,dict) or data.get("kernel_commit") != KERNEL:
         raise ValueError("matching kernel target provenance required")

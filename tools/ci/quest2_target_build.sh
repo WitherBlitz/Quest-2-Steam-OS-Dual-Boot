@@ -44,7 +44,9 @@ unset KCFLAGS KCPPFLAGS CFLAGS CPPFLAGS CXXFLAGS MAKEFLAGS
 if [ "$profile" = startup-usb-child ]; then
   "$kernel/scripts/config" --file "$out/.config" \
     --enable USB_CONFIGFS_RNDIS --enable NET --enable INET --enable PACKET \
-    --enable UNIX --enable UNIX98_PTYS --enable TMPFS --enable CONFIGFS_FS
+    --enable UNIX --enable UNIX98_PTYS --enable TMPFS --enable CONFIGFS_FS \
+    --disable CPU_FREQ_DEFAULT_GOV_PERFORMANCE --enable CPU_FREQ_DEFAULT_GOV_POWERSAVE \
+    --enable CPU_FREQ_GOV_POWERSAVE
 fi
 flags=(ARCH=arm64 LLVM=1 LLVM_IAS=1 CC=clang REAL_CC=clang LD=ld.lld
   HOSTCC=clang HOSTCXX=clang++ CROSS_COMPILE=aarch64-linux-gnu-
@@ -55,6 +57,15 @@ flags=(ARCH=arm64 LLVM=1 LLVM_IAS=1 CC=clang REAL_CC=clang LD=ld.lld
   KBUILD_BUILD_USER=questbuilder KBUILD_BUILD_HOST=quest2-ci
   KBUILD_BUILD_TIMESTAMP=2026-10-21T00:00:00Z)
 make -C "$kernel" O="$out" "${flags[@]}" olddefconfig
+if [ "$profile" = startup-usb-child ]; then
+  python3 - "$out/.config" <<'PY'
+import pathlib, sys
+sys.path.insert(0, 'tools')
+from ci.quest2_startup import validate_cpu_default
+assert validate_cpu_default(pathlib.Path(sys.argv[1]).read_text(), 'startup-usb-child') == 'powersave'
+print('Offline rescue CPU default verified: powersave; actual frequency and thermal behavior unvalidated')
+PY
+fi
 HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py' -v 2>&1 | tee "$artifacts/host-tests.log"
 targets=(Image)
 if [ "$profile" = startup-usb-child ]; then targets+=(modules); fi
@@ -103,6 +114,7 @@ python3 - "$artifacts" "$kernel" "$compiler" "$work/target-profile.json" "$init_
 import hashlib, json, pathlib, struct, subprocess, sys
 sys.path.insert(0, 'tools')
 from quest2_payload_check import check_initramfs
+from ci.quest2_startup import validate_cpu_default
 artifacts, kernel, compiler, profile_path, init_source = map(pathlib.Path, sys.argv[1:])
 target_profile = json.loads(profile_path.read_text())
 cfg = (artifacts/'target.config').read_text()
@@ -151,6 +163,8 @@ data = {
  'image': {'text_offset': offset,'memory_bytes': memory,'flags': flags}, 'initramfs_profile': profile,
  'init_source': {'path': str(init_source), 'sha256': sha(init_source)},
  'native_usb_rescue': rescue,
+ 'rescue_default_cpu_governor': validate_cpu_default(cfg, target_profile['target_profile']),
+ 'cpu_frequency_runtime_validated': False,
  'target_modules_bundled': rescue, 'target_modules_loaded': False,
  'module_install_strip_debug': rescue,
  'llvm_strip_sha256': sha(compiler/'bin/llvm-strip') if rescue else None,
