@@ -33,9 +33,21 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install offline build dependencies
+        timeout-minutes: 10
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends build-essential bc bison flex libssl-dev libelf-dev dwarves libtinfo5 binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user curl kmod
+          # Avoid the runner's Azure mirror after observed package timeouts.
+          test -s /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          mkdir -p "$RUNNER_TEMP/qkx-apt-empty"
+          cat > "$RUNNER_TEMP/qkx-ubuntu.list" <<'EOF'
+          deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse
+          deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse
+          deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse
+          EOF
+          qkx_apt=(-o "Dir::Etc::sourcelist=$RUNNER_TEMP/qkx-ubuntu.list"
+                   -o "Dir::Etc::sourceparts=$RUNNER_TEMP/qkx-apt-empty"
+                   -o Acquire::https::Timeout=30 -o Acquire::Retries=2)
+          sudo apt-get "${qkx_apt[@]}" update -qq
+          sudo apt-get "${qkx_apt[@]}" install -y --no-install-recommends build-essential bc bison flex libssl-dev libelf-dev dwarves libtinfo5 binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user curl kmod
       - name: Build public-config Linux target and BusyBox initramfs
         env:
           QKX_TARGET_PROFILE: ${{ inputs.target_profile || 'baseline' }}
