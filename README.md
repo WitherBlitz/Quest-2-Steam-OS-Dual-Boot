@@ -42,6 +42,10 @@ firmware, userspace and test dependencies for every hardware subsystem. The
 USB-rescue build prepares a separate ABI-checked module archive; it does not
 load modules or add firmware. Native Linux hardware operation remains unvalidated.
 
+The [VR tracking and presentation matrix](docs/QUEST2_VR_TRACKING.md) records the
+remaining 6DoF, optics, controller and safety dependencies. A source-tested patch
+fixes upstream controller clock wrap and stick bounds; native VR remains blocked.
+
 The [camera/DSP ownership audit](docs/QUEST2_OWNER_AUDIT.md) adds a passive
 process/device collector and a proposed checked stop/drain sequence. FD holders
 do not establish session ownership, and several stock stop paths discard errors.

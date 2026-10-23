@@ -1,2 +1,4 @@
 # Unified-diff context prefixes are data; git apply checks added-code whitespace.
 kernel/patches/quest2-startup/*.patch text eol=lf -whitespace
+patches/monado/quest2/*.patch text eol=lf -whitespace
+tools/tests/fixtures/q2_driver-9c96c192.c text eol=lf
