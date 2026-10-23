@@ -28,9 +28,21 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install official Ubuntu compiler and QEMU packages
+        timeout-minutes: 5
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends clang lld llvm qemu-user
+          # Match the verified target-build mirror workaround; retain signatures.
+          test -s /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          mkdir -p "$RUNNER_TEMP/qkx-apt-empty"
+          cat > "$RUNNER_TEMP/qkx-ubuntu.list" <<'EOF'
+          deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse
+          deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse
+          deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse
+          EOF
+          qkx_apt=(-o "Dir::Etc::sourcelist=$RUNNER_TEMP/qkx-ubuntu.list"
+                   -o "Dir::Etc::sourceparts=$RUNNER_TEMP/qkx-apt-empty"
+                   -o Acquire::https::Timeout=30 -o Acquire::Retries=2)
+          sudo apt-get "${qkx_apt[@]}" update -qq
+          sudo apt-get "${qkx_apt[@]}" install -y --no-install-recommends clang lld llvm qemu-user
       - name: Build and execute the static reader against CI-owned memory
         run: python3 -B tools/ci/quest2_csl_read_linux.py
       - name: Run host regression tests
