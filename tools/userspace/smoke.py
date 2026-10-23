@@ -12,6 +12,20 @@ import tempfile
 import time
 
 
+def frame_count(trace):
+    pending = set()
+    completed = 0
+    for line in trace.splitlines():
+        requested = re.search(r"wl_surface@\d+\.frame\(new id wl_callback@(\d+)\)", line)
+        if requested:
+            pending.add(requested.group(1))
+        done = re.search(r"wl_callback@(\d+)\.done\(", line)
+        if done and done.group(1) in pending:
+            pending.remove(done.group(1))
+            completed += 1
+    return completed
+
+
 def elf(path):
     data = path.read_bytes()
     if data[:6] != b"\x7fELF\x02\x01" or struct.unpack_from("<H", data, 18)[0] != 183:
@@ -64,7 +78,7 @@ def main():
                         if session.poll() is not None:
                             raise RuntimeError("native game/session exited before the bounded scene check")
                         trace = errors.read_text(errors="replace")
-                        if len(re.findall(r"wl_callback@\d+\.done\(", trace)) >= 3:
+                        if frame_count(trace) >= 3:
                             break
                         time.sleep(0.2)
                     else:
@@ -77,10 +91,13 @@ def main():
                         session.kill()
                         session.wait(timeout=5)
                         raise RuntimeError("session did not perform bounded termination")
+                    finally:
+                        proof["wayland_trace"] = errors.read_text(errors="replace")
+                        proof["game_stdout"] = output.read_text(errors="replace")
             trace = errors.read_text(errors="replace")
             if session.returncode != 143 or any(directory.glob("qkx-session.*")):
                 raise RuntimeError("session status or runtime-directory cleanup failed")
-            frames = len(re.findall(r"wl_callback@\d+\.done\(", trace))
+            frames = frame_count(trace)
             commits = len(re.findall(r"wl_surface@\d+\.commit\(", trace))
             if frames < 3 or commits < 3:
                 raise RuntimeError("game frame delivery evidence is insufficient")

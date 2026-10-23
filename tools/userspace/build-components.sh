@@ -19,7 +19,7 @@ fetch() {
 fetch monado https://gitlab.freedesktop.org/monado/monado.git 019d9d45869d6ae67c5195540793e5c43687c1dd
 fetch quest2 https://github.com/machachu56/quest-kexec-q2.git 9c96c192d4a4a80f95ba0013294977e85c6eae11
 fetch box64 https://github.com/ptitSeb/box64.git 2f130fab1d6e1a4ee8a71dc60cfdfcc839ad192a
-fetch vulkan-headers https://github.com/KhronosGroup/Vulkan-Headers.git a26ccc6bb1ec512a6a587271a626185a08213500
+fetch vulkan-headers https://github.com/KhronosGroup/Vulkan-Headers.git 9a0f3099c8a9607a7c0f3127d8abfdc19a93e8c5
 cmake -S vulkan-headers -B headers-build -DCMAKE_INSTALL_PREFIX=/usr/local
 cmake --install headers-build
 # Keep the full unmodified source, exact patches and source receipts together.
@@ -56,9 +56,11 @@ install -m 755 box64-build/box64 /usr/local/bin/box64
 mkdir -p /usr/local/share/licenses/qkx
 cp monado/LICENSE /usr/local/share/licenses/qkx/monado-BSL-1.0
 cp box64/LICENSE /usr/local/share/licenses/qkx/box64-LICENSE
+cp -r vulkan-headers/LICENSES /usr/local/share/licenses/qkx/vulkan-headers
+cp vulkan-headers/LICENSE.md /usr/local/share/licenses/qkx/vulkan-headers/README.md
 cp monado-build/CMakeCache.txt /evidence/monado-CMakeCache.txt
 cp box64-build/CMakeCache.txt /evidence/box64-CMakeCache.txt
 printf '%s\n' 'monado 019d9d45869d6ae67c5195540793e5c43687c1dd' \
     'quest2 9c96c192d4a4a80f95ba0013294977e85c6eae11' \
     'box64 2f130fab1d6e1a4ee8a71dc60cfdfcc839ad192a' \
-    'vulkan-headers a26ccc6bb1ec512a6a587271a626185a08213500' > /evidence/revisions.txt
+    'vulkan-headers 9a0f3099c8a9607a7c0f3127d8abfdc19a93e8c5' > /evidence/revisions.txt

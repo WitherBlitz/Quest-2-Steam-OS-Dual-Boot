@@ -46,6 +46,10 @@ The [VR tracking and presentation matrix](docs/QUEST2_VR_TRACKING.md) records th
 remaining 6DoF, optics, controller and safety dependencies. A source-tested patch
 fixes upstream controller clock wrap and stick bounds; native VR remains blocked.
 
+The [gaming development environment](docs/QUEST2_GAMING_ENVIRONMENT.md) provides
+a separate ARM64 Debian/Wayland build with Monado, Box64 and a native game test.
+It is custom Linux userspace; Quest Steam/SteamVR compatibility remains unvalidated.
+
 The [camera/DSP ownership audit](docs/QUEST2_OWNER_AUDIT.md) adds a passive
 process/device collector and a proposed checked stop/drain sequence. FD holders
 do not establish session ownership, and several stock stop paths discard errors.
