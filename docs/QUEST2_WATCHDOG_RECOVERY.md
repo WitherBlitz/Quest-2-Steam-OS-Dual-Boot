@@ -79,6 +79,14 @@ python3 -B tools/quest2_recovery_probe.py \
   --output /private/new-recovery-comparison.json
 ```
 
+New captures and comparisons use schema version 2. Each capture records the
+SHA-256 of the explicitly selected ADB serial; comparison refuses missing,
+malformed or different selector hashes. Version 1 captures need fresh collection
+before comparison; do not add a binding to old receipts by hand. The hash is a
+private, stable identifier, not anonymization or authenticated hardware identity.
+It prevents accidentally mixing selected targets with identical firmware, but
+does not prove that a selector still refers to the same physical headset.
+
 Comparison checks complete receipts and artifact paths, sizes and hashes. It can
 report changed boot IDs, new/missing files and changed/unchanged bytes. Record
 IDs are reused, and console/pmsg timestamps are unset in this source. Neither a
@@ -132,6 +140,10 @@ attributed to this experiment. No new physical reset, watchdog expiry,
 retention-across-reset, tracking-health or Horizon-fallback test is claimed.
 
 ### Host verification
+
+The schema-2 selector-binding update passed all 40 focused recovery/source tests
+and all 457 host regression tests on Windows, with no skips. These are host
+tests; this update issued no headset commands and demonstrates no physical reset.
 
 ```sh
 HOST_TEST_CC=clang python3 -B -m unittest tools.tests.test_recovery_probe tools.tests.test_shutdown_source

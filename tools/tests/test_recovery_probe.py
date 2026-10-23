@@ -304,6 +304,49 @@ class RecoveryProbeTests(unittest.TestCase):
             self.assertFalse(report["handoff_ready"])
             self.assertEqual(report["reset_causality"], "unproven")
 
+    def test_capture_binds_private_target_selector_without_storing_serial(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temp:
+            out = Path(temp)/"capture"
+            runner, _ = self.setup_capture(module)
+            report = self.collect(module, out, runner)
+            self.assertEqual(report["target_selector_sha256"],
+                             hashlib.sha256(b"USB-TEST").hexdigest())
+            self.assertNotIn("USB-TEST", (out/"capture.json").read_text())
+
+    def test_compare_refuses_captures_from_different_target_selectors(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temp:
+            before, after = Path(temp)/"before", Path(temp)/"after"
+            runner, _ = self.setup_capture(module)
+            self.collect(module, before, runner)
+            runner, _ = self.setup_capture(module, boot=BOOT[:-1]+"d")
+            report = self.collect(module, after, runner)
+            report["target_selector_sha256"] = hashlib.sha256(b"OTHER-USB").hexdigest()
+            (after/"capture.json").write_text(json.dumps(report))
+            with self.assertRaises(preflight.CaptureError):
+                module.compare(before, after)
+
+    def test_compare_refuses_legacy_missing_and_malformed_target_binding(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temp:
+            out = Path(temp)/"capture"
+            runner, _ = self.setup_capture(module)
+            original = self.collect(module, out, runner)
+            for value in (None, "", "g"*64, 7, "0"*63):
+                report = dict(original)
+                if value is None:
+                    report.pop("target_selector_sha256", None)
+                else:
+                    report["target_selector_sha256"] = value
+                (out/"capture.json").write_text(json.dumps(report))
+                with self.subTest(value=value), self.assertRaises(preflight.CaptureError):
+                    module.compare(out, out)
+            report = dict(original, schema_version=1)
+            (out/"capture.json").write_text(json.dumps(report))
+            with self.assertRaises(preflight.CaptureError):
+                module.compare(out, out)
+
     def test_compare_rejects_incomplete_corrupt_hash_and_unsafe_manifest_paths(self):
         module = self.module()
         with tempfile.TemporaryDirectory() as temp:

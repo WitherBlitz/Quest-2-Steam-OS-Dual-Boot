@@ -234,7 +234,8 @@ def collect(adb, serial, out, source_report, *, runner=subprocess.run,
                 or module_names(before["modules"]) != module_names(after["modules"])):
             raise CaptureError("boot, identity or passive health changed during capture")
         remaining()
-        report = {"schema_version": 1, "capture_status": "complete", "identity": identity,
+        report = {"schema_version": 2, "capture_status": "complete", "identity": identity,
+                  "target_selector_sha256": hashlib.sha256(serial.encode("ascii")).hexdigest(),
                   "source_audit": source_report, "artifacts": artifacts, "records": records,
                   "coverage_gaps": gaps, "same_boot_cpus_modules_taint": True,
                   "pstore": {"availability": "available" if records else "unavailable", "mount": mount,
@@ -265,7 +266,9 @@ def _load_capture(directory):
         if len(raw) > 256 * 1024:
             raise CaptureError("oversized capture manifest")
         report = json.loads(raw)
-        if (report.get("schema_version") != 1 or report.get("capture_status") != "complete"
+        selector = report.get("target_selector_sha256")
+        if (report.get("schema_version") != 2 or report.get("capture_status") != "complete"
+                or not isinstance(selector, str) or not re.fullmatch(r"[0-9a-f]{64}", selector)
                 or report.get("recovery_validated") is not False or report.get("handoff_ready") is not False
                 or report.get("device_mutation") is not False or report.get("same_boot_cpus_modules_taint") is not True
                 or any(report["identity"].get(key) != value for key, value in EXPECTED.items())
@@ -349,8 +352,11 @@ def compare(before, after):
     """Compare complete hash-checked bytes; never infer which event caused them."""
     first, first_boot, old = _load_capture(before)
     second, second_boot, new = _load_capture(after)
+    if first["target_selector_sha256"] != second["target_selector_sha256"]:
+        raise CaptureError("recovery captures select different ADB targets")
     common = old.keys() & new.keys()
-    return {"schema_version": 1, "boot_changed": first_boot != second_boot,
+    return {"schema_version": 2, "same_target_selector": True,
+            "boot_changed": first_boot != second_boot,
             "unchanged_record_ids": sorted(key for key in common if old[key] == new[key]),
             "changed_record_ids": sorted(key for key in common if old[key] != new[key]),
             "missing_after_record_ids": sorted(old.keys() - new.keys()),
