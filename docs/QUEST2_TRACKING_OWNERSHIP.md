@@ -225,8 +225,41 @@ and runs the executable against its own CI process's known memory. It also
 checks that malformed plans exit before opening process memory. Raw emulator
 traces stay in memory; published evidence contains only reduced counts and
 statuses. Its execution result is recorded separately from the host model
-tests. A binary-safe duplex ADB transport with shell-v2 EOF support is required
-for a later headset collector; `exec-out` cannot deliver the input plan.
+tests. A binary-safe input/output path is required for a later headset collector;
+`exec-out` cannot deliver the input plan. This Windows client's `shell -T`
+path rewrites bare LF bytes, as demonstrated by fixed nonsensitive test data.
+The private collector instead uses hash-checked temporary request files for
+stdin and `exec-out` for binary output. This also supplies an explicit regular-file EOF.
+
+[Reader CI run 39912664983](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39912664983)
+passed from `3593242e6c99020f1380898c1eaf88016a2731ee`. Six rejected/empty cases
+performed no process-memory opens or reads; the real owned-buffer case returned
+the expected 54 bytes through one open, two preads and one close. Local checks
+verified the six-file artifact allowlist, matching source hash and static ELF.
+The exact tested 2,536-byte executable has SHA-256
+`8a764181132ccf0dfbc3e1abababb943f10796aa9f2f6df58979e217edb4773b`.
+
+One subsequent scalar observation on the matching headset completed. Paired
+views agreed on **five sessions**, matching creator PIDs and recorded creator
+TIDs, **zero acquisitions/links**, and one CRM FD verified against `/dev/video0`.
+Creator TIDs were range-checked; current thread membership was not established.
+The global physical-device count was 12. Each session recorded stream flag 0,
+reference count 0 and open-reference count 1. These scalar values are not a
+receipt that the corresponding kernel/firmware resources are idle or released.
+
+The collector transferred **83,248 bytes** in 3,916 scalar fields across six
+native invocations, within the unchanged 1 MiB aggregate allowance. Independent
+review reconstructed all six request/response hashes from the private plans
+and selected scalar report. An all-byte transport smoke and an empty-plan
+Android execution check passed before memory observation. Hash-checked
+temporary helper/request files were removed with confirmed absence afterward.
+Process identity, selected mappings/flags, library hash and before/after basic
+health checks agreed. No new subjective Home/tracking test is claimed.
+
+No service was stopped, device ioctl issued, module loaded, target process
+written or boot setting changed. Raw handles, creator IDs, descriptors, live
+pointers and request plans remain private. The observations are non-atomic;
+FD sharing/reuse, remap ABA and kernel/firmware ownership remain unresolved.
 
 `tools/quest2_fastrpc_ownership.py` separately decodes the matched FastRPC
 library's 16 domain lists and legacy remote-handle list. It preserves raw
@@ -242,3 +275,8 @@ still not an atomic kernel session inventory. Empty tables, negative FDs and
 stream flags do not prove successful release or DMA quiescence. The optional
 delegate's lifetime and a checked producer-stop/drain/release protocol remain
 unproven. All hardware and handoff gates stay closed.
+
+All **295 host regression tests** passed with the configured host compiler,
+along with the private transport/planner tests, source reviews, syntax,
+whitespace and privacy checks. These checks establish the limited results
+above, not full tracking, shutdown, recovery or a native Linux boot.
