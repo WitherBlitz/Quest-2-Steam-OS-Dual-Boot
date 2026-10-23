@@ -16,6 +16,12 @@ def frame_count(trace):
     pending = set()
     completed = 0
     for line in trace.splitlines():
+        created = re.search(r"new id wl_callback@(\d+)", line)
+        if created:
+            pending.discard(created.group(1))
+        deleted = re.search(r"wl_display@\d+\.delete_id\((\d+)\)", line)
+        if deleted:
+            pending.discard(deleted.group(1))
         requested = re.search(r"wl_surface@\d+\.frame\(new id wl_callback@(\d+)\)", line)
         if requested:
             pending.add(requested.group(1))

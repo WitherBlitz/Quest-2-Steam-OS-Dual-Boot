@@ -147,5 +147,15 @@ class GamingFrameEvidenceTests(unittest.TestCase):
                  'wl_display@1.sync(new id wl_callback@4)\nwl_callback@4.done(11)')
         self.assertEqual(self.count(trace), 1)
 
+    def test_deleted_pending_frame_id_cannot_count_a_later_sync(self):
+        trace = ('wl_surface@8.frame(new id wl_callback@4)\nwl_display@1.delete_id(4)\n'
+                 'wl_display@1.sync(new id wl_callback@4)\nwl_callback@4.done(11)')
+        self.assertEqual(self.count(trace), 0)
+
+    def test_a_new_non_frame_callback_invalidates_the_old_frame_origin(self):
+        trace = ('wl_surface@8.frame(new id wl_callback@4)\n'
+                 'wl_display@1.sync(new id wl_callback@4)\nwl_callback@4.done(11)')
+        self.assertEqual(self.count(trace), 0)
+
 
 if __name__ == "__main__": unittest.main()
