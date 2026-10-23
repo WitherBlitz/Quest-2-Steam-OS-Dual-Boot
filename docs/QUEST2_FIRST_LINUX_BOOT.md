@@ -63,9 +63,21 @@ interleavings against host doubles, not live-filesystem concurrency tests.
 The small assembly fixture substitutes pinned linkage/cache macros and the
 disabled erratum workaround. It does not execute privileged instructions, model
 enabled errata variants, validate MMU-off behavior or demonstrate hardware
-shutdown. A matching-header native build and Ubuntu regression run must also be
-verified. Native CI now archives the transition compile command and object
+shutdown. The final 411-test suite also passed without skips in
+[Ubuntu run 39934839947](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39934839947)
+at `6d55061f241055f3a20e00031642f33ef1cd48a7`; its seven existing reader/QEMU
+cases and downloaded source/binary/license evidence passed. A matching-header
+native build must also be verified. Native CI now archives the transition compile command and object
 disassembly alongside its existing ABI/provenance evidence.
+
+The first native build, run `39933690788`, compiled but correctly failed its
+strict stock-CRC gate: file write exclusion introduced an atomic helper absent
+from the curated reference. Offline extraction from the existing hash-pinned
+stock Image found `__ll_sc___cmpxchg_case_mb_4`, CRC `0xdbd1083c`, at Image file
+offset `0x19d2edc`. All 11,137 stock exports decoded, all 78 existing curated
+CRCs agreed, and this helper matched the prior verified generated symvers.
+Only that independently derived reference was added; no ABI comparison was
+relaxed and no headset access was needed.
 
 The retained `startup-usb-child` Image, initramfs and config from run
 `39909419709` were checked again with the corrected tool against the existing

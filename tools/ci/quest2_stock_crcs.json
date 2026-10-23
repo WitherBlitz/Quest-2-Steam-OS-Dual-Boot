@@ -13,6 +13,7 @@
     "__ioremap": "0x6b4b2933",
     "__iounmap": "0x45a55ec8",
     "__kmalloc": "0xd2b09ce5",
+    "__ll_sc___cmpxchg_case_mb_4": "0xdbd1083c",
     "__ll_sc_atomic64_or": "0xad1c144b",
     "__ll_sc_atomic_add": "0x1f7386be",
     "__stack_chk_fail": "0xf0fdf6cb",
