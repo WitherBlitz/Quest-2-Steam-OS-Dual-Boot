@@ -1,7 +1,9 @@
 # ARM64 development userspace; no kernel, installer, device access or autostart.
 FROM debian:bookworm-slim@sha256:991827bb788d78bbc130dcb851913beecff43296360f48838aca7cbdfae4375c AS base
 RUN rm /etc/apt/sources.list.d/debian.sources && \
-    printf '%s\n' 'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20261022T000000Z bookworm main' > /etc/apt/sources.list
+    printf '%s\n' \
+      'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20261022T000000Z bookworm main' \
+      'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20261022T000000Z bookworm-security main' > /etc/apt/sources.list
 
 FROM base AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
