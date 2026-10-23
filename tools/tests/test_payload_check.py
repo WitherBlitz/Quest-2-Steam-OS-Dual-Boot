@@ -11,6 +11,7 @@ import tempfile
 import unittest
 
 from test_handoff_plan import IOMEM, capture, cells, payload, tree
+from quest2_target_dtb import encode_dtb
 
 TOOL = Path(__file__).resolve().parents[1] / "quest2_payload_check.py"
 
@@ -177,6 +178,30 @@ class PayloadCheckTests(unittest.TestCase):
         runtime,image,rd,target=self.inputs()
         target["reserved-memory/new/reg"]=cells(1,0,0,0x1000000)
         self.assertTrue(any("exclusion" in s for s in self.check(runtime,image,rd,target)["findings"]))
+
+    def test_header_reserve_map_cannot_overlap_any_part_of_copy_window(self):
+        runtime,image,rd,target=self.inputs()
+        base=0x100000000
+        end=self.check(runtime,image,rd,target)["end"]
+        for address,size in ((base-1,2),(base,1),(base+0x1000,0x1000),
+                             (end-1,2),(base-1,end-base+2)):
+            with self.subTest(address=address,size=size):
+                blob=encode_dtb(target,struct.pack(">QQQQ",address,size,0,0))
+                report=self.tool.check(runtime,IOMEM,image,rd,blob,CONFIG,base,
+                                       exclude_blocks=[(0x102c00000,0x103000000)])
+                self.assertTrue(any("header reserve map" in s for s in report["findings"]))
+                self.assertEqual(report["status"],"HANDOFF_BLOCKED")
+
+    def test_header_reserve_map_adjacent_ranges_are_not_overlaps(self):
+        runtime,image,rd,target=self.inputs()
+        base=0x100000000
+        end=self.check(runtime,image,rd,target)["end"]
+        reservations=struct.pack(">QQQQQQ",base-0x1000,0x1000,end,0x1000,0,0)
+        blob=encode_dtb(target,reservations)
+        report=self.tool.check(runtime,IOMEM,image,rd,blob,CONFIG,base,
+                               exclude_blocks=[(0x102c00000,0x103000000)])
+        self.assertEqual(report["findings"],[])
+        self.assertEqual(report["status"],"HANDOFF_BLOCKED")
 
     def test_cli_writes_findings_and_never_overwrites_an_existing_report(self):
         runtime,image,rd,target=self.inputs()

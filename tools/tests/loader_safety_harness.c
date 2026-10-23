@@ -86,6 +86,9 @@ static bool events_check;
 static bool destination_owned;
 static int freeze_ret, gpu_suspend_ret, sync_suspend_ret, sync_resume_ret, watchdog_ret = 1, rpmh_ret;
 static int did_panic, did_enter;
+static int shutdown_calls, online_cpus = 1;
+static bool shutdown_events;
+static int shutdown_abort;
 static char trace[128];
 static unsigned int trace_len;
 static jmp_buf failure;
@@ -144,6 +147,21 @@ static struct device *bus_find_device(struct bus_type *b, struct device *start,
 }
 static bool not_stuck(void) { return false; }
 static void destructive(void) { destructive_calls++; }
+/* Pinned ARM64 machine_shutdown discards disable_nonboot_cpus' error.
+ * Its freeze loop refuses pending wakeup, leaving secondary CPUs online.
+ * Models pending events only; does not claim physical CPU-off completion.
+ */
+static void native_shutdown(void)
+{
+    bool pending;
+    shutdown_calls++; event('N');
+    shutdown_events = events_check; shutdown_abort = abort_suspend;
+    /* drivers/base/power/wakeup.c consumes events_check_enabled when its
+     * counters show a pending event; pm_abort_suspend remains independent. */
+    pending = events_check || abort_suspend > 0;
+    if (events_check) events_check = false;
+    if (!pending) online_cpus = 1;
+}
 static uintptr_t lookup(const char *s)
 {
     if (!strcmp(s, "__boot_cpu_mode")) return (uintptr_t)mode;
@@ -167,6 +185,7 @@ static uintptr_t lookup(const char *s)
     if (!strcmp(s, "wdog_disable_set")) return (uintptr_t)wdt_disable;
     if (!strcmp(s, "rpmh_flush")) return (uintptr_t)rpmh_flush_stub;
     if (!strcmp(s, "kernel_restart_prepare")) return (uintptr_t)prepare_stub;
+    if (!strcmp(s, "machine_shutdown")) return (uintptr_t)native_shutdown;
     return (uintptr_t)destructive;
 }
 static void qkx_phase(unsigned int p, const char *s, bool b) { }
@@ -183,7 +202,7 @@ static void kthread_stop(struct task_struct *t) { destructive_calls++; }
 static int qkx_test_cpus(void) { destructive_calls++; return 0; }
 static int qkx_test_transition(void) { destructive_calls++; return 0; }
 static int qkx_disconnect_aop_qmp(struct device *d, ...) { destructive_calls++; return 0; }
-static int num_online_cpus(void) { return 1; }
+static int num_online_cpus(void) { return online_cpus; }
 static void *page_address(struct page *p) { return NULL; }
 static void qkx_enter(uintptr_t a, uintptr_t b, uintptr_t c, u64 d, u64 e)
 { did_enter++; longjmp(failure, 1); }
@@ -218,6 +237,19 @@ int main(int argc, char **argv)
         if (!setjmp(failure)) ret = qkx_execute();
         CHECK(ret == (model ? -EOPNOTSUPP : -ENODEV));
         CHECK(!did_enter && !did_panic && !trace_len && !put_count);
+    } else if (!strcmp(which, "pending_event") || !strcmp(which, "pending_abort")) {
+        destination_owned = true;
+        preflight_only = 0;
+        online_cpus = 4;
+        events_check = !strcmp(which, "pending_event");
+        abort_suspend = !strcmp(which, "pending_abort");
+        if (!setjmp(failure)) qkx_execute();
+        CHECK(shutdown_calls == 1 && did_panic == 1 && !did_enter);
+        CHECK(shutdown_events == !strcmp(which, "pending_event"));
+        CHECK(shutdown_abort == !strcmp(which, "pending_abort"));
+        CHECK(abort_suspend == shutdown_abort);
+        CHECK(online_cpus == 4 && !strchr(trace, 'T'));
+        return 0;
     } else if (!strcmp(which, "unowned_jump")) {
         preflight_only = 0;
         ret = 999;

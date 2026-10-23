@@ -119,6 +119,12 @@ class LoaderSafetyTests(unittest.TestCase):
     def test_freezer_abort_is_respected_without_suppressing_wakeup(self):
         self.case("freezer_abort")
 
+    def test_native_shutdown_preserves_pending_event_wakeup_and_refuses_entry(self):
+        self.case("pending_event")
+
+    def test_native_shutdown_preserves_abort_suspend_and_refuses_entry(self):
+        self.case("pending_abort")
+
     def test_gpu_failure_restores_hardware_before_thaw(self):
         self.case("gpu_failure")
 

@@ -575,15 +575,24 @@ static struct file *qkx_open(const char *path)
 {
 	struct file *f;
 	const char *base;
+	int ret;
 	if (strncmp(path, "/data/local/tmp/", 16))
 		return ERR_PTR(-EPERM);
 	base = path + 16;
 	if (!*base || strchr(base, '/') || !strcmp(base, ".") || !strcmp(base, ".."))
 		return ERR_PTR(-EPERM);
 	f = filp_open(path, O_RDONLY | O_NOFOLLOW, 0);
-	if (!IS_ERR(f) && !S_ISREG(file_inode(f)->i_mode)) {
+	if (IS_ERR(f))
+		return f;
+	if (!S_ISREG(file_inode(f)->i_mode)) {
 		filp_close(f, NULL);
 		return ERR_PTR(-EINVAL);
+	}
+	/* Keep sizes, headers and staging reads under the same write exclusion. */
+	ret = deny_write_access(f);
+	if (ret) {
+		filp_close(f, NULL);
+		return ERR_PTR(ret);
 	}
 	return f;
 }
@@ -775,11 +784,11 @@ static int qkx_test_cpus(void)
 		for_each_cpu(cpu, &removed) {
 			int up_ret = up(cpu);
 			pr_info("quest_kexec: cpu_up(%d)=%d\n", cpu, up_ret);
-			if (up_ret)
+			if (up_ret && !ret)
 				ret = up_ret;
 		}
 	}
-	if (!cpumask_equal(&online, cpu_online_mask))
+	if (!cpumask_equal(&online, cpu_online_mask) && !ret)
 		ret = -EIO;
 	affinity_ret = affinity(current, &saved);
 	pr_info("quest_kexec: CPU restoration complete; online=%u affinity=%d result=%d\n",
@@ -1032,8 +1041,6 @@ static int __maybe_unused qkx_execute(void)
 	void (*thaw_users)(void) = (void *)lookup("thaw_processes");
 	void (*sleep_lock)(void) = (void *)lookup("lock_system_sleep");
 	void (*sleep_unlock)(void) = (void *)lookup("unlock_system_sleep");
-	bool *events_check_enabled = (void *)lookup("events_check_enabled");
-	atomic_t *pm_abort_suspend = (void *)lookup("pm_abort_suspend");
 	int (*gpu_suspend)(struct device *) = (void *)lookup("adreno_pm_suspend");
 	int (*gpu_resume)(struct device *) = (void *)lookup("adreno_pm_resume");
 	ssize_t (*watchdog_disable)(struct device *, struct device_attribute *,
@@ -1072,7 +1079,7 @@ static int __maybe_unused qkx_execute(void)
 	pr_emerg("quest_kexec: native shutdown symbols ready; kexec_in_progress=%s\n",
 		 kexec_progress ? "available" : "compiled out");
 	if (!freeze_users || !thaw_users || !sleep_lock || !sleep_unlock ||
-	    !events_check_enabled || !pm_abort_suspend || !gpu_suspend || !gpu_resume ||
+	    !gpu_suspend || !gpu_resume ||
 	    !watchdog_disable || !platform_bus || !find_dev ||
 	    !suspend_dwc3_gadget || (suspend_syncboss && !spi_bus))
 		return -ENOENT;
@@ -1223,10 +1230,7 @@ static int __maybe_unused qkx_execute(void)
 	/* migrate_to_reboot_cpu() disables hotplug; native kernel_kexec()
 	 * reenables it immediately before machine_shutdown(). */
 	hotplug_enable();
-	/* freeze_secondary_cpus() rechecks pm_wakeup_pending() per CPU; a late
-	 * wake IRQ during device shutdown would abort it and force a panic. */
-	WRITE_ONCE(*events_check_enabled, false);
-	atomic_set(pm_abort_suspend, 0);
+	/* Preserve pending-wakeup evidence for native secondary-CPU refusal. */
 	qkx_phase(13, "calling native machine_shutdown", false);
 	shutdown_cpus();
 	qkx_phase(14, "native machine_shutdown returned", false);
@@ -1503,7 +1507,9 @@ static int __init qkx_init(void)
 	if (ret)
 		goto out;
 	ret = walk_ram(destination_lo, destination_hi - 1, NULL, qkx_ram_cb);
-	if (ret || !ram_found) {
+	if (ret)
+		goto out;
+	if (!ram_found) {
 		ret = -ERANGE;
 		goto out;
 	}
@@ -1542,9 +1548,18 @@ static int __init qkx_init(void)
 		ret = qkx_identity_map();
 out:
 	vfree(dbuf);
-	if (kf) filp_close(kf, NULL);
-	if (rf) filp_close(rf, NULL);
-	if (df) filp_close(df, NULL);
+	if (kf) {
+		allow_write_access(kf);
+		filp_close(kf, NULL);
+	}
+	if (rf) {
+		allow_write_access(rf);
+		filp_close(rf, NULL);
+	}
+	if (df) {
+		allow_write_access(df);
+		filp_close(df, NULL);
+	}
 	if (!ret) {
 		pr_info("quest_kexec: staged %u copy pages, %u allocations; entry=%llx dtb=%llx; execute=%u\n",
 			nr_copies, nr_owned, payload_entry, payload_dtb, execute);

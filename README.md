@@ -32,6 +32,11 @@ reset/pstore source verification and bounded collection of existing retained
 logs. Reset completion, log survival and automatic Horizon fallback still need
 physical validation.
 
+The [first Linux boot prerequisites](docs/QUEST2_FIRST_LINUX_BOOT.md) now cover
+payload-file write exclusion, original CPU/shutdown error preservation and
+assembled ARM64 copy/exception-state checks. These are offline loader fixes;
+an attempted boot, kernel entry, usable Linux and Horizon recovery remain unverified.
+
 The [camera/DSP ownership audit](docs/QUEST2_OWNER_AUDIT.md) adds a passive
 process/device collector and a proposed checked stop/drain sequence. FD holders
 do not establish session ownership, and several stock stop paths discard errors.

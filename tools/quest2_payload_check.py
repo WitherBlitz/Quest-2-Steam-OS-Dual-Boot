@@ -156,6 +156,13 @@ def check(runtime,iomem,image,initramfs,dtb,config,base,*,exclude_blocks=()):
     if (type(base) is not int or base < 0 or base % ALIGNMENT or
             base+layout["window_bytes"] >= 1 << 64): raise ValueError("invalid compact base")
     end = base+layout["window_bytes"]
+    reserve = struct.unpack_from(">I",dtb,16)[0]
+    while True:
+        address,size = struct.unpack_from(">QQ",dtb,reserve); reserve += 16
+        if not address and not size: break
+        if base < address+size and address < end:
+            findings.append("Copy window overlaps the DTB header reserve map")
+            break
     spans = []
     for row in iomem.splitlines():
         if row.strip().endswith(": System RAM"):

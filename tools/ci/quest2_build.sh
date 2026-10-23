@@ -59,6 +59,8 @@ python3 -B tools/ci/quest2_audit.py modules --symvers "$out/Module.symvers" \
   module/quest_kexec.ko module/marker_read.ko module/usb_log.ko module/camera_dsp_diag.ko
 cp module/quest_kexec.ko module/marker_read.ko module/usb_log.ko module/camera_dsp_diag.ko "$artifacts/"
 cp module/.loader.o.cmd "$artifacts/loader.compile.txt"
+cp module/.transition.o.cmd "$artifacts/transition.compile.txt"
+llvm-objdump -dr module/transition.o > "$artifacts/transition.disassembly.txt"
 cp module/.camera_dsp_diag.o.cmd "$artifacts/diagnostic.compile.txt"
 cp module/.shutdown.o.cmd "$artifacts/shutdown.compile.txt"
 cp module/.shutdown_io.o.cmd "$artifacts/shutdown-io.compile.txt"
@@ -82,5 +84,5 @@ data = {
 PY
 git -C "$kernel" diff --exit-code
 git diff --exit-code
-(cd "$artifacts" && sha256sum ./*.ko ./*.json ./*.log Module.symvers ./*.compile.txt LICENSE > SHA256SUMS)
+(cd "$artifacts" && sha256sum ./*.ko ./*.json ./*.log Module.symvers ./*.compile.txt ./*.disassembly.txt LICENSE > SHA256SUMS)
 echo 'Offline matching-module build and ABI gates complete. No hardware handoff performed.'

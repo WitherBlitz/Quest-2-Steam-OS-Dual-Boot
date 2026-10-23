@@ -37,7 +37,7 @@ class PayloadLayoutTests(unittest.TestCase):
         fixture = harness[harness.index("static size_t make_dtb"):harness.index("int main(")]
         init_harness = Path(__file__).with_name("payload_init_harness.c").read_text()
         init_names = ("qkx_select_destination", "qkx_payload_layout", "qkx_check_dtb",
-                      "qkx_release", "qkx_dma_gate", "qkx_ram_cb", "qkx_init")
+                      "qkx_open", "qkx_release", "qkx_dma_gate", "qkx_ram_cb", "qkx_init")
         code = prefix + init_harness.replace("/* FIXTURE */", fixture).replace(
             "/* PRODUCTION */", "\n".join(function(loader, n) for n in init_names))
         source.write_text(code)
@@ -98,6 +98,27 @@ class PayloadLayoutTests(unittest.TestCase):
 
     def test_hollywood_compact_jump_stays_blocked_before_payload_open(self):
         self.case("init_gate")
+
+    def test_all_payload_files_exclude_writers_through_staging(self):
+        self.case("init_locked_staging")
+
+    def test_existing_writer_refuses_before_header_or_staging(self):
+        self.case("init_writer")
+
+    def test_later_writer_refusal_releases_earlier_file_exclusions(self):
+        self.case("init_later_writer")
+
+    def test_open_failure_balances_prior_file_exclusion(self):
+        self.case("init_open_failure")
+
+    def test_nonregular_file_is_closed_without_write_exclusion(self):
+        self.case("init_nonregular")
+
+    def test_ram_walker_failure_is_preserved_before_staging(self):
+        self.case("init_walk_error")
+
+    def test_missing_ram_coverage_refuses_and_releases_file_exclusions(self):
+        self.case("init_no_ram")
 
 
 if __name__ == "__main__":

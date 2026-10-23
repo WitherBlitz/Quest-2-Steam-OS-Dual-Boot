@@ -1,0 +1,115 @@
+# First Linux boot prerequisites
+
+The first recoverable Linux boot is **blocked**. This increment fixes offline
+loader defects found while checking that prerequisite; it does not enable a
+jump or deploy a module. The supported development identity remains Hollywood,
+Horizon `52242990024200150`, kernel
+`4.19.325-cip128-st12-g49638c7a8637`.
+
+## Loader changes
+
+- Opening a regular kernel, initramfs or DTB now acquires the pinned kernel's
+  `deny_write_access()` exclusion before reading its size or header. An existing
+  writer produces `-ETXTBSY`. Every successfully acquired exclusion remains held
+  through staging and is balanced by `allow_write_access()` before close on
+  success and failure. This uses the same inode protocol as the pinned
+  `kernel_read_file()`; it does not claim protection against another kernel or
+  firmware agent changing memory. Completed staging uses separately owned pages.
+- RAM-walker errors survive cleanup. Missing System RAM coverage still returns
+  `-ERANGE`. Destination ownership remains held until abort/unload or handoff;
+  staging/rehearsal modes do not gain permission to overwrite a fixed window.
+- CPU tests preserve the first down/freeze/probe/up error while attempting all
+  required restoration and the original affinity. A later online-mask mismatch
+  does not replace an earlier failure. Restoration order matches the existing
+  pinned-kernel convention. Online-mask observations do not prove physical CPU
+  power-off: the pinned ARM64 teardown can log a `cpu_kill()` failure without
+  propagating it, and missing PSCI affinity information is not a power-off receipt.
+- Native `machine_shutdown()` receives the existing pending-wakeup evidence.
+  The loader no longer clears `events_check_enabled` or `pm_abort_suspend` to
+  avoid its refusal. Failed secondary shutdown still reaches the existing panic
+  path before entry. This does not establish a physical recovery path from panic.
+- The reversible ARM64 roundtrip saves DAIF in preserved `x28`, masks all four
+  asynchronous exception classes before changing translation state, and restores
+  DAIF after returning to the original high mapping and translation context.
+- The copied physical probe materializes its SCTLR mask with MOVZ/MOVK. The old
+  assembler could reuse the relocation loop's literal pool, leaving the probe
+  reading outside its independently copied range. An assembler check rejects a
+  future mask wider than 32 bits. Existing relocation cache/barrier and kernel
+  entry-register sequencing is retained; no extra unproven startup workaround
+  is introduced.
+- The offline payload checker rejects overlap between any DTB header reserve-map
+  entry and the entire rounded copy envelope, including its padding. Adjacent
+  half-open ranges remain valid. Existing live-tree/static/dynamic exclusions
+  and reserve-map preservation in DTB preparation remain required. Dynamic
+  `alloc-ranges` constrain placement; they neither reveal a live secure allocation
+  nor establish firmware ownership or all future target working-memory safety.
+
+## Verification and limits
+
+Regression tests first reproduced missing file exclusion, overwritten original
+errors, suppressed pending wakes, missing DAIF protection, an external copied-probe
+literal and five reserve-map overlap shapes. The corrected full host suite passes
+408 tests on Windows with Clang. Tests extract actual production C functions;
+the assembly tests assemble/disassemble the production body and inspect ELF
+symbols, copy ranges, literal/branch targets, barriers and entry registers.
+
+The small assembly fixture substitutes pinned linkage/cache macros and the
+disabled erratum workaround. It does not execute privileged instructions, model
+enabled errata variants, validate MMU-off behavior or demonstrate hardware
+shutdown. A matching-header native build and Ubuntu regression run must also be
+verified. Native CI now archives the transition compile command and object
+disassembly alongside its existing ABI/provenance evidence.
+
+```sh
+HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
+git diff --check
+```
+
+## Remaining gates and observed state
+
+1. Bind checked stock producer/owner adapters and demonstrate complete camera,
+   tracking, DSP/FastRPC and secure-resource stop/drain completion. Sampled file
+   descriptors or coordinator fixtures are insufficient.
+2. Demonstrate DMA completion and the USB/UFS/AOP shutdown sequence using actual
+   hardware backends. Preserve every timeout and irreversible boundary.
+3. Establish watchdog ownership and an observed reset/log-retention/Horizon
+   recovery mechanism that survives each shutdown boundary. The timed ordinary
+   physical-button test requested in the preceding recovery step remains pending;
+   even a successful ordinary test would not prove survival after shutdown.
+4. With those gates satisfied, exercise bounded relocation/CPU/MMU tests and
+   verify the target startup profile against retained evidence. The existing
+   `startup-usb-child` development build has not booted on the headset. No blanket
+   SMMU/watchdog/firmware error bypass is justified by the current evidence.
+5. Only then attempt the minimal RAM-only Linux initramfs. Independently observe
+   kernel entry, USB enumeration, network access and rescue-shell commands;
+   verify a return to usable Horizon and working head/controller tracking.
+   Repeat successful recovery cycles before automatic boot.
+
+| Milestone | Result for this increment |
+| --- | --- |
+| Module deployed / boot attempted | No |
+| Confirmed Linux kernel entry | No |
+| Usable Linux / USB / network / rescue shell | No |
+| Confirmed Horizon recovery from this payload | No |
+| Automatic Linux boot | Disabled |
+
+The default stage-only option gate and Hollywood DMA refusal remain closed.
+No headset command or hardware test is part of this offline increment. Captures,
+prepared device DTBs, process identifiers and raw runtime pointers stay private.
+
+## Pinned source evidence
+
+Kernel source: `6bde5fc06b252c97761bc0963dd13c1abcf377ab`.
+
+- [File write exclusion and size/read sequencing](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/fs/exec.c#L893),
+  SHA-256 `e1b78264484889a193d586b8ac654a17818bcc16369c21a2dcf2e2b34768295e`.
+- [Native ARM64 kexec checks and cache preparation](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/arch/arm64/kernel/machine_kexec.c),
+  SHA-256 `9a9992c5e4d71d22988fefba951eb2e9ed4150fc1551d991550b18e90717759f`.
+- [Native relocation sequence](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/arch/arm64/kernel/relocate_kernel.S),
+  SHA-256 `6f60ba56bc469f1267361087e8ac839508591647ddf176c35e7f8bd3d9f011ab`.
+- [ARM64 boot contract](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/Documentation/arm64/booting.txt),
+  SHA-256 `534035888925ba7b1c6a4d9bd5ef01f3578eb9dde2d584e6b44c5abbf2c407d8`.
+
+See the existing [checked shutdown](QUEST2_CHECKED_SHUTDOWN.md),
+[watchdog/recovery](QUEST2_WATCHDOG_RECOVERY.md) and
+[target startup review](QUEST2_STARTUP_PATCH_REVIEW.md) for the independent gates.

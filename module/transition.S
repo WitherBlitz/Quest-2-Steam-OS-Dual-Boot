@@ -95,7 +95,8 @@ ENDPROC(qkx_reloc_start)
  * x0..x4 are passed through to the physical code. The relocation loop uses
  * x17..x23, so preserve every callee-saved register and keep the translation
  * state in x24..x27 until the original SCTLR is restored and control returns
- * high.
+ * high. Keep all asynchronous exceptions masked through that interval and
+ * retain the caller's DAIF in x28 until its translation context is restored.
  */
 .align 4
 ENTRY(qkx_roundtrip)
@@ -105,6 +106,8 @@ ENTRY(qkx_roundtrip)
 	stp x25, x26, [sp, #48]
 	stp x27, x28, [sp, #64]
 	str x30, [sp, #80]
+	mrs x28, daif
+	msr daifset, #0xf
 	mrs x24, tcr_el1
 	mrs x25, ttbr0_el1
 	mrs x26, sctlr_el1
@@ -139,6 +142,7 @@ ENTRY(qkx_roundtrip)
 	isb
 	msr tcr_el1, x24
 	isb
+	msr daif, x28
 	ldr x30, [sp, #80]
 	ldp x27, x28, [sp, #64]
 	ldp x25, x26, [sp, #48]
@@ -151,7 +155,14 @@ ENDPROC(qkx_roundtrip)
 .align 4
 ENTRY(qkx_probe_phys_start)
 	mrs x9, sctlr_el1
-	ldr x10, =SCTLR_ELx_FLAGS
+	/* Do not pool this mask: the assembler can reuse a literal in the
+	 * separately copied relocation range, outside this probe's copy.
+	 */
+	.if (SCTLR_ELx_FLAGS >> 32)
+	.error "qkx probe SCTLR mask exceeds 32 bits"
+	.endif
+	movz x10, #(SCTLR_ELx_FLAGS & 0xffff)
+	movk x10, #(SCTLR_ELx_FLAGS >> 16), lsl #16
 	bic x9, x9, x10
 	pre_disable_mmu_workaround
 	msr sctlr_el1, x9

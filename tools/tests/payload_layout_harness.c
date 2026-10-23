@@ -49,7 +49,7 @@ static unsigned int nr_owned, used;
 static struct page *alloc_page(unsigned int flags) {return used < 16 ? &pool[used++] : NULL;}
 static u64 page_to_phys(struct page *p) {return p->pa;}
 static void *page_address(struct page *p) {return p->data;}
-struct file {const u8 *data; u64 size;};
+struct file {const u8 *data; u64 size; unsigned int i_mode; int write_count;};
 static int read_fail, add_fail, reads, copies;
 static u64 destinations[16];
 static u8 staged[16][4096];
