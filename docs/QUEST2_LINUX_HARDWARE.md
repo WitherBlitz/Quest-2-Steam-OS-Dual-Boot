@@ -28,7 +28,7 @@ Every row also inherits the global first-boot/recovery block. The status column
 describes native functionality; the preparation column describes code and build
 inputs only.
 
-The retained USB-rescue build is documented in
+The original USB-rescue build is documented in
 [startup patch review](QUEST2_STARTUP_PATCH_REVIEW.md#native-usb-rescue-development-profile).
 Its target configuration has SHA-256
 `dfa924d82aa1b63c639dff5f9f4bc70ef93c359658c49f5ed672e2682793c98d`.
@@ -94,10 +94,11 @@ metadata allowlist includes the exact outputs in
 plus Kbuild's order/builtin files. Unknown files and unexpected links are refused.
 Packaging does not prove driver initialization.
 
-This work does not change the target config, Image selection, rescue init,
-autoload policy, firmware, calibration or deployment. A module archive on the host
-does not make these modules available in the running rescue image. Firmware and
-per-device calibration must retain their provenance and are not supplied here.
+The module-bundle increment did not change the target config, Image selection,
+rescue init, autoload policy, firmware, calibration or deployment. A module
+archive on the host does not make these modules available in the running rescue
+image. Firmware and per-device calibration must retain their provenance and are
+not supplied here.
 
 ## USB rescue CPU default
 
@@ -117,9 +118,35 @@ frequency, lower temperature, working cooling policy or recovery. No frequency,
 temperature or fan value is guessed; trips, driver error handling, init,
 autoload and handoff gates are unchanged. Hardware statuses remain unchanged.
 
-Focused config tests and the host regression suite pass locally. A fresh native
-Image/module build and its artifact verification are pending; the historical
-module/config hashes below describe the retained earlier build.
+Verification source: `f8ef9b2b74e1f2f87918acaf87a5ebb48216a224`.
+
+- Windows: **13 focused tests and all 460 host tests passed**, with no skips;
+  Python compilation, Bash syntax and whitespace checks passed.
+- [Target build 40009277447](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/40009277447):
+  Image, all 28 modules and static ARM64 BusyBox built; **460 host tests and
+  eight ARM64 rescue-init fixture tests passed**. The effective config differs
+  from the retained build by exactly the two default-governor selections.
+- Download verification checked all **17 files, 16 checksums**, ten
+  provenance-bound outputs, source/compiler/license pins and Image header bounds.
+  Reconstructing the module bundle rechecked every module's ELF/vermagic/import
+  CRCs, provider closure, debug absence and all **40 archive file** hashes.
+  The module archive is byte-identical to the retained bundle documented below;
+  this does not imply that modules are deployed or loaded.
+- New Image: **30,437,392 bytes**, SHA-256
+  `6768e31a252a84dc04a22a45faa68fe8c92b3ba8d5ff72fdabb42018283a27c2`.
+  Effective target.config SHA-256:
+  `0bd6a87f17dfb1939eceb67bb0d498e38a7ca4d113e92a11a8323f639545758b`.
+- New initramfs SHA-256:
+  `981807a53bf12706f2f09eae47214b12f3691e3c2d3710a744e371c8c960694d`.
+  Its only changed entry is BusyBox's build-time banner and GNU build ID;
+  every other archive entry and functional BusyBox config setting agrees.
+- [Ubuntu regression run 40007150450](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/40007150450)
+  passed **460 host tests and seven existing reader QEMU cases** at source
+  `72fcbab` (the same runtime/test code, before the dependency-mirror fix).
+
+These checks establish offline build consistency, not native hardware operation.
+No headset command or boot test was performed; all 19 hardware statuses and
+physical handoff/recovery gates remain unchanged.
 
 ## Dependency order
 
@@ -226,7 +253,7 @@ reproducible without treating a source hash as hardware evidence:
 | `arch/arm64/boot/dts/oculus/hollywood/hollywood-thermal.dtsi` | `eff23bb007e0434a00a0005c8ea86f56fb74a26b5af75b613c33b5f46facd2de` |
 | `drivers/scsi/ufs/ufshcd.c` | `55b09f1db71790b453de9114e13caa03a6ce6b82fc09f47efdd55042cb89f311` |
 
-## Verification for this increment
+## Retained module-bundle verification
 
 Build/test source revision:
 `b56caa2a7e77969cf43cfa4c452a8380dfb79996`. The evidence below covers offline
@@ -260,7 +287,8 @@ preparation; it establishes no native hardware functionality.
   Every other byte, archive entry and functional BusyBox config setting agrees.
   The compressed initramfs is one byte larger than the retained one.
 
-The hardware drivers, target config, rescue init and boot gates were not changed.
-No headset command, module loading, Linux boot, shutdown/recovery test or
-boot-policy change was performed for this increment. The first-boot gates and
-all physical subsystem acceptance tests above remain open.
+The module-bundle increment did not change hardware drivers, target config,
+rescue init or boot gates. Neither it nor the CPU-default increment performed
+a headset command, module loading, Linux boot, shutdown/recovery test or
+boot-policy change. The first-boot gates and all physical subsystem acceptance
+tests above remain open.
