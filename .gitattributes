@@ -2,3 +2,5 @@
 kernel/patches/quest2-startup/*.patch text eol=lf -whitespace
 patches/monado/quest2/*.patch text eol=lf -whitespace
 tools/tests/fixtures/q2_driver-9c96c192.c text eol=lf
+tools/userspace/* text eol=lf
+tools/ci/quest2_userspace_build.sh text eol=lf

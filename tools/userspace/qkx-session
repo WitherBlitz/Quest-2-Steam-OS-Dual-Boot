@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Development-only, software-rendered Wayland session. Never starts on boot.
+qkx_stop() {
+    local pid=${1:-} i
+    [ -n "$pid" ] || return 0
+    kill -TERM "$pid" 2>/dev/null || true
+    for ((i=0; i<30; i++)); do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 0.05
+    done
+    kill -KILL "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+}
+
+qkx_cleanup() {
+    local status=$?
+    trap - EXIT INT TERM
+    set +e
+    qkx_stop "$qkx_client_pid"
+    qkx_stop "$qkx_server_pid"
+    rm -rf -- "$qkx_runtime"
+    exit "$status"
+}
+
+qkx_main() {
+    set -euo pipefail
+    [ "${1:-}" != -- ] || shift
+    if [ "$#" = 0 ] || [[ ! ${QKX_STARTUP_SECONDS:-10} =~ ^([1-9]|[1-5][0-9]|60)$ ]]; then
+        echo 'usage: qkx-session -- executable [arguments]; startup deadline 1..60 seconds' >&2
+        return 64
+    fi
+    qkx_runtime=$(mktemp -d "${TMPDIR:-/tmp}/qkx-session.XXXXXXXX")
+    qkx_server_pid= qkx_client_pid=
+    trap qkx_cleanup EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    chmod 700 "$qkx_runtime"
+    export XDG_RUNTIME_DIR="$qkx_runtime" WAYLAND_DISPLAY=qkx-wayland
+    export SDL_VIDEODRIVER=wayland SDL_RENDER_DRIVER=software LIBGL_ALWAYS_SOFTWARE=1
+    weston --backend=headless-backend.so --use-pixman --socket="$WAYLAND_DISPLAY" \
+        --idle-time=0 --config=/usr/local/share/qkx/weston.ini > "$qkx_runtime/weston.log" 2>&1 &
+    qkx_server_pid=$!
+    qkx_ready=0
+    qkx_deadline=$((SECONDS + ${QKX_STARTUP_SECONDS:-10}))
+    while ((SECONDS < qkx_deadline)); do
+        if ! kill -0 "$qkx_server_pid" 2>/dev/null; then break; fi
+        if timeout 1 wayland-info > /dev/null 2>&1; then
+            if kill -0 "$qkx_server_pid" 2>/dev/null; then qkx_ready=1; fi
+            break
+        fi
+        sleep 0.05
+    done
+    if [ "$qkx_ready" != 1 ]; then
+        cat "$qkx_runtime/weston.log" >&2
+        echo 'Wayland compositor readiness failed; client was not launched' >&2
+        return 70
+    fi
+    "$@" &
+    qkx_client_pid=$!
+    qkx_status=0
+    wait "$qkx_client_pid" || qkx_status=$?
+    qkx_client_pid=
+    return "$qkx_status"
+}
+
+qkx_main "$@"

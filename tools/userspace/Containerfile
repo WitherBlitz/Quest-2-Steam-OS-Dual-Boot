@@ -1,0 +1,44 @@
+# ARM64 development userspace; no kernel, installer, device access or autostart.
+FROM debian:bookworm-slim@sha256:991827bb788d78bbc130dcb851913beecff43296360f48838aca7cbdfae4375c AS base
+RUN rm /etc/apt/sources.list.d/debian.sources && \
+    printf '%s\n' 'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20261022T000000Z bookworm main' > /etc/apt/sources.list
+
+FROM base AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates git build-essential cmake ninja-build pkg-config python3 python3-jinja2 \
+    libeigen3-dev libvulkan-dev glslang-tools libudev-dev libusb-1.0-0-dev \
+    libhidapi-dev libjpeg-dev libx11-dev libx11-xcb-dev libxrandr-dev libxxf86vm-dev \
+    libxcb-randr0-dev libxcb-keysyms1-dev libxcb-xfixes0-dev libxcb-shm0-dev \
+    libxcb-shape0-dev libxcb-render0-dev libxcb-icccm4-dev libxcb-ewmh-dev \
+    libxcb-xinerama0-dev libxcb-present-dev libxcb-dri3-dev libxkbcommon-dev \
+    libwayland-dev wayland-protocols libdrm-dev libgl-dev libegl-dev libgles-dev \
+    libbsd-dev libzstd-dev libffi-dev zlib1g-dev
+COPY tools/userspace/build-components.sh /build-components.sh
+COPY patches/monado/quest2/0001-controller-clock-and-stick-bounds.patch /controller.patch
+RUN bash /build-components.sh
+
+FROM base AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates bash coreutils python3 binutils passwd \
+    weston wayland-utils chocolate-doom freedoom alsa-utils \
+    mesa-vulkan-drivers libgl1-mesa-dri libegl1 libgl1 libgles2 libvulkan1 \
+    libudev1 libusb-1.0-0 libhidapi-libusb0 libjpeg62-turbo libx11-xcb1 \
+    libxrandr2 libxxf86vm1 libxcb-randr0 libxcb-keysyms1 libxcb-xfixes0 libxcb-shm0 \
+    libxcb-shape0 libxcb-render0 libxcb-icccm4 libxcb-ewmh2 libxcb-xinerama0 \
+    libxcb-present0 libxcb-dri3-0 libxkbcommon0 libwayland-client0 libwayland-server0 \
+    libdrm2 libbsd0 libzstd1 libffi8 && \
+    rm -rf /var/lib/apt/lists/* && useradd --uid 1000 --create-home gamer
+COPY --from=builder /usr/local/ /usr/local/
+COPY --from=builder /evidence/ /evidence/
+COPY tools/userspace/qkx-session tools/userspace/qkx-freedoom /usr/local/bin/
+COPY tools/userspace/smoke.py /usr/local/share/qkx/smoke.py
+RUN chmod 755 /usr/local/bin/qkx-session /usr/local/bin/qkx-freedoom && ldconfig && \
+    dpkg-query -W -f='${binary:Package}\t${Version}\t${Architecture}\t${source:Package}\t${source:Version}\n' > /evidence/packages.tsv && \
+    mkdir -p /usr/local/share/qkx && \
+    printf '%s\n' '[shell]' 'locking=false' '[launcher]' \
+      "icon=$(find /usr/share/icons /usr/share/pixmaps -iname '*doom*.png' | LC_ALL=C sort | head -n1)" \
+      'path=/usr/local/bin/qkx-freedoom' > /usr/local/share/qkx/weston.ini && \
+    tar -C / -czf /evidence/userspace-overlay.tar.gz usr/local
+USER 1000:1000
+ENV HOME=/home/gamer PATH=/usr/local/bin:/usr/bin:/bin:/usr/games
+WORKDIR /home/gamer

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Native ARM64 demonstration; options are forwarded literally.
+set -euo pipefail
+exec chocolate-doom -iwad /usr/share/games/doom/freedoom1.wad \
+    -window -width 640 -height 400 -nograbmouse "$@"

@@ -1,0 +1,9 @@
+# Only the userspace recipe and one reviewed patch enter this build context.
+**
+!tools/
+!tools/userspace/
+!tools/userspace/**
+!patches/
+!patches/monado/
+!patches/monado/quest2/
+!patches/monado/quest2/0001-controller-clock-and-stick-bounds.patch

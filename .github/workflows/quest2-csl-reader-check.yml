@@ -2,11 +2,20 @@ name: Quest 2 sparse reader Linux QEMU check
 
 on:
   workflow_dispatch:
+    inputs:
+      gaming_userspace:
+        description: Also build the isolated ARM64 gaming development userspace
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
+  userspace:
+    if: inputs.gaming_userspace && github.repository == 'WitherBlitz/Quest-2-Steam-OS-Dual-Boot' && github.actor == 'WitherBlitz'
+    uses: ./.github/workflows/quest2-userspace-build.yml
+
   check:
     if: github.repository == 'WitherBlitz/Quest-2-Steam-OS-Dual-Boot' && github.actor == 'WitherBlitz'
     runs-on: ubuntu-22.04
