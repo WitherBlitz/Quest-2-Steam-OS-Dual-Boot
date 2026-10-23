@@ -23,6 +23,8 @@ class CheckedShutdownTests(unittest.TestCase):
             "#include <stdint.h>\n#include <stdbool.h>\ntypedef uint64_t u64;\n")
         (temp / "linux/errno.h").write_text(
             "#include <errno.h>\n"
+            "#ifndef EINVAL\n#define EINVAL 22\n#endif\n"
+            "#ifndef ERANGE\n#define ERANGE 34\n#endif\n"
             "#ifndef EOPNOTSUPP\n#define EOPNOTSUPP 95\n#endif\n"
             "#ifndef EPROTO\n#define EPROTO 71\n#endif\n"
             "#ifndef ETIMEDOUT\n#define ETIMEDOUT 110\n#endif\n"
