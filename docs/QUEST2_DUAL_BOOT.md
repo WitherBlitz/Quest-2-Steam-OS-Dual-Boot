@@ -113,3 +113,23 @@ Run `python3 -B -m unittest tools.tests.test_boot_selection`, then the full host
 suite documented in README. Tests exercise real temporary records and CLI
 processes, plus injected replace/directory-sync failures. Python compilation
 and `git diff --check` supplement behavioral tests; no Python linter is configured.
+
+At source `7da91b0b8e52afd86a43823cf4b2c4c2657fa9ff`:
+
+- Windows: **28 focused tests and all 488 host tests passed**, with no skips;
+  Python compilation and whitespace checks passed.
+- [Ubuntu CI 40041757579](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/40041757579):
+  **488 host tests passed without skips**, plus seven existing sparse-reader
+  QEMU cases using CI-owned memory. These reader cases do not emulate switching.
+- The seven downloaded evidence files were checked against the CI source
+  revision, reader source/binary hashes, license and actual test log. No device
+  files or private host selection records were published.
+- Independent source review found a finalization error: a failed sync after
+  unlock could report failure while leaving a reusable store. Completion and
+  initialization regressions reproduced it before the ordering fix; those
+  cases and an unlock-error case now pass. The documented conservative
+  power-loss fallback is intentional. A targeted workflow review found no issues
+  in reusing the signed Ubuntu HTTPS mirror setup for CI dependencies.
+
+This evidence validates the host reference, not a switching app, real cold boot,
+usable Linux, automatic recovery or a shared-device filesystem protocol.
