@@ -116,6 +116,18 @@ def main():
         proof["status"] = "PASSED"
     except (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError) as exc:
         proof["failure"] = str(exc)
+        if "wayland_trace" in proof:
+            try:
+                diagnostic = subprocess.run(["qkx-session", "--", "gdb", "--batch",
+                    "-ex", "set debuginfod enabled off", "-ex", "run", "-ex", "bt",
+                    "-ex", "info registers x0 x1", "--args", "/usr/games/chocolate-doom",
+                    "-iwad", "/usr/share/games/doom/freedoom1.wad", "-window", "-nosound",
+                    "-nomusic", "-warp", "1", "1", "-nograbmouse"],
+                    env={**os.environ, "SDL_AUDIODRIVER": "dummy"}, capture_output=True,
+                    text=True, timeout=20)
+                proof["game_backtrace"] = diagnostic.stdout + diagnostic.stderr
+            except (OSError, subprocess.SubprocessError) as diagnostic_error:
+                proof["diagnostic_failure"] = str(diagnostic_error)
     print(json.dumps(proof, indent=2))
     return 0 if proof["status"] == "PASSED" else 1
 

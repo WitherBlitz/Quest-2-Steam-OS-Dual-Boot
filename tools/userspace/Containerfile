@@ -21,7 +21,7 @@ RUN bash /build-components.sh
 
 FROM base AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates bash coreutils python3 binutils passwd \
+    ca-certificates bash coreutils python3 binutils passwd gdb \
     weston wayland-utils chocolate-doom freedoom alsa-utils \
     mesa-vulkan-drivers libgl1-mesa-dri libegl1 libgl1 libopengl0 libgles2 libvulkan1 \
     libudev1 libusb-1.0-0 libhidapi-libusb0 libjpeg62-turbo libx11-xcb1 \
