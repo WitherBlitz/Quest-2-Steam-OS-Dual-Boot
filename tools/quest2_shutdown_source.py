@@ -20,6 +20,13 @@ SOURCE_HASHES = {
     "kernel/panic.c": "3cdb3d83d35019a4dacaea9e7fd6c2aaea090275985b02aa711e2a7e4dbf6999",
     "include/soc/qcom/watchdog.h": "aea46457a8309dd6676169ab756d694b26f70c6581612591f65b71484549648b",
     "drivers/power/reset/msm-poweroff.c": "2615b74b10809e8ff9b99f497bf2943efd1e696232a713ce9d1ab0f40d27533d",
+    "drivers/soc/qcom/scm.c": "329771672cfb21c6987ca71b72a58e62659139a921d8fa2e5b91b4bec159eb77",
+    "arch/arm64/kernel/process.c": "b30a4f03562714465855b16805ca81d22b6396cff8cf9cba31847fe710692be2",
+    "fs/pstore/inode.c": "7a2ed966d1ec886b4429f28560e55b8e5814f02e1678217bcd90e1d6a9d43fe3",
+    "fs/pstore/ram.c": "16d9c836b7fc9f5641792bf2a7cde7727c9d3e8391eb72f1676da556da60a7b8",
+    "fs/pstore/platform.c": "37205cee66a842f67efb7c41a1e75612cf845c479043c16827fccedfb61e64f1",
+    "include/linux/kdev_t.h": "88c47d8d1979f2c0e11aca3ad52f07d8da574db821a5a2b17bf64c5495991015",
+    "fs/stat.c": "27f0314ed423802ca775ae4ccbab721a5271efa99cd5f34f875cb7735cc97762",
 }
 WATCHDOG_FUNCTIONS = ("panic_wdog_handler", "wdog_disable", "wdog_disable_get", "wdog_disable_set")
 CAMERA_FUNCTIONS = ("cam_req_mgr_rwsem_write_op", "cam_req_mgr_close")
@@ -84,7 +91,7 @@ def audit_sources(path):
             "source_files": dict(SOURCE_HASHES), "watchdog_fixture_functions": list(WATCHDOG_FUNCTIONS),
             "camera_fixture_functions": list(CAMERA_FUNCTIONS), "dsp_fixture_functions": ["subsystem_put"],
             "source_verified": True, "stock_binary_equivalence_verified": False,
-            "scope": "Pinned public source and exact watchdog/camera/DSP function fixtures only",
+            "scope": "Pinned public shutdown/SCM/reset/pstore sources and exact watchdog/camera/DSP function fixtures only",
             "hardware_shutdown_validated": False, "recovery_validated": False,
             "handoff_ready": False, "status": "HANDOFF_BLOCKED"}
 

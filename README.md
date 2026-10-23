@@ -27,6 +27,11 @@ native owner coordinator and bounded read-only USB/UFS/AOP completion primitives
 Host fixtures exercise ordering, errors and rollback. Stock hardware backends
 remain unbound; these checks do not establish physical shutdown or recovery.
 
+The [watchdog and recovery work](docs/QUEST2_WATCHDOG_RECOVERY.md) adds pinned
+reset/pstore source verification and bounded collection of existing retained
+logs. Reset completion, log survival and automatic Horizon fallback still need
+physical validation.
+
 The [camera/DSP ownership audit](docs/QUEST2_OWNER_AUDIT.md) adds a passive
 process/device collector and a proposed checked stop/drain sequence. FD holders
 do not establish session ownership, and several stock stop paths discard errors.

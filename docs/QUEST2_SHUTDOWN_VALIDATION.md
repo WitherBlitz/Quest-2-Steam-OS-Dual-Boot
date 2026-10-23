@@ -12,7 +12,7 @@ The audit uses kernel commit `6bde5fc06b252c97761bc0963dd13c1abcf377ab`.
 It checks the exact 204,122,036-byte `kernel-source.tar.gz` from the
 [verified startup build](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39714699023),
 SHA-256 `12b987d5672ffc09fe6d3ff7d7d926074305484fc896141824b5ece15d620bca`.
-Nine complete source-file hashes and seven exact copied functions are checked;
+The current verifier checks 16 complete source-file hashes and seven exact copied functions;
 no archive files are extracted. A different archive is refused, including a
 differently packed archive of the same revision. This is public-source evidence,
 not proof that the proprietary installed binary implements every branch identically.
@@ -39,6 +39,10 @@ is not a claim that a nonzero payload is an error or that another SCM signature
 is valid. The loader's legacy signature-probing mode remains blocked on Hollywood.
 
 ## Passive headset result
+
+The later [watchdog and recovery work](QUEST2_WATCHDOG_RECOVERY.md) adds SCM,
+ARM64 restart and pstore source pins. It preserves the distinction between a
+reset request, readable retained logs and demonstrated Horizon recovery.
 
 The exact firmware/root identity matched before subsystem reads and again at
 completion. All 14 private text artifacts passed their length/hash checks and
