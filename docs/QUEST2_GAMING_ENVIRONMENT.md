@@ -29,8 +29,8 @@ The runtime build includes machachu56's Quest 2 Monado overlay and both upstream
 Monado registration/presentation patches. It applies this repository's
 [controller patch](../patches/monado/quest2/0001-controller-clock-and-stick-bounds.patch)
 before compiling the complete service and OpenXR runtime. Driver selection,
-the actual Quest controller object and installed ELF/dependency closure are
-checked. Systemd activation, active-runtime registration, OpenVR and the SteamVR
+the actual Quest controller object and key installed service/runtime ELF files
+and their dependencies are checked. Systemd activation, active-runtime registration, OpenVR and the SteamVR
 plugin are disabled. The service is **not started** and no HMD is emulated.
 Compilation does not cure the tracking/optics/safety defects in the VR matrix.
 
@@ -98,10 +98,12 @@ The initial build and software checks are pending until their run is recorded.
 ## Build and evidence
 
 The owner-only manual [userspace workflow](../.github/workflows/quest2-userspace-build.yml)
-builds the ARM64 image with official Ubuntu QEMU/binfmt packages. It can also be
+builds the image on a native `ubuntu-24.04-arm` runner with an explicit host
+architecture check. It can also be
 called through the existing sparse-reader workflow using `gaming_userspace=true`;
 the default remains false. The matching source commit must be selected.
-On an existing Linux Docker host with ARM64 binfmt enabled:
+On a Linux Docker host with native ARM64 support (or registered ARM64 emulation)
+and the x86-64 cross compiler:
 
 ```sh
 bash tools/ci/quest2_userspace_build.sh

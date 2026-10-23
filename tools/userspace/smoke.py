@@ -38,7 +38,7 @@ def elf(path):
 
 
 def main():
-    proof = {"status": "FAILED", "scope": "ARM64 QEMU on CI host kernel; no Quest hardware or VR session",
+    proof = {"status": "FAILED", "scope": "ARM64 Linux container on CI host kernel; no Quest hardware or VR session",
              "host_kernel": os.uname().release}
     try:
         if os.getuid() == 0:
