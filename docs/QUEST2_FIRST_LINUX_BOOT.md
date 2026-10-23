@@ -15,8 +15,8 @@ Horizon `52242990024200150`, kernel
   success and failure. This uses the same inode protocol as the pinned
   `kernel_read_file()`; it does not claim protection against another kernel or
   firmware agent changing memory. Completed staging uses separately owned pages.
-- RAM-walker errors survive cleanup. Missing System RAM coverage still returns
-  `-ERANGE`. Destination ownership remains held until abort/unload or handoff;
+- Staging-initialization RAM-walker errors survive cleanup. Missing System RAM
+  coverage still returns `-ERANGE`. Destination ownership remains held until abort/unload or handoff;
   staging/rehearsal modes do not gain permission to overwrite a fixed window.
 - CPU tests preserve the first down/freeze/probe/up error while attempting all
   required restoration and the original affinity. A later online-mask mismatch
@@ -49,9 +49,16 @@ Horizon `52242990024200150`, kernel
 Regression tests first reproduced missing file exclusion, overwritten original
 errors, suppressed pending wakes, missing DAIF protection, an external copied-probe
 literal and five reserve-map overlap shapes. The corrected full host suite passes
-408 tests on Windows with Clang. Tests extract actual production C functions;
+411 tests on Windows with Clang. Tests extract actual production C functions;
 the assembly tests assemble/disassemble the production body and inspect ELF
 symbols, copy ranges, literal/branch targets, barriers and entry registers.
+
+The writer fixture models the pinned inode-access protocol and tries byte writes
+and truncation at size reads, before/after header reads and during staging. It
+checks `-ETXTBSY`, unchanged bytes/sizes and balanced release on both success and
+stage failure; writes become possible after cleanup. A temporary pre-exclusion
+negative control admits mutation and fails the regression. These are deterministic
+interleavings against host doubles, not live-filesystem concurrency tests.
 
 The small assembly fixture substitutes pinned linkage/cache macros and the
 disabled erratum workaround. It does not execute privileged instructions, model
@@ -59,6 +66,14 @@ enabled errata variants, validate MMU-off behavior or demonstrate hardware
 shutdown. A matching-header native build and Ubuntu regression run must also be
 verified. Native CI now archives the transition compile command and object
 disassembly alongside its existing ABI/provenance evidence.
+
+The retained `startup-usb-child` Image, initramfs and config from run
+`39909419709` were checked again with the corrected tool against the existing
+private capture. Preparation produced no structural/profile findings. All four
+prepared payload-file lengths/hashes and target provenance passed; the captured
+bootloader reserve map was preserved exactly. These inputs are stale offline
+observations, unclaimed and private. `handoff_ready`, `auto_boot_allowed` and
+`device_access` remain false; this does not refresh device state or execute PID 1.
 
 ```sh
 HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'

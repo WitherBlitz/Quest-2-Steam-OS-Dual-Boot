@@ -44,7 +44,30 @@ class PayloadLayoutTests(unittest.TestCase):
         cls.init_binary = Path(cls.temp.name) / ("init.exe" if os.name == "nt" else "init")
         result = subprocess.run([compiler, *(["-fuse-ld=lld"] if os.name == "nt" else []),
                                  "-std=gnu11", "-Werror", "-DQKX_ENABLE_EXPERIMENTAL_JUMP",
+                                 "-DQKX_TEST_WRITE_RACES",
                                  str(source), "-o", str(cls.init_binary)], capture_output=True, text=True)
+        if result.returncode:
+            raise RuntimeError(result.stdout + result.stderr)
+        # Compile a temporary pre-exclusion negative control. Its matching old
+        # cleanup must also omit allow_write_access: no exclusion was acquired.
+        # Repository production files are never changed by this regression.
+        original_open = function(loader, "qkx_open")
+        old_open = original_open.replace("ret = deny_write_access(f);", "ret = 0;")
+        if old_open == original_open:
+            raise RuntimeError("write-exclusion negative control needs review")
+        original_init = function(loader, "qkx_init")
+        old_init = original_init
+        for name in ("kf", "rf", "df"):
+            release = f"\t\tallow_write_access({name});\n"
+            if release not in old_init:
+                raise RuntimeError("write-exclusion negative-control cleanup needs review")
+            old_init = old_init.replace(release, "")
+        source.write_text(code.replace(original_open, old_open).replace(original_init, old_init))
+        cls.no_exclusion_binary = Path(cls.temp.name) / ("no-exclusion.exe" if os.name == "nt" else "no-exclusion")
+        result = subprocess.run([compiler, *(["-fuse-ld=lld"] if os.name == "nt" else []),
+                                 "-std=gnu11", "-Werror", "-DQKX_ENABLE_EXPERIMENTAL_JUMP",
+                                 "-DQKX_TEST_WRITE_RACES", str(source), "-o", str(cls.no_exclusion_binary)],
+                                capture_output=True, text=True, timeout=30)
         if result.returncode:
             raise RuntimeError(result.stdout + result.stderr)
 
@@ -101,6 +124,18 @@ class PayloadLayoutTests(unittest.TestCase):
 
     def test_all_payload_files_exclude_writers_through_staging(self):
         self.case("init_locked_staging")
+
+    def test_competing_byte_writes_and_truncates_are_refused_until_cleanup(self):
+        self.case("init_write_races")
+
+    def test_failed_staging_releases_all_competing_writer_exclusions(self):
+        self.case("init_write_races_cleanup")
+
+    def test_pre_exclusion_baseline_admits_a_competing_mutation(self):
+        result = subprocess.run([str(self.no_exclusion_binary), "init_write_races"],
+                                capture_output=True, text=True, timeout=5)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("competing writer admitted", result.stderr)
 
     def test_existing_writer_refuses_before_header_or_staging(self):
         self.case("init_writer")

@@ -53,7 +53,23 @@ struct file {const u8 *data; u64 size; unsigned int i_mode; int write_count;};
 static int read_fail, add_fail, reads, copies;
 static u64 destinations[16];
 static u8 staged[16][4096];
-static int qkx_read(struct file *f,void *b,size_t n,loff_t *p) {reads++;if(read_fail)return -EIO;memcpy(b,f->data+*p,n);*p+=n;return 0;}
+#ifdef QKX_TEST_WRITE_RACES
+static void qkx_test_read_race(struct file *f, bool after);
+#endif
+static int qkx_read(struct file *f,void *b,size_t n,loff_t *p)
+{
+    reads++;
+#ifdef QKX_TEST_WRITE_RACES
+    qkx_test_read_race(f, false);
+#endif
+    if(read_fail)return -EIO;
+    memcpy(b,f->data+*p,n);
+#ifdef QKX_TEST_WRITE_RACES
+    qkx_test_read_race(f, true);
+#endif
+    *p+=n;
+    return 0;
+}
 static int qkx_add(void *p,u64 d) {if(add_fail)return -ENOMEM;destinations[copies]=d;memcpy(staged[copies++],p,4096);return 0;}
 static u32 crc32_le(u32 c,const void *p,size_t n) {return c;}
 /* PRODUCTION */
