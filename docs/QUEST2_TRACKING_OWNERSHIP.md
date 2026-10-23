@@ -188,3 +188,57 @@ rehashed after collection. The public change is documentation only; all **246
 existing host regression tests passed** using the configured host compiler.
 Those tests do not establish hardware shutdown. Raw captures, process/device
 identifiers, live pointers and proprietary binaries remain outside the repo.
+
+## Matched userspace ownership decoders
+
+`tools/quest2_csl_ownership.py` now decodes the matched camera library's inline
+session, acquisition, sparse link and physical-device tables through a supplied
+read callback. It checks full session/acquisition handles, slot identities,
+creating process/thread fields, link membership and referenced physical FDs.
+It does not attach to a process, open a device or perform a release. The caller
+must verify the library hash, process identity, mappings, budgets, paired
+stability and descriptor metadata. Eleven focused tests cover valid sparse
+attribution and refusal paths. Independent review checked the shipped ABI and
+zeroed initialization/release records against the decoder.
+
+One private page-based observation subsequently refused at its fixed 1 MiB
+allowance before a complete pair. All issued memory commands returned before
+that host-side refusal. It produced no complete ownership result and was not
+retried or given a larger allowance. Post-refusal identity, boot, CPU, module
+names and taint checks agreed with the earlier CSL artifact capture; no new
+subjective Home/tracking test is claimed. A more efficient scalar transport is
+being developed offline, with the same aggregate byte limit.
+
+`tools/native/quest2_csl_read.c` implements that transport as a small standalone
+ARM64 executable. It validates the complete binary request plan and trailing
+EOF before opening `/proc/PID/mem` read-only. Each field is at most 512 bytes,
+all addresses must lie within the matched inline CSL object, and one plan is
+limited to 16,384 fields and 1 MiB. The host must separately enforce the shared
+allowance across views, verify mappings and hash the deployed executable.
+There is no target pointer traversal, device ioctl or write to the observed
+process. Fifteen host tests execute the production C parser and syscall paths
+with injected syscall doubles. A static ARM64 cross-build and ELF inspection
+passed; these results alone do not establish Android execution.
+
+The manual owner-only `Quest 2 sparse reader Linux QEMU check` workflow builds
+and runs the executable against its own CI process's known memory. It also
+checks that malformed plans exit before opening process memory. Raw emulator
+traces stay in memory; published evidence contains only reduced counts and
+statuses. Its execution result is recorded separately from the host model
+tests. A binary-safe duplex ADB transport with shell-v2 EOF support is required
+for a later headset collector; `exec-out` cannot deliver the input plan.
+
+`tools/quest2_fastrpc_ownership.py` separately decodes the matched FastRPC
+library's 16 domain lists and legacy remote-handle list. It preserves raw
+tagged handles, normalizes addresses only for reads/structural checks, and
+rejects busy domains, malformed lists, repeated/overlapping nodes and an
+exhausted aggregate node cap. Thirteen focused tests and independent review
+passed. The separate local `mod_table_open` lists, registered buffers and other
+FastRPC resources are outside this remote-handle inventory. No live FastRPC
+memory observation has been performed for this decoder.
+
+Both modules are offline interpretation tools. A matched userspace table is
+still not an atomic kernel session inventory. Empty tables, negative FDs and
+stream flags do not prove successful release or DMA quiescence. The optional
+delegate's lifetime and a checked producer-stop/drain/release protocol remain
+unproven. All hardware and handoff gates stay closed.

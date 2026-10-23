@@ -1,0 +1,40 @@
+name: Quest 2 sparse reader Linux QEMU check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: github.repository == 'WitherBlitz/Quest-2-Steam-OS-Dual-Boot' && github.actor == 'WitherBlitz'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+      - name: Install official Ubuntu compiler and QEMU packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clang lld qemu-user
+      - name: Build and execute the static reader against CI-owned memory
+        run: python3 -B tools/ci/quest2_csl_read_linux.py
+      - name: Upload allowlisted Linux QEMU evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: quest2-csl-reader-linux-qemu-${{ github.run_id }}
+          path: |
+            reader-ci-artifacts/quest2_csl_read
+            reader-ci-artifacts/quest2_csl_read.c
+            reader-ci-artifacts/LICENSE
+            reader-ci-artifacts/proof.json
+            reader-ci-artifacts/build.log
+            reader-ci-artifacts/execution.log
+          if-no-files-found: warn
+          retention-days: 7

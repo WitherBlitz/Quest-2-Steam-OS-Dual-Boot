@@ -1,8 +1,9 @@
 # Quest 2 startup patch review
 
-This phase ports one interrupt-initialization change. It does not establish a
-working kexec target or enable a physical handoff. The loader's Hollywood
-hardware gate is unchanged.
+The original phase ports one interrupt-initialization change. A later native
+USB rescue profile adds controller-child selection and diagnostic userspace.
+Neither establishes a working kexec target or enables a physical handoff. The
+loader's Hollywood hardware gate is unchanged.
 
 The source basis is kernel
 `6bde5fc06b252c97761bc0963dd13c1abcf377ab` and the Quest 2 patch series in
@@ -134,5 +135,19 @@ The workflow also runs the shell fixtures using the freshly built ARM64
 BusyBox under QEMU user mode and checks the required applets and kernel
 configuration. These checks do not execute the complete PID 1 lifecycle or
 prove Windows enumeration, DMA shutdown, CPU/MMU entry, physical boot or
-recovery. The Hollywood handoff gate remains closed. Native CI build evidence
-for this profile will be recorded after its run is verified.
+recovery. The Hollywood handoff gate remains closed.
+
+[Actions run 39909419709](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/39909419709)
+passed from `ca727d00ae26594dea42348f4e5124858271342f`. Its Linux run passed all
+256 host tests and all eight native-init fixture tests using the freshly built
+ARM64 BusyBox under QEMU user mode. Local verification checked the 14-file
+allowlist, all 13 inner checksums, source/config/compiler pins, init-source
+hash, embedded release and required kernel configuration. Reapplying both
+archived patches independently reproduced all three recorded source hashes.
+
+The Image is 30,437,392 bytes, with a 32,256,000-byte Image memory requirement;
+the initramfs is 1,179,380 bytes. Their SHA-256 values are respectively
+`aab38a50c15174d662434a7096326ec2bc584115469eda34d9129bddbc779ead`
+and `e407db8403836a0d4224f89570bc2caf8f4594b4941ea15332c4ef1b694dfe52`.
+These target artifacts were not deployed or executed on the headset. Prepared
+DTBs and hardware handoff/recovery validation remain separate prerequisites.
