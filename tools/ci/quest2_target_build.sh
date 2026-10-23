@@ -61,8 +61,12 @@ if [ "$profile" = startup-usb-child ]; then targets+=(modules); fi
 make -C "$kernel" O="$out" -j4 "${flags[@]}" "${targets[@]}" 2>&1 | tee "$artifacts/target-build.log"
 test "$(cat "$out/include/config/kernel.release")" = "4.19.325-cip128-st12$localversion"
 if [ "$profile" = startup-usb-child ]; then
+  stat -c 'Unstripped WLAN module: %s bytes' "$out/drivers/staging/qcacld-3.0/wlan.ko" | tee -a "$artifacts/target-build.log"
   make -C "$kernel" O="$out" "${flags[@]}" INSTALL_MOD_PATH="$work/modules" \
+    INSTALL_MOD_STRIP=1 "STRIP=$compiler/bin/llvm-strip" \
     "DEPMOD=$(command -v depmod)" modules_install 2>&1 | tee -a "$artifacts/target-build.log"
+  stat -c 'Installed WLAN module after debug stripping: %s bytes' \
+    "$work/modules/lib/modules/4.19.325-cip128-st12$localversion/kernel/drivers/staging/qcacld-3.0/wlan.ko" | tee -a "$artifacts/target-build.log"
   python3 -B tools/ci/quest2_target_modules.py --kernel-out "$out" --staging "$work/modules" \
     --archive "$artifacts/target-modules.tar.gz" --output "$artifacts/target-modules.json"
   cp "$out/Module.symvers" "$artifacts/target.Module.symvers"
@@ -121,6 +125,7 @@ if rescue:
     modules = json.loads((artifacts/'target-modules.json').read_text())
     assert modules['status'] == 'OFFLINE_MODULES_VERIFIED_HANDOFF_BLOCKED'
     assert modules['module_count'] >= 14
+    assert modules['debug_sections_absent'] is True
     assert all(modules[key] is False for key in ('hardware_validated','handoff_ready',
                'deployment_performed','autoload_performed','device_access'))
     for output, source in (('Image','arch/arm64/boot/Image'),('target.config','.config'),
@@ -144,6 +149,8 @@ data = {
  'init_source': {'path': str(init_source), 'sha256': sha(init_source)},
  'native_usb_rescue': rescue,
  'target_modules_bundled': rescue, 'target_modules_loaded': False,
+ 'module_install_strip_debug': rescue,
+ 'llvm_strip_sha256': sha(compiler/'bin/llvm-strip') if rescue else None,
  'source_archive_scope': 'Unmodified kernel base plus pinned patches and recipes in port-source.tar.gz',
  'scope': ('Native USB rescue ' if rescue else 'Noninteractive ')+target_profile['target_profile']+' development build. Hardware handoff and physical boot unvalidated.'}
 (artifacts/'target-build-provenance.json').write_text(json.dumps(data,indent=2)+'\n')

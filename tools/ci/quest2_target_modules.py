@@ -13,7 +13,7 @@ import tarfile
 
 if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from ci.quest2_audit import inspect_module
+from ci.quest2_audit import cstring, inspect_module
 
 RELEASE = "4.19.325-cip128-st12-qkx-q2-usb"
 VERMAGIC = RELEASE + " SMP preempt mod_unload modversions aarch64"
@@ -54,6 +54,18 @@ def canonical(name):
     return path
 
 
+def debug_sections(data):
+    # Called only after inspect_module has checked the ELF section bounds.
+    table = struct.unpack_from("<Q", data, 40)[0]
+    stride, count, names_index = struct.unpack_from("<HHH", data, 58)
+    sections = [struct.unpack_from("<IIQQQQIIQQ", data, table + i * stride) for i in range(count)]
+    names = sections[names_index]
+    strings = data[names[4]:names[4] + names[5]]
+    return [cstring(strings, section[0]) for section in sections
+            if cstring(strings, section[0]).startswith((".debug", ".zdebug", ".gnu_debug",
+                ".rel.debug", ".rela.debug", ".rel.zdebug", ".rela.zdebug"))]
+
+
 def read_regular(root, relative, limit=MAX_FILE):
     path = root
     for part in canonical(relative).parts:
@@ -62,8 +74,10 @@ def read_regular(root, relative, limit=MAX_FILE):
             raise ValueError("symlink in module input: " + relative)
     try:
         info = path.stat()
-        if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
-            raise ValueError("nonregular or oversized module input: " + relative)
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError("nonregular module input: " + relative)
+        if info.st_size > limit:
+            raise ValueError(f"oversized module input: {relative} ({info.st_size} > {limit} bytes)")
         data = path.read_bytes()
     except OSError as exc:
         raise ValueError("unreadable module input: " + relative) from exc
@@ -178,6 +192,8 @@ def bundle(kernel_out, staging):
         try:
             # The custom kernel uses its own generated CRCs, not stock ABI.
             abi = inspect_module(files[name], generated, generated, expected_vermagic=VERMAGIC)
+            if debug_sections(files[name]):
+                raise ValueError("target module still contains debug sections: " + name)
         except (IndexError, struct.error, UnicodeError) as exc:
             raise ValueError("malformed target module ELF: " + name) from exc
         for symbol in abi["undefined_symbols"]:
@@ -205,6 +221,7 @@ def bundle(kernel_out, staging):
               "inputs": {name: digest(data) for name, data in inputs.items()},
               "files": {base + "/" + name: digest(data) for name, data in sorted(files.items())},
               "archive_bytes": len(packed), "archive_sha256": hashlib.sha256(packed).hexdigest(),
+              "debug_sections_absent": True,
               "hardware_validated": False, "handoff_ready": False,
               "deployment_performed": False, "autoload_performed": False, "device_access": False,
               "scope": "Static target ELF/vermagic/generated-CRC and dependency checks only; source binding requires build provenance"}

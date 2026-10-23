@@ -69,6 +69,12 @@ firmware, Mesa, gamescope, Monado, camera script or persistent rootfs.
 
 ## Module preparation boundary
 
+The existing private prepared DTB was also checked offline: its Syncboss nsync
+consumer is disabled and its timesync consumer is enabled, while the retained
+target config selects nsync and omits timesync. This corroborates the source
+finding against that stale capture; it does not establish current MCU firmware
+compatibility. No timing driver was enabled or substituted by this increment.
+
 The Image-only build omits selected `=m` drivers, including WLAN, the separate
 powerstate manager, USB audio/network/serial accessories, and the 12 effective
 Kona audio module targets forced by the techpack build. Inspecting target.config

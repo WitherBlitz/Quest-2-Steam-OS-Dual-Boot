@@ -20,9 +20,11 @@ CRC = {"api": 0x11223344, "module_layout": 0x74B4EBEB}
 KRET = {"register_kretprobe": 0x861FCDB7, "unregister_kretprobe": 0x4093E955}
 
 
-def elf_fixture(*, machine=183, vermagic=VM, symbol="api", api_crc=0x11223344, diagnostic=False):
+def elf_fixture(*, machine=183, vermagic=VM, symbol="api", api_crc=0x11223344, diagnostic=False, debug=False):
     # Hand-built ELF64 LE relocatable with one real undefined global symbol.
     names = b"\0.shstrtab\0.strtab\0.symtab\0.modinfo\0__versions\0"
+    if debug:
+        names += b".debug_info\0"
     strings = b"\0" + symbol.encode() + b"\0"
     symbols = bytes(24) + struct.pack("<IBBHQQ", 1, 0x10, 0, 0, 0, 0)
     versions = b"".join(struct.pack("<Q56s", value, name.encode()) for name, value in
@@ -32,6 +34,8 @@ def elf_fixture(*, machine=183, vermagic=VM, symbol="api", api_crc=0x11223344, d
                 (".modinfo", 1, b"vermagic=" + vermagic.encode() + b"\0" +
                  (b"parmtype=ram_diagnose:bool\0" if diagnostic else b""), 0, 0),
                 ("__versions", 1, versions, 0, 0)]
+    if debug:
+        sections.append((".debug_info", 1, b"debug fixture", 0, 0))
     data = bytearray(64)
     headers = []
     for name, kind, content, link, entsize in sections:

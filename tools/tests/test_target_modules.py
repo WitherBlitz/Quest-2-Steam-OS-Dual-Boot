@@ -103,6 +103,7 @@ class TargetModulesTests(unittest.TestCase):
     def test_valid_bundle_is_deterministic_and_binds_all_inputs(self):
         archive, report = self.bundle()
         self.assertEqual(report["status"], "OFFLINE_MODULES_VERIFIED_HANDOFF_BLOCKED")
+        self.assertIs(report["debug_sections_absent"], True)
         self.assertEqual(report["module_count"], 14)
         self.assertEqual(report["archive_bytes"], len(archive))
         self.assertEqual(report["archive_sha256"], hashlib.sha256(archive).hexdigest())
@@ -183,6 +184,16 @@ class TargetModulesTests(unittest.TestCase):
     def test_module_symvers_is_the_actual_generated_crc_authority(self):
         self.write_input("Module.symvers", "0x11223345\tapi\tvmlinux\tEXPORT_SYMBOL\n"
                          "0x74b4ebeb\tmodule_layout\tvmlinux\tEXPORT_SYMBOL\n")
+        with self.assertRaises(ValueError):
+            self.bundle()
+
+    def test_debug_bearing_module_is_rejected_without_relaxing_abi_checks(self):
+        blob = fixtures.elf_fixture(vermagic=VERMAGIC, debug=True)
+        abi = fixtures.audit.inspect_module(blob, fixtures.CRC, fixtures.CRC,
+                                            expected_vermagic=VERMAGIC)
+        self.assertEqual(abi["undefined_symbols"], ["api"])
+        self.assertEqual(abi["vermagic"], VERMAGIC)
+        self.write_stage(REQUIRED[0], blob)
         with self.assertRaises(ValueError):
             self.bundle()
 
