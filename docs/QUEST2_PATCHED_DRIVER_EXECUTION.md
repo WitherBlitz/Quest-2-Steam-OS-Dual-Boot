@@ -19,11 +19,14 @@ locked vbmeta and completed Android startup. A single bounded capture found:
 | --- | ---: | --- |
 | ABL | 274,432 | `75dc2174995fd39588bcbbd8b3455afc7bad4999a8914e0c40b9cc1509bcef5c` |
 | TZ | 3,207,168 | `9384241f1169e4953992fc06723507e8ac217006a5dfb92e47826068500dc8d3` |
+| XBL | 3,637,248 | `55e0047dd8014e2be6b6f686df7b4de95cdf9a76ddf2948d9cc1f781cbdd0819` |
+| XBL config | 94,208 | `7e65af2ea5a3c3621b73fd1ea67caa848fecd7682ebc6582a6a7f8ef46265341` |
+| devcfg | 61,440 | `9f1b2f2c5b6545f2e30d177aa2d0a92ca7976e64b576abb78fe0dcd64c124126` |
 
-Both match the exact OTA images inspected offline. Resolved block-device
+All five match the exact OTA images inspected offline. Resolved block-device
 metadata was stable around each read. Boot ID, online CPUs, module names and
-taint agreed before and after collection. No partition was written, module
-loaded, secure call issued or reboot requested.
+taint agreed before and after collection. This capture did not write a partition,
+load a module, issue a secure call or request a reboot.
 The metadata samples bracket separate reads; they do not attest continuous
 symlink identity between those observations.
 
@@ -31,7 +34,7 @@ This identifies the bytes at the observed active-slot partition prefixes. It
 does not measure the secure image currently executing, compare entire padded
 partitions, inspect fuse/rollback floors or prove boot-ROM acceptance.
 
-The [collector](../tools/quest2_boot_chain_probe.py) accepts only fixed ABL/TZ
+The [collector](../tools/quest2_boot_chain_probe.py) accepts only these five fixed
 reads for this firmware. It checks exact model/build/kernel, root, slot and boot
 state first; rejects resident project modules; bounds commands and total host
 time; verifies explicit remote status, exact lengths and pinned hashes; and
@@ -129,7 +132,7 @@ claim about every earlier boot-stage authentication interface.
 Rollback ID `0x0200020f` has a real descriptor for handler `0x1c0540c8`, parameter
 ID 1 and flags 1. Registration alone did not justify a device query. The subsequent
 fixed-contract investigation is described below; earlier-stage signing and boot
-acceptance remain separate questions. No experimental secure query has been performed.
+acceptance remain separate questions. The fixed query and runtime result are described below.
 
 The current running kernel configuration was separately read with matching
 identity and boot observations. Function tracing is disabled and dynamic
@@ -186,10 +189,22 @@ matching headset. The kernel accepted its complete import set; the expected
 `dry_run=1 scm_calls=0` marker appeared, with no query marker. Boot ID, online
 CPUs, module list and taint (`5124`) matched afterward. Its temporary file was
 removed. This runs module initialization and changes transient module state.
-User confirmation of Home/tracking after this test is pending. No counter query
-has been issued; this loader check does not validate queries or patched drivers.
+The user subsequently confirmed normal Home, head tracking and both controllers.
 
-Even a successful query would describe configured fuse counts, not authenticate
+On the next boot, a fresh default load/unload passed again. The host harness
+initially stopped before the query because taint changed from `1028` to `5124`.
+The only added bit was `TAINT_OOT_MODULE` (12); the exact kernel source and new
+module log identified the expected first external-module load in that boot.
+Boot, CPUs and module list matched. The failed host-check receipt was retained;
+execution resumed only from the verified unloaded, no-query checkpoint.
+
+One explicit fixed query then completed with transport status zero and configured
+counts **XBL 0, TZ 0, ABL 0**. The three fixed requests passed all response bounds
+and XBL/ABL alias checks. No secure request was repeated. Normal unload and exact
+temporary-file removal completed; boot, CPUs, module list and taint `5124` matched
+around the query. Post-query human Home/tracking confirmation is pending.
+
+The successful query describes configured fuse counts; it does not authenticate
 an older image, establish every earlier boot-stage minimum or prove recovery.
 Zero counts would not authorize downgrade/unlock/flash. The persistent objective
 remains safe execution of the actual patched drivers on the headset.
@@ -226,8 +241,8 @@ still need their own evidence. No older firmware was installed or executed.
 
 ## Verification
 
-`python -B -m unittest discover -s tools/tests -p 'test_*.py'` passed **656 tests,
-no skips**, including 12 collector, nine fixed-query module and eight separate
+`python -B -m unittest discover -s tools/tests -p 'test_*.py'` passed **657 tests,
+no skips**, including 13 collector, nine fixed-query module and eight separate
 ELF-audit tests. The collector tests include real shell byte-count/status framing,
 binary data containing a status-like marker, regular-file refusal, truncated
 reads, failed/missing status, hash mismatches, changed metadata/identity/health,
@@ -242,15 +257,16 @@ The collector increment's independent review found no actionable issues and
 reran 45 affected collector/preflight/shutdown tests successfully. That review
 does not cover the subsequent query-module addition.
 
-The single on-headset capture above completed with matching prefixes and stable
+The five-prefix on-headset capture above completed with matching prefixes and stable
 observations. Host-only inspection independently verified OTA manifest/operation/
 partition hashes, 101 exact instruction anchors and six pointer/table assertions.
 The fixed-query contract additionally passed 77 instruction assertions, all 22
 property records, referenced partition hashes and exact kernel-source hashes.
 Python/YAML/Bash syntax, documentation links and Git whitespace checks passed.
-The earlier native custody result remains pinned to that implementation; a new
-native query-module build and independent review are pending. No firmware
-instructions were executed for the offline audit.
+The earlier native custody result remains pinned to that implementation. The
+query-module native build and independent review described above completed;
+the later collector changes do not alter its native module or CI inputs. No
+firmware instructions were executed for the offline audit.
 
 The new query-module host tests cover its actual production functions using
 controlled public-API backends: default zero calls, fixed/zeroed requests,

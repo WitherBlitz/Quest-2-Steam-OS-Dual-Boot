@@ -30,7 +30,8 @@ class BootChainProbeTests(unittest.TestCase):
 
     def fixture(self, module, *, identity_change=None, late_identity_change=None,
                 health_change=None, initial_health=None, fault=None):
-        payloads = {"abl": b"A"*4096, "tz": b"T"*8192}
+        payloads = {"abl": b"A"*4096, "tz": b"T"*8192, "xbl": b"X"*8192,
+                    "xbl_config": b"C"*4096, "devcfg": b"D"*4096}
         module.IMAGES = {name: (len(data), hashlib.sha256(data).hexdigest())
                          for name, data in payloads.items()}
         identity_commands = {tuple(v): k for k, v in preflight.PROBES.items()}
@@ -99,6 +100,9 @@ class BootChainProbeTests(unittest.TestCase):
         self.assertEqual(module.IMAGES, {
             "abl": (274432, "75dc2174995fd39588bcbbd8b3455afc7bad4999a8914e0c40b9cc1509bcef5c"),
             "tz": (3207168, "9384241f1169e4953992fc06723507e8ac217006a5dfb92e47826068500dc8d3"),
+            "xbl": (3637248, "55e0047dd8014e2be6b6f686df7b4de95cdf9a76ddf2948d9cc1f781cbdd0819"),
+            "xbl_config": (94208, "7e65af2ea5a3c3621b73fd1ea67caa848fecd7682ebc6582a6a7f8ef46265341"),
+            "devcfg": (61440, "9f1b2f2c5b6545f2e30d177aa2d0a92ca7976e64b576abb78fe0dcd64c124126"),
         })
 
     def test_complete_matches_never_authorize_execution(self):
@@ -119,8 +123,8 @@ class BootChainProbeTests(unittest.TestCase):
             for name, data in payloads.items():
                 self.assertEqual((out/(name+".img")).read_bytes(), data)
                 self.assertTrue(report["images"][name]["matches_pinned_ota_prefix"])
-            self.assertEqual(calls.count("image:abl"), 1)
-            self.assertEqual(calls.count("image:tz"), 1)
+            for name in payloads:
+                self.assertEqual(calls.count("image:"+name), 1)
             self.assertEqual(calls[-1], "boot")
 
     def test_identity_admission_precedes_partition_reads(self):
@@ -161,6 +165,39 @@ class BootChainProbeTests(unittest.TestCase):
                 with self.assertRaises(preflight.CaptureError):
                     module.collect("adb-test", "USB-TEST", out, runner=runner)
                 self.assertFalse((out/"capture.json").exists())
+
+    def test_added_prefixes_reject_targeted_corruption_before_later_reads(self):
+        for name in ("xbl", "xbl_config", "devcfg"):
+            for fault in ("hash", "short", "metadata"):
+                with self.subTest(name=name, fault=fault), tempfile.TemporaryDirectory() as temp:
+                    module = self.module()
+                    base_runner, calls, payloads = self.fixture(module)
+                    image_command = module.remote_command("image", name, "_a")
+                    metadata_command = module.remote_command("metadata", name, "_a")
+
+                    def runner(command, **kwargs):
+                        result = base_runner(command, **kwargs)
+                        if command[-1] == image_command and fault in ("hash", "short"):
+                            footer = b"\nQKX_BOOT_CHAIN_STATUS=0\n"
+                            self.assertTrue(result.stdout.endswith(footer))
+                            data = result.stdout[:-len(footer)]
+                            data = b"!"+data[1:] if fault == "hash" else data[:-1]
+                            return subprocess.CompletedProcess(command, 0, data+footer, b"")
+                        if (command[-1] == metadata_command and fault == "metadata"
+                                and calls.count("metadata:"+name) == 2):
+                            return subprocess.CompletedProcess(command, 0,
+                                result.stdout.replace(b" 123 ", b" 124 "), b"")
+                        return result
+
+                    out = Path(temp)/"capture"
+                    with self.assertRaises(preflight.CaptureError):
+                        module.collect("adb-test", "USB-TEST", out, runner=runner)
+                    self.assertTrue((out/"INCOMPLETE.json").is_file())
+                    self.assertFalse((out/"capture.json").exists())
+                    self.assertEqual(calls.count("image:"+name), 1)
+                    names = list(payloads)
+                    for later in names[names.index(name)+1:]:
+                        self.assertNotIn("image:"+later, calls)
 
     def test_invalid_input_and_existing_output_issue_no_commands(self):
         module = self.module()
@@ -238,7 +275,8 @@ class BootChainProbeTests(unittest.TestCase):
         for probe in ("write", "flash", "", None):
             with self.subTest(probe=probe), self.assertRaises(ValueError):
                 module.remote_command(probe, "tz", "_a")
-        for image, blocks in (("abl", 67), ("tz", 783)):
+        for image, blocks in (("abl", 67), ("tz", 783), ("xbl", 888),
+                              ("xbl_config", 23), ("devcfg", 15)):
             for slot in ("_a", "_b"):
                 command = module.remote_command("image", image, slot)
                 body = shlex.split(command)

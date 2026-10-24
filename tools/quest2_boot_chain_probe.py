@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read exact active-slot ABL/TZ prefixes; never boot, flash or authorize execution."""
+"""Read exact active-slot boot-chain prefixes; never boot, flash or authorize execution."""
 import argparse
 import hashlib
 import json
@@ -17,6 +17,9 @@ from quest2_shutdown_probe import module_names, read as read_health
 IMAGES = MappingProxyType({
     "abl": (274432, "75dc2174995fd39588bcbbd8b3455afc7bad4999a8914e0c40b9cc1509bcef5c"),
     "tz": (3207168, "9384241f1169e4953992fc06723507e8ac217006a5dfb92e47826068500dc8d3"),
+    "xbl": (3637248, "55e0047dd8014e2be6b6f686df7b4de95cdf9a76ddf2948d9cc1f781cbdd0819"),
+    "xbl_config": (94208, "7e65af2ea5a3c3621b73fd1ea67caa848fecd7682ebc6582a6a7f8ef46265341"),
+    "devcfg": (61440, "9f1b2f2c5b6545f2e30d177aa2d0a92ca7976e64b576abb78fe0dcd64c124126"),
 })
 HEALTH = ("boot", "cpus", "taint", "modules")
 PROJECT_MODULES = {"quest_kexec", "marker_read", "usb_log", "camera_dsp_diag", "owner_gate_selftest", "scm_version_probe"}
