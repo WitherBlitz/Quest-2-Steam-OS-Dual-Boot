@@ -4,6 +4,9 @@ import gzip
 import hashlib
 import importlib.util
 import struct
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -52,6 +55,22 @@ def elf_fixture(*, machine=183, vermagic=VM, symbol="api", api_crc=0x11223344, d
 
 
 class CIAuditTests(unittest.TestCase):
+    def test_owner_build_config_check_allows_only_requested_option(self):
+        build = SCRIPT.with_name("quest2_owner_build.sh").read_text()
+        code = build.split("owner_config_check() {", 1)[1].split("<<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+        with tempfile.TemporaryDirectory(prefix="qkx-owner-config-") as temp:
+            stock, current = (Path(temp)/name for name in ("stock", "current"))
+            stock.write_text("CONFIG_ARM64=y\nCONFIG_MODULES=y\n")
+            cases = [("n", "CONFIG_ARM64=y\nCONFIG_MODULES=y\n# CONFIG_QKX_OWNER_GATE is not set\n", 0),
+                     ("y", "CONFIG_ARM64=y\nCONFIG_MODULES=y\nCONFIG_QKX_OWNER_GATE=y\n", 0),
+                     ("y", "CONFIG_ARM64=y\n# CONFIG_MODULES is not set\nCONFIG_QKX_OWNER_GATE=y\n", 1),
+                     ("n", "CONFIG_ARM64=y\nCONFIG_MODULES=y\nCONFIG_QKX_OWNER_GATE=y\n", 1)]
+            for expected, text, status in cases:
+                current.write_text(text)
+                result = subprocess.run([sys.executable, "-B", "-c", code,
+                                         str(stock), str(current), expected], capture_output=True, text=True)
+                self.assertEqual(result.returncode, status, result.stdout + result.stderr)
+
     def require_audit(self):
         self.assertIsNotNone(audit, "CI config and ELF verification gates are not implemented")
 

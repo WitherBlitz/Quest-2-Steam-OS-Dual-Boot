@@ -94,6 +94,7 @@ class OwnerGateApplyTests(unittest.TestCase):
         self.core.write_bytes(b"/* fixture core */\n")
         self.patch = mock.patch.multiple(
             self.module, MANIFEST_PATHS=(self.manifest_path,),
+            RESOURCE_MANIFEST_PATHS=(),
             BUILD_HASHES={"kernel/Makefile": digest(MAKEFILE),
                           "lib/Kconfig.debug": digest(KCONFIG)},
             CORE_FILES={"kernel/qkx_owner_gate.c": self.core,
@@ -103,6 +104,95 @@ class OwnerGateApplyTests(unittest.TestCase):
 
     def save_manifest(self):
         self.manifest_path.write_text(json.dumps(self.manifest), encoding="utf-8")
+
+    def lifetime_manifest(self, *, source_hash=None, edits=None, path="drivers/test.c"):
+        manifest = {"schema_version": 1, "domain": "fastrpc", "files": [{
+            "path": path, "sha256": source_hash or digest(SOURCE), "edits": edits or [{
+                "name": "preserve_result", "before": "return value + 7;",
+                "after": "return value + 11;"}]}]}
+        name = self.base / "lifetime-edits.json"
+        name.write_text(json.dumps(manifest), encoding="utf-8")
+        return name
+
+    def test_lifetime_edits_apply_after_wrappers_with_original_input_hash(self):
+        path = self.lifetime_manifest()
+        with mock.patch.object(self.module, "RESOURCE_MANIFEST_PATHS", (path,), create=True):
+            changes = self.module.prepare_changes(self.source)
+            self.assertIn(b"return value + 11;", changes["drivers/test.c"])
+            self.assertIn(b"submit_qkx_body", changes["drivers/test.c"])
+            receipt = self.module.apply(self.source, self.base / "receipt.json")
+        self.assertEqual(receipt["scope"], "entry_accounting_and_checked_cleanup")
+        self.assertEqual(receipt["counts"]["lifetime_edits"], 1)
+        self.assertFalse(receipt["full_ownership"])
+        self.assertEqual(receipt["manifest_sha256"][path.name], digest(path.read_bytes()))
+
+    def test_lifetime_mismatch_or_ambiguous_edit_prevents_all_writes(self):
+        for kwargs in ({"source_hash": "0"*64},
+                       {"edits": [{"name": "missing", "before": "not present", "after": "changed"}]},
+                       {"edits": [{"name": "ambiguous", "before": "return", "after": "changed"}]},
+                       {"path": "../outside.c"}):
+            with self.subTest(kwargs=kwargs):
+                path = self.lifetime_manifest(**kwargs)
+                before = self.original_tree()
+                with mock.patch.object(self.module, "RESOURCE_MANIFEST_PATHS", (path,), create=True):
+                    with self.assertRaises(ValueError):
+                        self.module.apply(self.source, self.base / "receipt.json")
+                self.assertEqual(self.original_tree(), before)
+                self.assertFalse((self.base / "receipt.json.incomplete").exists())
+
+    def test_lifetime_only_file_is_hash_pinned_and_included_in_receipt(self):
+        extra = self.source / "drivers/cleanup.c"
+        data = b"int cleanup(void) { return 0; }\n"
+        extra.write_bytes(data)
+        path = self.lifetime_manifest(source_hash=digest(data), path="drivers/cleanup.c",
+                                      edits=[{"name": "retain_error", "before": "return 0;",
+                                              "after": "return -1;"}])
+        with mock.patch.object(self.module, "RESOURCE_MANIFEST_PATHS", (path,)):
+            report = self.module.apply(self.source, self.base / "receipt.json")
+        self.assertEqual(extra.read_bytes(), data.replace(b"return 0;", b"return -1;"))
+        self.assertEqual(report["files"]["drivers/cleanup.c"]["original_sha256"], digest(data))
+        self.assertEqual(report["counts"]["lifetime_files"], 1)
+
+    def test_lifetime_schema_duplicates_noops_and_non_source_paths_are_refused(self):
+        path = self.lifetime_manifest()
+        original = json.loads(path.read_text())
+        mutations = [lambda m: m.update(extra=True), lambda m: m.update(schema_version=True),
+                     lambda m: m["files"].append(copy.deepcopy(m["files"][0])),
+                     lambda m: m["files"][0].update(path="kernel/Makefile"),
+                     lambda m: m["files"][0]["edits"].append(copy.deepcopy(m["files"][0]["edits"][0])),
+                     lambda m: m["files"][0]["edits"][0].update(before=""),
+                     lambda m: m["files"][0]["edits"][0].update(after="return value + 7;"),
+                     lambda m: m["files"][0]["edits"][0].update(after="\0"),
+                     lambda m: m["files"][0]["edits"][0].update(name="invalid name")]
+        for mutate in mutations:
+            value = copy.deepcopy(original)
+            mutate(value)
+            path.write_text(json.dumps(value))
+            with self.subTest(value=value), mock.patch.object(self.module, "RESOURCE_MANIFEST_PATHS", (path,)):
+                with self.assertRaises(ValueError):
+                    self.module.prepare_changes(self.source)
+
+    def test_lifetime_source_executes_enabled_change_and_preserves_disabled_behavior(self):
+        path = self.lifetime_manifest(edits=[{"name": "conditional_result",
+            "before": "if (value) { return value + 7; }",
+            "after": "if (value) {\n#ifdef CONFIG_QKX_OWNER_GATE\nreturn value + 11;\n#else\nreturn value + 7;\n#endif\n}"}])
+        with mock.patch.object(self.module, "RESOURCE_MANIFEST_PATHS", (path,)):
+            changes = self.module.prepare_changes(self.source)
+        for name, data in changes.items():
+            (self.source / name).write_bytes(data)
+        compiler = os.environ.get("HOST_TEST_CC") or shutil.which("cc") or shutil.which("clang")
+        self.assertTrue(compiler, "native host compiler required")
+        source = self.source / "drivers/test.c"
+        original = source.read_bytes()
+        for enabled, expected in ((False, 9), (True, 13)):
+            source.write_bytes(original + ("\nint main(void) { complete(1); return "
+                f"submit(2) != {expected} || observe(4) != 1 || sample(1) != -8 || total != 1; }}\n").encode())
+            binary = self.base / ("lifetime.exe" if os.name == "nt" else "lifetime")
+            result = subprocess.run([compiler, *(["-fuse-ld=lld"] if os.name == "nt" else []),
+                "-std=gnu11", "-Wall", "-Wextra", "-Werror", *(["-DCONFIG_QKX_OWNER_GATE"] if enabled else []),
+                "-I", str(self.source / "include"), str(source), "-o", str(binary)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(subprocess.run([str(binary)]).returncode, 0)
 
     def original_tree(self):
         return {p.relative_to(self.source).as_posix(): p.read_bytes()

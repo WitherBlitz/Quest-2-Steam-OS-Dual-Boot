@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "domain": "fastrpc",
+  "files": [
+    {
+      "path": "drivers/char/adsprpc.c",
+      "sha256": "f479739662bd427b577e493b518240f3c1ec0b7eb0b1cdf0f3da769efea6d49b",
+      "edits": [
+        {
+          "name": "heap_unmap_propagate_rpc_error",
+          "before": "\t\tremote_arg_t ra[2];\n\t\tint err = 0;\n\t\tstruct {",
+          "after": "\t\tremote_arg_t ra[2];\n#ifndef CONFIG_QKX_OWNER_GATE\n\t\tint err = 0;\n#endif\n\t\tstruct {"
+        },
+        {
+          "name": "mmap_preserve_secure_assignment_error",
+          "before": "\t\tif (err) {\n\t\t\tpr_err(\"adsprpc: %s: %s: rh hyp assign failed with %d for phys 0x%llx, size %zd\\n\",\n\t\t\t\t\t__func__, current->comm,\n\t\t\t\t\terr, phys, size);\n\t\t\terr = fastrpc_unmap_on_dsp(fl,\n\t\t\t\t*raddr, phys, size, flags);\n\t\t\tif (err) {\n\t\t\t\tpr_err(\"adsprpc: %s: %s: failed to unmap %d for phys 0x%llx, size %zd\\n\",\n\t\t\t\t\t__func__, current->comm,\n\t\t\t\t\terr, phys, size);\n\t\t\t}\n\t\t\tgoto bail;\n\t\t}",
+          "after": "\t\tif (err) {\n#ifdef CONFIG_QKX_OWNER_GATE\n\t\t\tint qkx_hyp_assign_error = err;\n#endif\n\t\t\tpr_err(\"adsprpc: %s: %s: rh hyp assign failed with %d for phys 0x%llx, size %zd\\n\",\n\t\t\t\t\t__func__, current->comm,\n\t\t\t\t\terr, phys, size);\n\t\t\terr = fastrpc_unmap_on_dsp(fl,\n\t\t\t\t*raddr, phys, size, flags);\n\t\t\tif (err) {\n\t\t\t\tpr_err(\"adsprpc: %s: %s: failed to unmap %d for phys 0x%llx, size %zd\\n\",\n\t\t\t\t\t__func__, current->comm,\n\t\t\t\t\terr, phys, size);\n\t\t\t}\n#ifdef CONFIG_QKX_OWNER_GATE\n\t\t\terr = qkx_hyp_assign_error;\n#endif\n\t\t\tgoto bail;\n\t\t}"
+        }
+      ]
+    }
+  ]
+}

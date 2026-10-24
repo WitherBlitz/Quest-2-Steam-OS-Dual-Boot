@@ -92,6 +92,6 @@ elif [[ "${QKX_OWNER_BUILD:-0}" != 0 ]]; then
 fi
 (cd "$artifacts" && sha256sum ./*.ko ./*.json ./*.log Module.symvers ./*.compile.txt ./*.disassembly.txt LICENSE > SHA256SUMS)
 if [[ "${QKX_OWNER_BUILD:-0}" == 1 ]]; then
-  (cd "$artifacts" && sha256sum owner-driver.patch >> SHA256SUMS)
+  (cd "$artifacts" && sha256sum owner-driver.patch owner-default-off.symvers owner-enabled.symvers >> SHA256SUMS)
 fi
 echo 'Offline matching-module build and ABI gates complete. No hardware handoff performed.'

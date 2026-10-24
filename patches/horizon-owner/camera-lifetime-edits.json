@@ -1,0 +1,278 @@
+{
+  "schema_version": 1,
+  "domain": "camera",
+  "files": [
+    {
+      "path": "techpack/camera/drivers/cam_smmu/cam_smmu_api.c",
+      "sha256": "2e5a0991d320bf7227eea5aa5aa40f9689aea6747c85b08b139dbd1de2293de1",
+      "edits": [
+        {
+          "name": "private_cleanup_state",
+          "before": "static struct cam_iommu_cb_set iommu_cb_set;",
+          "after": "static struct cam_iommu_cb_set iommu_cb_set;\n\n/* QKX_CAMERA_LIFETIME_BEGIN */\n#ifdef CONFIG_QKX_OWNER_GATE\n/* Protected by the matching context-bank lock; poison is never retried. */\nstatic int *qkx_smmu_cleanup_errors;\n\nstatic int qkx_smmu_cleanup_status(int idx)\n{\n\treturn qkx_smmu_cleanup_errors ? qkx_smmu_cleanup_errors[idx] : -EIO;\n}\n\nstatic int qkx_smmu_poison_cleanup(int idx, int error)\n{\n\tif (!qkx_smmu_cleanup_errors)\n\t\treturn -EIO;\n\tif (!qkx_smmu_cleanup_errors[idx])\n\t\tqkx_smmu_cleanup_errors[idx] = error < 0 ? error : -EIO;\n\treturn qkx_smmu_cleanup_errors[idx];\n}\n#endif\n/* QKX_CAMERA_LIFETIME_END */"
+        },
+        {
+          "name": "allocate_cleanup_state",
+          "before": "\tcam_smmu_reset_iommu_table(CAM_SMMU_TABLE_INIT);",
+          "after": "#ifdef CONFIG_QKX_OWNER_GATE\n\tqkx_smmu_cleanup_errors = devm_kzalloc(dev,\n\t\tiommu_cb_set.cb_num * sizeof(*qkx_smmu_cleanup_errors),\n\t\tGFP_KERNEL);\n\tif (!qkx_smmu_cleanup_errors) {\n\t\tdevm_kfree(dev, iommu_cb_set.cb_info);\n\t\tiommu_cb_set.cb_info = NULL;\n\t\treturn -ENOMEM;\n\t}\n#endif\n\tcam_smmu_reset_iommu_table(CAM_SMMU_TABLE_INIT);"
+        },
+        {
+          "name": "mapping_poison_check",
+          "before": "\tif ((!mapping_info->buf)",
+          "after": "#ifdef CONFIG_QKX_OWNER_GATE\n\tif (qkx_smmu_cleanup_status(idx))\n\t\treturn qkx_smmu_cleanup_status(idx);\n#endif\n\tif ((!mapping_info->buf)"
+        },
+        {
+          "name": "retain_short_shared_unmap",
+          "before": "\t\t\t\tsize,\n\t\t\t\tmapping_info->len);\n\t\t}",
+          "after": "\t\t\t\tsize,\n\t\t\t\tmapping_info->len);\n#ifdef CONFIG_QKX_OWNER_GATE\n\t\t\t/* A prefix may be gone: preserve backing, never replay unmap. */\n\t\t\treturn qkx_smmu_poison_cleanup(idx, -EIO);\n#endif\n\t\t}"
+        },
+        {
+          "name": "retain_iova_free_failure",
+          "before": "\t\tif (rc)\n\t\t\tCAM_ERR(CAM_SMMU, \"IOVA free failed\");",
+          "after": "\t\tif (rc) {\n\t\t\tCAM_ERR(CAM_SMMU, \"IOVA free failed\");\n#ifdef CONFIG_QKX_OWNER_GATE\n\t\t\treturn qkx_smmu_poison_cleanup(idx, rc);\n#endif\n\t\t}"
+        },
+        {
+          "name": "secondary_poison_check",
+          "before": "\t}\n\tmutex_lock(&iommu_cb_set.cb_info[idx].lock);\n",
+          "after": "\t}\n\tmutex_lock(&iommu_cb_set.cb_info[idx].lock);\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (qkx_smmu_cleanup_status(idx)) {\n\t\tint error = qkx_smmu_cleanup_status(idx);\n\n\t\tmutex_unlock(&iommu_cb_set.cb_info[idx].lock);\n\t\treturn error;\n\t}\n#endif\n"
+        },
+        {
+          "name": "retain_short_secondary_unmap",
+          "before": "\t\t\tsec_heap_iova_len);\n\t}",
+          "after": "\t\t\tsec_heap_iova_len);\n#ifdef CONFIG_QKX_OWNER_GATE\n\t\tqkx_smmu_poison_cleanup(idx, -EIO);\n\n\t\tmutex_unlock(&iommu_cb_set.cb_info[idx].lock);\n\t\treturn -EIO;\n#endif\n\t}"
+        },
+        {
+          "name": "cam_smmu_clean_user_buffer_list_result",
+          "before": "static void cam_smmu_clean_user_buffer_list(int idx)\n{",
+          "after": "static int cam_smmu_clean_user_buffer_list(int idx)\n{"
+        },
+        {
+          "name": "cam_smmu_clean_user_buffer_list_prototype",
+          "before": "static void cam_smmu_clean_user_buffer_list(int idx);",
+          "after": "static int cam_smmu_clean_user_buffer_list(int idx);"
+        },
+        {
+          "name": "cam_smmu_clean_user_buffer_list_error",
+          "before": "\t\t\t\tmapping_info->ion_fd);\n\t\t\t/*\n\t\t\t * Ignore this error and continue to delete other\n\t\t\t * buffers in the list\n\t\t\t */\n\t\t\tcontinue;\n\t\t}\n\t}\n",
+          "after": "\t\t\t\tmapping_info->ion_fd);\n\t\t\t/*\n\t\t\t * Ignore this error and continue to delete other\n\t\t\t * buffers in the list\n\t\t\t */\n#ifdef CONFIG_QKX_OWNER_GATE\n\t\t\treturn ret;\n#else\n\t\t\tcontinue;\n#endif\n\t\t}\n\t}\n"
+        },
+        {
+          "name": "cam_smmu_clean_user_buffer_list_success",
+          "before": "#endif\n\t\t}\n\t}\n",
+          "after": "#endif\n\t\t}\n\t}\n\n\treturn 0;\n"
+        },
+        {
+          "name": "cam_smmu_clean_kernel_buffer_list_result",
+          "before": "static void cam_smmu_clean_kernel_buffer_list(int idx)\n{",
+          "after": "static int cam_smmu_clean_kernel_buffer_list(int idx)\n{"
+        },
+        {
+          "name": "cam_smmu_clean_kernel_buffer_list_prototype",
+          "before": "static void cam_smmu_clean_kernel_buffer_list(int idx);",
+          "after": "static int cam_smmu_clean_kernel_buffer_list(int idx);"
+        },
+        {
+          "name": "cam_smmu_clean_kernel_buffer_list_error",
+          "before": "\t\t\t */\n\t\t\tcontinue;\n",
+          "after": "\t\t\t */\n#ifdef CONFIG_QKX_OWNER_GATE\n\t\t\treturn ret;\n#else\n\t\t\tcontinue;\n#endif\n"
+        },
+        {
+          "name": "cam_smmu_clean_kernel_buffer_list_success",
+          "before": "\t\t\t\tmapping_info->buf);\n\t\t\t/*\n\t\t\t * Ignore this error and continue to delete other\n\t\t\t * buffers in the list\n\t\t\t */\n#ifdef CONFIG_QKX_OWNER_GATE\n\t\t\treturn ret;\n#else\n\t\t\tcontinue;\n#endif\n\t\t}\n\t}\n",
+          "after": "\t\t\t\tmapping_info->buf);\n\t\t\t/*\n\t\t\t * Ignore this error and continue to delete other\n\t\t\t * buffers in the list\n\t\t\t */\n#ifdef CONFIG_QKX_OWNER_GATE\n\t\t\treturn ret;\n#else\n\t\t\tcontinue;\n#endif\n\t\t}\n\t}\n\n\treturn 0;\n"
+        },
+        {
+          "name": "secure_forced_cleanup_refusal",
+          "before": "\tstruct cam_dma_buff_info *mapping_info, *temp;\n\n\tlist_for_each_entry_safe(mapping_info, temp,\n\t\t\t&iommu_cb_set.cb_info[idx].smmu_buf_list, list) {\n",
+          "after": "\tstruct cam_dma_buff_info *mapping_info, *temp;\n\n#ifdef CONFIG_QKX_OWNER_GATE\n\t/* This list contains cam_sec_buff_info for secure banks, not DMA records. */\n\tif (iommu_cb_set.cb_info[idx].is_secure &&\n\t\t!list_empty(&iommu_cb_set.cb_info[idx].smmu_buf_list))\n\t\treturn -EBUSY;\n#endif\n\tlist_for_each_entry_safe(mapping_info, temp,\n\t\t\t&iommu_cb_set.cb_info[idx].smmu_buf_list, list) {\n"
+        },
+        {
+          "name": "destroy_error_local",
+          "before": "\tint idx;\n\n\tif (handle == HANDLE_INIT) {\n\t\tCAM_ERR(CAM_SMMU, \"Error: Invalid handle\");\n\t\treturn -EINVAL;\n\t}\n\n\tidx = GET_SMMU_TABLE_IDX(handle);\n",
+          "after": "\tint idx;\n#ifdef CONFIG_QKX_OWNER_GATE\n\tint rc;\n#endif\n\n\tif (handle == HANDLE_INIT) {\n\t\tCAM_ERR(CAM_SMMU, \"Error: Invalid handle\");\n\t\treturn -EINVAL;\n\t}\n\n\tidx = GET_SMMU_TABLE_IDX(handle);\n"
+        },
+        {
+          "name": "cam_smmu_destroy_handle_poison_check",
+          "before": "\t\tCAM_ERR(CAM_SMMU,\n\t\t\t\"Error: handle or index invalid. idx = %d hdl = %x\",\n\t\t\tidx, handle);\n\t\treturn -EINVAL;\n\t}\n\n\tmutex_lock(&iommu_cb_set.cb_info[idx].lock);\n\tif (iommu_cb_set.cb_info[idx].handle != handle) {\n\t\tCAM_ERR(CAM_SMMU,\n\t\t\t\"Error: hdl is not valid, table_hdl = %x, hdl = %x\",\n\t\t\tiommu_cb_set.cb_info[idx].handle, handle);\n\t\tmutex_unlock(&iommu_cb_set.cb_info[idx].lock);\n",
+          "after": "\t\tCAM_ERR(CAM_SMMU,\n\t\t\t\"Error: handle or index invalid. idx = %d hdl = %x\",\n\t\t\tidx, handle);\n\t\treturn -EINVAL;\n\t}\n\n\tmutex_lock(&iommu_cb_set.cb_info[idx].lock);\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (qkx_smmu_cleanup_status(idx)) {\n\t\tint error = qkx_smmu_cleanup_status(idx);\n\n\t\tmutex_unlock(&iommu_cb_set.cb_info[idx].lock);\n\t\treturn error;\n\t}\n#endif\n\tif (iommu_cb_set.cb_info[idx].handle != handle) {\n\t\tCAM_ERR(CAM_SMMU,\n\t\t\t\"Error: hdl is not valid, table_hdl = %x, hdl = %x\",\n\t\t\tiommu_cb_set.cb_info[idx].handle, handle);\n\t\tmutex_unlock(&iommu_cb_set.cb_info[idx].lock);\n"
+        },
+        {
+          "name": "cam_smmu_ops_poison_check",
+          "before": "\t\tCAM_ERR(CAM_SMMU, \"Error: Index invalid. idx = %d hdl = %x\",\n\t\t\tidx, handle);\n\t\treturn -EINVAL;\n\t}\n\n\tmutex_lock(&iommu_cb_set.cb_info[idx].lock);\n\tif (iommu_cb_set.cb_info[idx].handle != handle) {\n\t\tCAM_ERR(CAM_SMMU,\n\t\t\t\"Error: hdl is not valid, table_hdl = %x, hdl = %x\",\n\t\t\tiommu_cb_set.cb_info[idx].handle, handle);\n",
+          "after": "\t\tCAM_ERR(CAM_SMMU, \"Error: Index invalid. idx = %d hdl = %x\",\n\t\t\tidx, handle);\n\t\treturn -EINVAL;\n\t}\n\n\tmutex_lock(&iommu_cb_set.cb_info[idx].lock);\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (qkx_smmu_cleanup_status(idx)) {\n\t\tint error = qkx_smmu_cleanup_status(idx);\n\n\t\tmutex_unlock(&iommu_cb_set.cb_info[idx].lock);\n\t\treturn error;\n\t}\n#endif\n\tif (iommu_cb_set.cb_info[idx].handle != handle) {\n\t\tCAM_ERR(CAM_SMMU,\n\t\t\t\"Error: hdl is not valid, table_hdl = %x, hdl = %x\",\n\t\t\tiommu_cb_set.cb_info[idx].handle, handle);\n"
+        },
+        {
+          "name": "cam_smmu_map_user_iova_poison_check",
+          "before": "\tdma_dir = (enum dma_data_direction)dir;\n\tidx = GET_SMMU_TABLE_IDX(handle);\n\tmutex_lock(&iommu_cb_set.cb_info[idx].lock);\n\tif (iommu_cb_set.cb_info[idx].is_secure) {\n",
+          "after": "\tdma_dir = (enum dma_data_direction)dir;\n\tidx = GET_SMMU_TABLE_IDX(handle);\n\tmutex_lock(&iommu_cb_set.cb_info[idx].lock);\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (qkx_smmu_cleanup_status(idx)) {\n\t\tint error = qkx_smmu_cleanup_status(idx);\n\n\t\tmutex_unlock(&iommu_cb_set.cb_info[idx].lock);\n\t\treturn error;\n\t}\n#endif\n\tif (iommu_cb_set.cb_info[idx].is_secure) {\n"
+        },
+        {
+          "name": "cam_smmu_map_kernel_iova_poison_check",
+          "before": "\tdma_dir = cam_smmu_translate_dir(dir);\n\tidx = GET_SMMU_TABLE_IDX(handle);\n\tmutex_lock(&iommu_cb_set.cb_info[idx].lock);\n\tif (iommu_cb_set.cb_info[idx].is_secure) {\n",
+          "after": "\tdma_dir = cam_smmu_translate_dir(dir);\n\tidx = GET_SMMU_TABLE_IDX(handle);\n\tmutex_lock(&iommu_cb_set.cb_info[idx].lock);\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (qkx_smmu_cleanup_status(idx)) {\n\t\tint error = qkx_smmu_cleanup_status(idx);\n\n\t\tmutex_unlock(&iommu_cb_set.cb_info[idx].lock);\n\t\treturn error;\n\t}\n#endif\n\tif (iommu_cb_set.cb_info[idx].is_secure) {\n"
+        },
+        {
+          "name": "cam_smmu_map_stage2_iova_poison_check",
+          "before": "\t\t\tidx);\n\t\treturn -EINVAL;\n\t}\n\n\tmutex_lock(&iommu_cb_set.cb_info[idx].lock);\n\tif (iommu_cb_set.cb_info[idx].handle != handle) {\n\t\tCAM_ERR(CAM_SMMU,\n\t\t\t\"Error: hdl is not valid, idx=%d, table_hdl=%x, hdl=%x\",\n",
+          "after": "\t\t\tidx);\n\t\treturn -EINVAL;\n\t}\n\n\tmutex_lock(&iommu_cb_set.cb_info[idx].lock);\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (qkx_smmu_cleanup_status(idx)) {\n\t\tint error = qkx_smmu_cleanup_status(idx);\n\n\t\tmutex_unlock(&iommu_cb_set.cb_info[idx].lock);\n\t\treturn error;\n\t}\n#endif\n\tif (iommu_cb_set.cb_info[idx].handle != handle) {\n\t\tCAM_ERR(CAM_SMMU,\n\t\t\t\"Error: hdl is not valid, idx=%d, table_hdl=%x, hdl=%x\",\n"
+        },
+        {
+          "name": "cam_smmu_get_iova_poison_check",
+          "before": "\t\t\t\"Error: can't get non-secure mem from secure cb\");\n\t\treturn -EINVAL;\n\t}\n\n\tmutex_lock(&iommu_cb_set.cb_info[idx].lock);\n\tif (iommu_cb_set.cb_info[idx].handle != handle) {\n\t\tCAM_ERR(CAM_SMMU,\n\t\t\t\"Error: hdl is not valid, table_hdl = %x, hdl = %x\",\n",
+          "after": "\t\t\t\"Error: can't get non-secure mem from secure cb\");\n\t\treturn -EINVAL;\n\t}\n\n\tmutex_lock(&iommu_cb_set.cb_info[idx].lock);\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (qkx_smmu_cleanup_status(idx)) {\n\t\tint error = qkx_smmu_cleanup_status(idx);\n\n\t\tmutex_unlock(&iommu_cb_set.cb_info[idx].lock);\n\t\treturn error;\n\t}\n#endif\n\tif (iommu_cb_set.cb_info[idx].handle != handle) {\n\t\tCAM_ERR(CAM_SMMU,\n\t\t\t\"Error: hdl is not valid, table_hdl = %x, hdl = %x\",\n"
+        },
+        {
+          "name": "cam_smmu_get_stage2_iova_poison_check",
+          "before": "\t\t\t\"Error: can't get secure mem from non secure cb\");\n\t\treturn -EINVAL;\n\t}\n\n\tmutex_lock(&iommu_cb_set.cb_info[idx].lock);\n\tif (iommu_cb_set.cb_info[idx].handle != handle) {\n\t\tCAM_ERR(CAM_SMMU,\n\t\t\t\"Error: hdl is not valid, table_hdl = %x, hdl = %x\",\n",
+          "after": "\t\t\t\"Error: can't get secure mem from non secure cb\");\n\t\treturn -EINVAL;\n\t}\n\n\tmutex_lock(&iommu_cb_set.cb_info[idx].lock);\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (qkx_smmu_cleanup_status(idx)) {\n\t\tint error = qkx_smmu_cleanup_status(idx);\n\n\t\tmutex_unlock(&iommu_cb_set.cb_info[idx].lock);\n\t\treturn error;\n\t}\n#endif\n\tif (iommu_cb_set.cb_info[idx].handle != handle) {\n\t\tCAM_ERR(CAM_SMMU,\n\t\t\t\"Error: hdl is not valid, table_hdl = %x, hdl = %x\",\n"
+        },
+        {
+          "name": "destroy_user_first_error",
+          "before": "\t\tcam_smmu_clean_user_buffer_list(idx);",
+          "after": "#ifdef CONFIG_QKX_OWNER_GATE\n\t\trc = cam_smmu_clean_user_buffer_list(idx);\n\t\tif (rc) {\n\t\t\tmutex_unlock(&iommu_cb_set.cb_info[idx].lock);\n\t\t\treturn rc;\n\t\t}\n#else\n\t\tcam_smmu_clean_user_buffer_list(idx);\n#endif"
+        },
+        {
+          "name": "destroy_kernel_first_error",
+          "before": "\t\tcam_smmu_clean_kernel_buffer_list(idx);",
+          "after": "#ifdef CONFIG_QKX_OWNER_GATE\n\t\trc = cam_smmu_clean_kernel_buffer_list(idx);\n\t\tif (rc) {\n\t\t\tmutex_unlock(&iommu_cb_set.cb_info[idx].lock);\n\t\t\treturn rc;\n\t\t}\n#else\n\t\tcam_smmu_clean_kernel_buffer_list(idx);\n#endif"
+        },
+        {
+          "name": "refuse_poisoned_handle_reacquisition",
+          "before": "\t\t\tmutex_lock(&iommu_cb_set.cb_info[i].lock);",
+          "after": "\t\t\tmutex_lock(&iommu_cb_set.cb_info[i].lock);\n#ifdef CONFIG_QKX_OWNER_GATE\n\t\t\tif (qkx_smmu_cleanup_status(i)) {\n\t\t\t\tint error = qkx_smmu_cleanup_status(i);\n\n\t\t\t\tmutex_unlock(&iommu_cb_set.cb_info[i].lock);\n\t\t\t\treturn error;\n\t\t\t}\n#endif"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_req_mgr/cam_mem_mgr.c",
+      "sha256": "fdc085038c22d72331f43c1f92e70fe21cf3652e8125655217505e0dffc845b8",
+      "edits": [
+        {
+          "name": "private_memory_cleanup_state",
+          "before": "static atomic_t cam_mem_mgr_state = ATOMIC_INIT(CAM_MEM_MGR_UNINITIALIZED);",
+          "after": "static atomic_t cam_mem_mgr_state = ATOMIC_INIT(CAM_MEM_MGR_UNINITIALIZED);\n\n/* QKX_CAMERA_LIFETIME_BEGIN */\n#ifdef CONFIG_QKX_OWNER_GATE\n/* Slot errors are protected by tbl.m_lock. No zero kref is resurrected. */\nstatic int qkx_mem_cleanup_errors[CAM_MEM_BUFQ_MAX];\nstatic bool qkx_mem_deinit_pending;\n\nstatic int qkx_mem_cleanup_status(int idx)\n{\n\tint error;\n\n\tmutex_lock(&tbl.m_lock);\n\terror = qkx_mem_cleanup_errors[idx];\n\tmutex_unlock(&tbl.m_lock);\n\treturn error;\n}\n#endif\n/* QKX_CAMERA_LIFETIME_END */"
+        },
+        {
+          "name": "refuse_live_table_reinitialization",
+          "before": "\tmemset(tbl.bufq, 0, sizeof(tbl.bufq));",
+          "after": "#ifdef CONFIG_QKX_OWNER_GATE\n\tif (READ_ONCE(qkx_mem_deinit_pending) || tbl.bitmap)\n\t\treturn -EBUSY;\n\tmemset(qkx_mem_cleanup_errors, 0, sizeof(qkx_mem_cleanup_errors));\n#endif\n\tmemset(tbl.bufq, 0, sizeof(tbl.bufq));"
+        },
+        {
+          "name": "cleanup_first_error_local",
+          "before": "\tint i;\n\n",
+          "after": "\tint i;\n#ifdef CONFIG_QKX_OWNER_GATE\n\tint error = 0;\n#endif\n\n"
+        },
+        {
+          "name": "never_force_free_live_slots",
+          "before": "\t\tif (!tbl.bufq[i].active)",
+          "after": "#ifdef CONFIG_QKX_OWNER_GATE\n\t\t/* Closing CRM does not transfer outstanding clients' references. */\n\t\tif (tbl.bufq[i].active) {\n\t\t\tif (!error)\n\t\t\t\terror = qkx_mem_cleanup_errors[i] ?\n\t\t\t\t\tqkx_mem_cleanup_errors[i] : -EBUSY;\n\t\t\tcontinue;\n\t\t}\n#endif\n\t\tif (!tbl.bufq[i].active)"
+        },
+        {
+          "name": "preserve_live_bitmap",
+          "before": "\t}\n\n\tbitmap_zero(tbl.bitmap, tbl.bits);\n\t/* We need to reserve slot 0 because 0 is invalid */\n",
+          "after": "\t}\n\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (error) {\n\t\tmutex_unlock(&tbl.m_lock);\n\t\treturn error;\n\t}\n#endif\n\tbitmap_zero(tbl.bitmap, tbl.bits);\n\t/* We need to reserve slot 0 because 0 is invalid */\n"
+        },
+        {
+          "name": "defer_live_table_deinit",
+          "before": "\tatomic_set(&cam_mem_mgr_state, CAM_MEM_MGR_UNINITIALIZED);\n\tcam_mem_mgr_cleanup_table();",
+          "after": "#ifdef CONFIG_QKX_OWNER_GATE\n\tint error;\n\n\tWRITE_ONCE(qkx_mem_deinit_pending, true);\n\terror = cam_mem_mgr_cleanup_table();\n\tif (error) {\n\t\tCAM_ERR(CAM_MEM, \"Memory cleanup retained resources: %d\", error);\n\t\treturn;\n\t}\n\tatomic_set(&cam_mem_mgr_state, CAM_MEM_MGR_UNINITIALIZED);\n#else\n\tatomic_set(&cam_mem_mgr_state, CAM_MEM_MGR_UNINITIALIZED);\n\tcam_mem_mgr_cleanup_table();\n#endif"
+        },
+        {
+          "name": "allow_reinit_after_complete_deinit",
+          "before": "\tmutex_destroy(&tbl.m_lock);",
+          "after": "\tmutex_destroy(&tbl.m_lock);\n#ifdef CONFIG_QKX_OWNER_GATE\n\tWRITE_ONCE(qkx_mem_deinit_pending, false);\n#endif"
+        },
+        {
+          "name": "cam_mem_get_io_buf_closing_admission",
+          "before": "\t*len_ptr = 0;\n\n\tif (!atomic_read(&cam_mem_mgr_state)) {\n\t\tCAM_ERR(CAM_MEM, \"failed. mem_mgr not initialized\");\n",
+          "after": "\t*len_ptr = 0;\n\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (READ_ONCE(qkx_mem_deinit_pending))\n\t\treturn -EBUSY;\n#endif\n\tif (!atomic_read(&cam_mem_mgr_state)) {\n\t\tCAM_ERR(CAM_MEM, \"failed. mem_mgr not initialized\");\n"
+        },
+        {
+          "name": "cam_mem_get_cpu_buf_closing_admission",
+          "before": "\tint idx;\n\n\tif (!atomic_read(&cam_mem_mgr_state))",
+          "after": "\tint idx;\n\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (READ_ONCE(qkx_mem_deinit_pending))\n\t\treturn -EBUSY;\n#endif\n\tif (!atomic_read(&cam_mem_mgr_state))"
+        },
+        {
+          "name": "cam_mem_mgr_alloc_and_map_closing_admission",
+          "before": "\tsize_t klen;\n\n\tif (!atomic_read(&cam_mem_mgr_state)) {\n\t\tCAM_ERR(CAM_MEM, \"failed. mem_mgr not initialized\");\n",
+          "after": "\tsize_t klen;\n\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (READ_ONCE(qkx_mem_deinit_pending))\n\t\treturn -EBUSY;\n#endif\n\tif (!atomic_read(&cam_mem_mgr_state)) {\n\t\tCAM_ERR(CAM_MEM, \"failed. mem_mgr not initialized\");\n"
+        },
+        {
+          "name": "cam_mem_mgr_map_closing_admission",
+          "before": "\tsize_t len = 0;\n\n\tif (!atomic_read(&cam_mem_mgr_state)) {\n\t\tCAM_ERR(CAM_MEM, \"failed. mem_mgr not initialized\");\n",
+          "after": "\tsize_t len = 0;\n\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (READ_ONCE(qkx_mem_deinit_pending))\n\t\treturn -EBUSY;\n#endif\n\tif (!atomic_read(&cam_mem_mgr_state)) {\n\t\tCAM_ERR(CAM_MEM, \"failed. mem_mgr not initialized\");\n"
+        },
+        {
+          "name": "cam_mem_mgr_request_mem_closing_admission",
+          "before": "\tenum cam_smmu_region_id region = CAM_SMMU_REGION_SHARED;\n\n\tif (!atomic_read(&cam_mem_mgr_state)) {\n\t\tCAM_ERR(CAM_MEM, \"failed. mem_mgr not initialized\");\n",
+          "after": "\tenum cam_smmu_region_id region = CAM_SMMU_REGION_SHARED;\n\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (READ_ONCE(qkx_mem_deinit_pending))\n\t\treturn -EBUSY;\n#endif\n\tif (!atomic_read(&cam_mem_mgr_state)) {\n\t\tCAM_ERR(CAM_MEM, \"failed. mem_mgr not initialized\");\n"
+        },
+        {
+          "name": "cam_mem_mgr_reserve_memory_region_closing_admission",
+          "before": "\tint32_t num_hdl = 0;\n\n\tif (!atomic_read(&cam_mem_mgr_state)) {\n\t\tCAM_ERR(CAM_MEM, \"failed. mem_mgr not initialized\");\n",
+          "after": "\tint32_t num_hdl = 0;\n\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (READ_ONCE(qkx_mem_deinit_pending))\n\t\treturn -EBUSY;\n#endif\n\tif (!atomic_read(&cam_mem_mgr_state)) {\n\t\tCAM_ERR(CAM_MEM, \"failed. mem_mgr not initialized\");\n"
+        },
+        {
+          "name": "do_not_retry_quarantined_slot",
+          "before": "\tCAM_DBG(CAM_MEM, \"Flags = %X idx %d\", tbl.bufq[idx].flags, idx);\n\n\tmutex_lock(&tbl.m_lock);\n\tif ((!tbl.bufq[idx].active) &&\n",
+          "after": "\tCAM_DBG(CAM_MEM, \"Flags = %X idx %d\", tbl.bufq[idx].flags, idx);\n\n\tmutex_lock(&tbl.m_lock);\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (qkx_mem_cleanup_errors[idx]) {\n\t\tmutex_unlock(&tbl.m_lock);\n\t\treturn;\n\t}\n#endif\n\tif ((!tbl.bufq[idx].active) &&\n"
+        },
+        {
+          "name": "retain_cpu_end_failure",
+          "before": "\t\t\tif (rc)\n\t\t\t\tCAM_ERR(CAM_MEM,\n\t\t\t\t\t\"Failed, dmabuf=%pK, kmdvaddr=%pK\",\n\t\t\t\t\ttbl.bufq[idx].dma_buf,\n\t\t\t\t\t(void *) tbl.bufq[idx].kmdvaddr);",
+          "after": "\t\t\tif (rc) {\n\t\t\t\tCAM_ERR(CAM_MEM,\n\t\t\t\t\t\"Failed, dmabuf=%pK, kmdvaddr=%pK\",\n\t\t\t\t\ttbl.bufq[idx].dma_buf,\n\t\t\t\t\t(void *) tbl.bufq[idx].kmdvaddr);\n#ifdef CONFIG_QKX_OWNER_GATE\n\t\t\t\t/* kunmap already ran; never replay it after end-access failure. */\n\t\t\t\ttbl.bufq[idx].kmdvaddr = 0;\n\t\t\t\tqkx_mem_cleanup_errors[idx] = rc;\n\t\t\t\tmutex_unlock(&tbl.m_lock);\n\t\t\t\treturn;\n#endif\n\t\t\t}\n#ifdef CONFIG_QKX_OWNER_GATE\n\t\t\ttbl.bufq[idx].kmdvaddr = 0;\n#endif"
+        },
+        {
+          "name": "retain_hardware_unmap_failure",
+          "before": "\t\tif (cam_mem_util_unmap_hw_va(idx, region, client))\n\t\t\tCAM_ERR(CAM_MEM, \"Failed, dmabuf=%pK\",\n\t\t\t\ttbl.bufq[idx].dma_buf);",
+          "after": "#ifdef CONFIG_QKX_OWNER_GATE\n\t\trc = cam_mem_util_unmap_hw_va(idx, region, client);\n\t\tif (rc) {\n\t\t\t/* Earlier handles may be unmapped. Keep the slot and never replay. */\n\t\t\tqkx_mem_cleanup_errors[idx] = rc;\n\t\t\tmutex_unlock(&tbl.m_lock);\n\t\t\treturn;\n\t\t}\n#else\n\t\tif (cam_mem_util_unmap_hw_va(idx, region, client))\n\t\t\tCAM_ERR(CAM_MEM, \"Failed, dmabuf=%pK\",\n\t\t\t\ttbl.bufq[idx].dma_buf);\n#endif"
+        },
+        {
+          "name": "cam_mem_put_cpu_buf_refuse_poisoned_put",
+          "before": "\t}\n\n\tif (kref_put(&tbl.bufq[idx].krefcount, cam_mem_util_unmap))\n\t\tCAM_DBG(CAM_MEM,\n",
+          "after": "\t}\n\n#ifdef CONFIG_QKX_OWNER_GATE\n\trc = qkx_mem_cleanup_status(idx);\n\tif (rc)\n\t\treturn;\n#endif\n\tif (kref_put(&tbl.bufq[idx].krefcount, cam_mem_util_unmap))\n\t\tCAM_DBG(CAM_MEM,\n"
+        },
+        {
+          "name": "cam_mem_mgr_release_refuse_poisoned_put",
+          "before": "\tCAM_DBG(CAM_MEM, \"Releasing hdl = %x, idx = %d\", cmd->buf_handle, idx);\n\n\tif (kref_put(&tbl.bufq[idx].krefcount, cam_mem_util_unmap))\n\t\tCAM_DBG(CAM_MEM,\n",
+          "after": "\tCAM_DBG(CAM_MEM, \"Releasing hdl = %x, idx = %d\", cmd->buf_handle, idx);\n\n#ifdef CONFIG_QKX_OWNER_GATE\n\trc = qkx_mem_cleanup_status(idx);\n\tif (rc)\n\t\treturn rc;\n#endif\n\tif (kref_put(&tbl.bufq[idx].krefcount, cam_mem_util_unmap))\n\t\tCAM_DBG(CAM_MEM,\n"
+        },
+        {
+          "name": "release_return_cleanup_error",
+          "before": "\t\t\tcmd->buf_handle, idx);\n\n\treturn rc;",
+          "after": "\t\t\tcmd->buf_handle, idx);\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (!rc)\n\t\trc = qkx_mem_cleanup_status(idx);\n#endif\n\n\treturn rc;"
+        },
+        {
+          "name": "kernel_release_refuse_poisoned_put",
+          "before": "\t\treturn -EINVAL;\n\t}\n\n\tCAM_DBG(CAM_MEM, \"Releasing hdl = %X\", inp->mem_handle);\n\tif (kref_put(&tbl.bufq[idx].krefcount, cam_mem_util_unmap))\n\t\tCAM_DBG(CAM_MEM,\n\t\t\t\"Called unmap from here, buf_handle: %u, idx: %d\",\n\t\t\ttbl.bufq[idx].buf_handle, idx);\n",
+          "after": "\t\treturn -EINVAL;\n\t}\n\n\tCAM_DBG(CAM_MEM, \"Releasing hdl = %X\", inp->mem_handle);\n#ifdef CONFIG_QKX_OWNER_GATE\n\trc = qkx_mem_cleanup_status(idx);\n\tif (rc)\n\t\treturn rc;\n#endif\n\tif (kref_put(&tbl.bufq[idx].krefcount, cam_mem_util_unmap))\n\t\tCAM_DBG(CAM_MEM,\n\t\t\t\"Called unmap from here, buf_handle: %u, idx: %d\",\n\t\t\ttbl.bufq[idx].buf_handle, idx);\n"
+        },
+        {
+          "name": "nonfinal_kref_put_is_accepted",
+          "before": "\t\t\ttbl.bufq[idx].buf_handle, idx);\n\telse\n\t\trc = -EINVAL;\n\n\treturn rc;\n",
+          "after": "\t\t\ttbl.bufq[idx].buf_handle, idx);\n\telse\n#ifdef CONFIG_QKX_OWNER_GATE\n\t\trc = 0;\n#else\n\t\trc = -EINVAL;\n#endif\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (!rc)\n\t\trc = qkx_mem_cleanup_status(idx);\n#endif\n\n\treturn rc;\n"
+        },
+        {
+          "name": "refuse_secondary_free_with_retained_refs",
+          "before": "\trc = cam_smmu_release_sec_heap(inp->smmu_hdl);",
+          "after": "#ifdef CONFIG_QKX_OWNER_GATE\n\tmutex_lock(&tbl.m_lock);\n\trc = qkx_mem_cleanup_errors[idx];\n\tif (!rc && kref_read(&tbl.bufq[idx].krefcount) != 1)\n\t\trc = -EBUSY;\n\tif (rc) {\n\t\tmutex_unlock(&tbl.m_lock);\n\t\treturn rc;\n\t}\n\trc = cam_smmu_release_sec_heap(inp->smmu_hdl);\n\tmutex_unlock(&tbl.m_lock);\n#else\n\trc = cam_smmu_release_sec_heap(inp->smmu_hdl);\n#endif"
+        },
+        {
+          "name": "preserve_secondary_release_error",
+          "before": "\t\treturn -ENODEV;\n\t}\n\n\tCAM_DBG(CAM_MEM, \"Releasing hdl = %X\", inp->mem_handle);",
+          "after": "#ifdef CONFIG_QKX_OWNER_GATE\n\t\treturn rc;\n#else\n\t\treturn -ENODEV;\n#endif\n\t}\n\n\tCAM_DBG(CAM_MEM, \"Releasing hdl = %X\", inp->mem_handle);"
+        },
+        {
+          "name": "reject_poisoned_iova_getter",
+          "before": "\t\treturn -EAGAIN;\n\n\tmutex_lock(&tbl.m_lock);\n\tif (buf_handle != tbl.bufq[idx].buf_handle) {\n",
+          "after": "\t\treturn -EAGAIN;\n\n\tmutex_lock(&tbl.m_lock);\n#ifdef CONFIG_QKX_OWNER_GATE\n\tif (qkx_mem_cleanup_errors[idx]) {\n\t\trc = qkx_mem_cleanup_errors[idx];\n\t\tgoto handle_mismatch;\n\t}\n#endif\n\tif (buf_handle != tbl.bufq[idx].buf_handle) {\n"
+        },
+        {
+          "name": "reject_poisoned_cpu_getter",
+          "before": "\tif (!(tbl.bufq[idx].flags & CAM_MEM_FLAG_KMD_ACCESS))",
+          "after": "#ifdef CONFIG_QKX_OWNER_GATE\n\t{\n\t\tint error = qkx_mem_cleanup_status(idx);\n\n\t\tif (error)\n\t\t\treturn error;\n\t}\n#endif\n\tif (!(tbl.bufq[idx].flags & CAM_MEM_FLAG_KMD_ACCESS))"
+        }
+      ]
+    }
+  ]
+}

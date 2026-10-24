@@ -17,6 +17,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_COMMIT = "6bde5fc06b252c97761bc0963dd13c1abcf377ab"
 MANIFEST_PATHS = tuple(PROJECT_ROOT / "patches/horizon-owner" / name
                        for name in ("camera-sites.json", "fastrpc-sites.json"))
+RESOURCE_MANIFEST_PATHS = tuple(PROJECT_ROOT / "patches/horizon-owner" / name
+                               for name in ("camera-lifetime-edits.json",
+                                            "fastrpc-lifetime-edits.json"))
 BUILD_HASHES = {
     "kernel/Makefile": "297ffe866e344ee073cf09ab9b31fc66441940d1e129cbe8cd72e3e239963a4f",
     "lib/Kconfig.debug": "bd4d5f10bf66f6bc2d0a227919ef40405ed084f65614df843d9af640cd5c1e1b",
@@ -29,10 +32,10 @@ IDENTIFIER = re.compile(r"[A-Za-z_]\w*", re.ASCII)
 SHA256 = re.compile(r"[0-9a-f]{64}")
 RESERVED_ARGS = {"qkx_entry_token", "qkx_entry_result"}
 KCONFIG_ENTRY = b"""config QKX_OWNER_GATE
-\tbool "Experimental camera/FastRPC entry accounting"
+\tbool "Experimental camera/FastRPC ownership development"
 \tdefault n
 \thelp
-\t  Account only the explicitly annotated camera and FastRPC entries.
+\t  Account annotated entries and preserve selected failed cleanup state.
 \t  This is not complete resource ownership, a checked drain controller,
 \t  DMA quiescence or a shutdown/handoff implementation. Leave disabled
 \t  unless testing a separately built development kernel.
@@ -321,6 +324,54 @@ def _plan(source_root):
             counts["sites"] += len(sites)
             counts[domain + "_sites"] += len(sites)
             counts["source_files"] += 1
+    lifetime_domains, lifetime_files = set(), set()
+    counts["lifetime_edits"] = 0
+    for path in RESOURCE_MANIFEST_PATHS:
+        raw = Path(path).read_bytes()
+        manifest = json.loads(raw, object_pairs_hook=_json_object)
+        _keys(manifest, ("schema_version", "domain", "files"), "lifetime manifest")
+        domain = manifest["domain"]
+        if type(manifest["schema_version"]) is not int or manifest["schema_version"] != 1:
+            raise ValueError("unsupported lifetime manifest schema")
+        if domain not in ("camera", "fastrpc") or domain in lifetime_domains:
+            raise ValueError("invalid or duplicate lifetime domain")
+        lifetime_domains.add(domain)
+        if Path(path).name in manifests:
+            raise ValueError("duplicate manifest filename")
+        manifests[Path(path).name] = _sha(raw)
+        if not isinstance(manifest["files"], list) or not manifest["files"]:
+            raise ValueError("lifetime source files required")
+        for entry in manifest["files"]:
+            _keys(entry, ("path", "sha256", "edits"), "lifetime file")
+            name = _relative(entry["path"])
+            if (not name.endswith(".c") or not name.startswith(("drivers/", "techpack/camera/"))
+                    or name in lifetime_files):
+                raise ValueError("invalid or duplicate lifetime source path")
+            lifetime_files.add(name)
+            original = originals[name] if name in originals else _member(root, name).read_bytes()
+            if not isinstance(entry["sha256"], str) or not SHA256.fullmatch(entry["sha256"]) or _sha(original) != entry["sha256"]:
+                raise ValueError("original lifetime source hash mismatch: " + name)
+            data = changes.get(name, original)
+            if not isinstance(entry["edits"], list) or not entry["edits"]:
+                raise ValueError("lifetime edits required")
+            labels = set()
+            for edit in entry["edits"]:
+                _keys(edit, ("name", "before", "after"), "lifetime edit")
+                label = edit["name"]
+                if not isinstance(label, str) or not IDENTIFIER.fullmatch(label) or label in labels:
+                    raise ValueError("invalid or duplicate lifetime edit label")
+                labels.add(label)
+                if any(not isinstance(edit[k], str) or not edit[k] or "\0" in edit[k]
+                       for k in ("before", "after")) or edit["before"] == edit["after"]:
+                    raise ValueError("nonempty distinct lifetime edit bytes required")
+                before, after = (edit[k].encode("latin-1") for k in ("before", "after"))
+                if data.count(before) != 1:
+                    raise ValueError("unique lifetime edit anchor required: " + label)
+                data = data.replace(before, after, 1)
+                counts["lifetime_edits"] += 1
+            originals[name] = original
+            changes[name] = data
+    counts["lifetime_files"] = len(lifetime_files)
     for name, expected in BUILD_HASHES.items():
         data = _member(root, name).read_bytes()
         if _sha(data) != expected:
@@ -345,7 +396,8 @@ def _plan(source_root):
         "schema_version": 1, "status": "SOURCE_PATCH_APPLIED", "source_commit": SOURCE_COMMIT,
         "source_root": str(root), "manifest_sha256": manifests, "counts": counts,
         "new_option": {"name": "CONFIG_QKX_OWNER_GATE", "type": "bool", "default": "n"},
-        "scope": "entry_accounting_only", "deployment": False, "full_ownership": False,
+        "scope": ("entry_accounting_and_checked_cleanup" if counts["lifetime_edits"]
+                  else "entry_accounting_only"), "deployment": False, "full_ownership": False,
         "files": {name: {"original_sha256": _sha(originals[name]) if originals[name] is not None else None,
                          "original_bytes": len(originals[name]) if originals[name] is not None else None,
                          "patched_sha256": _sha(data), "patched_bytes": len(data)}
@@ -410,7 +462,7 @@ def main(argv=None):
         report = apply(args.source, args.receipt)
     except (OSError, ValueError, TypeError, KeyError) as exc:
         parser.exit(2, "OWNER_SOURCE_PATCH_FAILED; HANDOFF_BLOCKED: " + str(exc) + "\n")
-    print("OWNER_SOURCE_PATCH_APPLIED; ENTRY_ACCOUNTING_ONLY; HANDOFF_BLOCKED; sites=" +
+    print("OWNER_SOURCE_PATCH_APPLIED; " + report["scope"].upper() + "; HANDOFF_BLOCKED; sites=" +
           str(report["counts"]["sites"]))
     return 0
 
