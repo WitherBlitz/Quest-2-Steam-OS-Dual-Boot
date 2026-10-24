@@ -56,10 +56,22 @@ output directory; do not commit or redistribute those files. The report keeps
 | Replace camera/FastRPC with modules | Both drivers are built in. Their existing files, maps, callbacks and hardware state have no validated transfer transaction. A second namespaced driver instance would not inherit those resources. |
 | Kexec into patched Horizon | Requires a proven shutdown/DMA/recovery boundary in the current stock kernel. Drivers that initialize in the next kernel cannot supply that missing old-kernel boundary. |
 | Downgrade/unlock | Current upstream was rechecked at `7f34276ecef9021771e7bf4a2d53f10b26243334`. Its [Quest 2 profile](https://github.com/darknight1050/quest1-bootloader-unlocker-web/blob/7f34276ecef9021771e7bf4a2d53f10b26243334/src/data/profiles.ts#L214-L225) does not establish compatibility with this firmware's enforced floors. The procedure writes boot-chain partitions and wipes data; it is not a reversible execution test. |
+| Current ABL signed-token unlock | A real signed, per-unit token path exists, but no valid token is available. Success erases user partitions and persists unlock state. It is not a RAM-only route. |
 
 The unlocker's root-workflow build ceiling is not itself a measurement of this
 unit's fuse state. Existing root does not resolve the image-family rollback
 mapping or make its downgrade safe. No downgrade or unlock was attempted.
+
+The current ABL's ordinary `oem unlock` handler at PE offset `0x11c30` prints the
+unlock URL and returns status 3. Its displayed "Device unlock allowed" value
+comes from a cached byte initialized to one, so that display is not FRP or
+permission evidence. The special `unlock_token` flash target instead reaches a
+signature verifier at `0x128d4`, checks an embedded RSA-2048 key, and binds the
+script to the unit's unlock serial before accepting an unlock record. Successful
+unlock reaches user-partition erasure before persistent device-state writes.
+These paths were checked with 66 exact instruction assertions plus command,
+string and public-key anchors in the matching extracted LinuxLoader. No valid
+signer-issued token is available, and no token or unlock command was submitted.
 
 ## Matching secure-firmware audit
 
@@ -171,8 +183,10 @@ verified using RSA-PSS/SHA-256, along with their 36 certificate signatures.
 Corresponding old/current OEM intermediate and root certificates match exactly.
 The signing-header layout was checked against the pinned
 [vendor MBN schema](https://github.com/Rivko/android-firmware-qti-sdm670/blob/20bb8ae36c93fc16bbadda0e0a83f930c0c8a271/aop_proc/tools/build/scons/sectools/sectools/common/parsegen/mbn/header.py).
-This verifies the signed metadata and embedded chain consistency; it does not
-establish hardware trust-anchor acceptance or complete program-segment coverage.
+All 102 indexed SHA-384 program-header hash slots across the ten images were
+also checked against their corresponding segments or required zero slots. This
+verifies the signed table, covered segment bytes and embedded chain consistency;
+it does not establish hardware trust-anchor acceptance or boot-stage policy.
 
 In particular, the current OTA's signed XBL version is also zero. A configured
 TZ counter for the aliased XBL/ABL records cannot simply be promoted to proof
