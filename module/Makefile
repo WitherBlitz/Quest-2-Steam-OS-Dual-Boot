@@ -11,6 +11,9 @@ obj-m += camera_dsp_diag.o
 ifeq ($(QKX_OWNER_SELFTEST),1)
 obj-m += owner_gate_selftest.o
 endif
+ifeq ($(QKX_SCM_VERSION_PROBE),1)
+obj-m += scm_version_probe.o
+endif
 quest_kexec-y := loader.o transition.o shutdown.o shutdown_io.o
 # Default builds stage only. Hardware actions require an explicit rebuild and
 # a separate board shutdown/memory review; this flag does not establish safety.

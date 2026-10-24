@@ -84,6 +84,12 @@ data = {
 PY
 git -C "$kernel" diff --exit-code
 git diff --exit-code
+if [[ "${QKX_SCM_VERSION_PROBE_BUILD:-0}" == 1 ]]; then
+  source "$repo/tools/ci/quest2_scm_version_probe_build.sh"
+elif [[ "${QKX_SCM_VERSION_PROBE_BUILD:-0}" != 0 ]]; then
+  echo 'Invalid SCM version probe build selection' >&2
+  exit 2
+fi
 if [[ "${QKX_OWNER_BUILD:-0}" == 1 ]]; then
   source "$repo/tools/ci/quest2_owner_build.sh"
 elif [[ "${QKX_OWNER_BUILD:-0}" != 0 ]]; then

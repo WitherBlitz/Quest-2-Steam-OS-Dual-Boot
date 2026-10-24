@@ -7,6 +7,10 @@ on:
         description: Build default-off/enabled ownership development and isolated entry self-test
         type: boolean
         default: false
+      scm_version_probe:
+        description: Build fixed read-only version probe; module defaults to no secure calls
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -35,6 +39,7 @@ jobs:
         env:
           Q2_CONFIG_GZ_B64: ${{ secrets.QUEST2_CONFIG_52242990024200150_GZ_B64 }}
           QKX_OWNER_BUILD: ${{ inputs.owner_gate && '1' || '0' }}
+          QKX_SCM_VERSION_PROBE_BUILD: ${{ inputs.scm_version_probe && '1' || '0' }}
         run: bash tools/ci/quest2_build.sh
       - name: Upload allowlisted build outputs
         if: always()

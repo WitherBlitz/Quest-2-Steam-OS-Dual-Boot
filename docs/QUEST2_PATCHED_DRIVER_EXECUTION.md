@@ -96,22 +96,81 @@ and nested-entry semantics do not themselves provide whole-driver consistency
 or keep redirected module text alive after probe teardown. No redirect was
 installed and no canary is presented as complete patched-driver execution.
 
+## Fixed rollback-query prerequisite
+
+The subsequent handler audit recovered a fixed scalar query contract for
+`0x0200020f`, parameter ID 1. Inputs 0, 7 and 28 bypass specialized PIL paths
+and read configured version-count records. On success, raw register 0 is zero,
+register 1 carries the count and registers 2/3 are zero; the public
+`scm_call2_noretry` API returns zero with that count in `desc.ret[0]`.
+The other two descriptor returns must be zero. Outputs after failure are invalid.
+
+The exact chip/config selector is `0x6008`. Its 22-record configuration maps
+XBL input 0 and ABL input 28 to the same two 32-bit fuse-count fields (range
+0-64), and TZ input 7 to a 17-bit field (range 0-17). The referenced exact OTA
+devcfg has the matching selector and no override of these properties. A selector
+or property lookup failure does not establish a zero count.
+
+The fixed service path reads those fields and performs ordinary stack, response
+and initialization-cache RAM writes. No fuse programming, flash, reset or
+resource reassignment was found on that path. Its worker routing matches the
+existing INFO availability/version query pattern. The public transport still
+has **no hard deadline**: `noretry` disables busy retries, not interrupted-call
+resumption or waiting for its mutex.
+
+The optional [module](../module/scm_version_probe.c) defaults to no secure calls.
+It checks model/kernel compatibility before its opt-in gate. The explicit query
+path first checks service availability, then submits only the three fixed
+one-value requests with zeroed descriptors. It rejects unexpected status/output,
+out-of-range counts or disagreement between the aliased XBL/ABL fields. There
+are no caller buffers, arbitrary service/address parameters or asynchronous work.
+
+The native build option is `scm_version_probe`; default builds omit the module.
+Its [separate ELF audit](../tools/ci/quest2_scm_probe_audit.py) requires complete
+version records, a fixed import/parameter allowlist and no constructors. Existing
+strict stock-module gates are unchanged. Missing captured stock CRC evidence is
+deferred only for the two named public SCM imports and remains explicit in the
+report. Generated CRC agreement does not become running-kernel acceptance.
+
+Native build, default-load acceptance and actual counter queries are still
+pending for this module. The intended first device step is a normal, no-force,
+no-query load/unload after artifact checks; that runs module initialization and
+changes transient kernel module state, even though it makes no secure call.
+A successful loader check would not validate the subsequent query or drivers.
+No module has been inserted and no counter query has been issued in this stage.
+
+Even a successful query would describe configured fuse counts, not authenticate
+an older image, establish every earlier boot-stage minimum or prove recovery.
+Zero counts would not authorize downgrade/unlock/flash. The persistent objective
+remains safe execution of the actual patched drivers on the headset.
+
 ## Verification
 
-`python -B -m unittest discover -s tools/tests -p 'test_*.py'` passed **637 tests,
-no skips**. The 12 collector tests include real shell byte-count/status framing,
+`python -B -m unittest discover -s tools/tests -p 'test_*.py'` passed **654 tests,
+no skips**, including 12 collector, nine fixed-query module and eight separate
+ELF-audit tests. The collector tests include real shell byte-count/status framing,
 binary data containing a status-like marker, regular-file refusal, truncated
 reads, failed/missing status, hash mismatches, changed metadata/identity/health,
 resident project modules, invalid inputs, host deadlines and existing outputs.
 The initial missing-collector tests failed before implementation.
-An independent review found no actionable issues and reran 45 affected
-collector/preflight/shutdown tests successfully, including the 12 new tests.
+The collector increment's independent review found no actionable issues and
+reran 45 affected collector/preflight/shutdown tests successfully. That review
+does not cover the subsequent query-module addition.
 
 The single on-headset capture above completed with matching prefixes and stable
 observations. Host-only inspection independently verified OTA manifest/operation/
 partition hashes, 101 exact instruction anchors and six pointer/table assertions.
-Python syntax,
-documentation links and Git whitespace checks passed. No new kernel code was
-changed or native kernel build claimed; the earlier native result remains pinned
-to the custody implementation. No firmware instructions were executed for the
-offline audit.
+The fixed-query contract additionally passed 77 instruction assertions, all 22
+property records, referenced partition hashes and exact kernel-source hashes.
+Python/YAML/Bash syntax, documentation links and Git whitespace checks passed.
+The earlier native custody result remains pinned to that implementation; a new
+native query-module build and independent review are pending. No firmware
+instructions were executed for the offline audit.
+
+The new query-module host tests cover its actual production functions using
+controlled public-API backends: default zero calls, fixed/zeroed requests,
+profile/availability failures, each transport failure, unexpected outputs,
+configured bounds and shared-field disagreement. Compilation fails without the
+real SCM configuration. Separate synthetic ELF tests exercise strict coverage,
+stock/generated CRC distinctions, unexpected imports, parameters and constructors.
+These host tests do not execute a secure query or establish hardware safety.
