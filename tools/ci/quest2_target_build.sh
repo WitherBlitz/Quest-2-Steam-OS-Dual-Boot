@@ -85,8 +85,19 @@ if [ "$profile" = startup-usb-child ]; then
     --archive "$artifacts/target-modules.tar.gz" --output "$artifacts/target-modules.json"
   cp "$out/Module.symvers" "$artifacts/target.Module.symvers"
 fi
-env CC=aarch64-linux-gnu-gcc CROSS_COMPILE=aarch64-linux-gnu- \
+busybox_env=(SOURCE_DATE_EPOCH=1792540800 TZ=UTC
+  CC=aarch64-linux-gnu-gcc CROSS_COMPILE=aarch64-linux-gnu-)
+env "${busybox_env[@]}" \
   bash initramfs/busybox.sh "$work/busybox" 2>&1 | tee "$artifacts/busybox-build.log"
+cp "$work/busybox" "$work/busybox-first"
+cp "$work/busybox-build/busybox-1.36.1/.config" "$work/busybox-first.config"
+# busybox.sh removes the source/build directory before each clean build.
+env "${busybox_env[@]}" \
+  bash initramfs/busybox.sh "$work/busybox" 2>&1 | tee -a "$artifacts/busybox-build.log"
+cmp "$work/busybox-first" "$work/busybox"
+cmp "$work/busybox-first.config" "$work/busybox-build/busybox-1.36.1/.config"
+sha256sum "$work/busybox-first" "$work/busybox" | tee -a "$artifacts/busybox-build.log"
+echo 'BusyBox binary/config: two clean rebuilds match' | tee -a "$artifacts/busybox-build.log"
 qemu-aarch64 "$work/busybox" sh -n "$init_script"
 qemu-aarch64 "$work/busybox" echo 'static ARM64 BusyBox executed under qemu-user' | tee "$artifacts/busybox-execution.log"
 if [ "$profile" = startup-usb-child ]; then
@@ -101,21 +112,29 @@ if [ "$profile" = startup-usb-child ]; then
 fi
 python3 -B initramfs/build.py --busybox "$work/busybox" \
   --init "$init_script" --output "$artifacts/initramfs.gz"
+python3 -B initramfs/build.py --busybox "$work/busybox" \
+  --init "$init_script" --output "$work/initramfs-repeat.gz"
+cmp "$artifacts/initramfs.gz" "$work/initramfs-repeat.gz"
+echo 'Initramfs: two packs match' | tee -a "$artifacts/target-build.log"
 cp "$out/arch/arm64/boot/Image" "$artifacts/Image"
 cp "$out/.config" "$artifacts/target.config"
 cp LICENSE "$artifacts/LICENSE"
 # Corresponding source = pinned base archive plus exact patches/build recipes
 # in port-source.tar.gz, with applied source hashes recorded in provenance.
 git -C "$kernel" archive --format=tar.gz --prefix=kernel/ HEAD > "$artifacts/kernel-source.tar.gz"
-git archive --format=tar.gz --prefix=quest2-port/ HEAD > "$artifacts/port-source.tar.gz"
+legacy_prebuilts=(initramfs/os/qkx-splash module/ion_secmap.ko.off
+  module/quest_kexec.ko.pre-adsp tools/device/qkx_dm tools/device/qkx_fsmap
+  tools/device/qkx_rawcp tools/turnkey/QkxFrameworkOverlay.apk)
+git archive --format=tar.gz --prefix=quest2-port/ HEAD -- . \
+  "${legacy_prebuilts[@]/#/:(exclude)}" > "$artifacts/port-source.tar.gz"
 cp "$work/busybox-build/busybox-1.36.1.tar.bz2" "$artifacts/busybox-source.tar.bz2"
 cp "$work/busybox-build/busybox-1.36.1/.config" "$artifacts/busybox.config"
-python3 - "$artifacts" "$kernel" "$compiler" "$work/target-profile.json" "$init_script" <<'PY'
+python3 - "$artifacts" "$kernel" "$compiler" "$work/target-profile.json" "$init_script" "${legacy_prebuilts[@]}" <<'PY'
 import hashlib, json, pathlib, struct, subprocess, sys
 sys.path.insert(0, 'tools')
 from quest2_payload_check import check_initramfs
 from ci.quest2_startup import validate_cpu_default
-artifacts, kernel, compiler, profile_path, init_source = map(pathlib.Path, sys.argv[1:])
+artifacts, kernel, compiler, profile_path, init_source = map(pathlib.Path, sys.argv[1:6])
 target_profile = json.loads(profile_path.read_text())
 cfg = (artifacts/'target.config').read_text()
 for name in ('ARM64', 'ARM64_4K_PAGES', 'BLK_DEV_INITRD', 'DEVTMPFS', 'RD_GZIP', 'BINFMT_ELF', 'BINFMT_SCRIPT', 'USB_CONFIGFS_ECM'):
@@ -157,6 +176,11 @@ data = {
  'compiler_commit': '425c8149f17c8d9914bf690b4d5abe45a13fb993',
  'clang_sha256': sha(compiler/'bin/clang'), 'lld_sha256': sha(compiler/'bin/ld.lld'),
  'busybox_source_sha256': 'b8cc24c9574d809e7279c3be349795c5d5ceb6fdf19ca709f80cde50e47de314',
+ 'busybox_source_date_epoch': 1792540800,
+ 'busybox_sha256': sha(profile_path.parent/'busybox'),
+ 'busybox_rebuild_verified': True, 'initramfs_repack_verified': True,
+ 'reproducibility_scope': 'Two clean same-path/toolchain BusyBox builds and two same-input initramfs packs; not a whole-kernel or cross-machine rebuild claim',
+ 'auto_boot_allowed': False, 'installable': False,
  'files': {name: {'bytes': (artifacts/name).stat().st_size, 'sha256': sha(artifacts/name)}
            for name in ('Image','initramfs.gz','target.config','kernel-source.tar.gz',
                         'port-source.tar.gz','busybox-source.tar.bz2','busybox.config') + module_files},
@@ -168,7 +192,8 @@ data = {
  'target_modules_bundled': rescue, 'target_modules_loaded': False,
  'module_install_strip_debug': rescue,
  'llvm_strip_sha256': sha(compiler/'bin/llvm-strip') if rescue else None,
- 'source_archive_scope': 'Unmodified kernel base plus pinned patches and recipes in port-source.tar.gz',
+ 'source_archive_scope': 'Unmodified kernel base plus pinned patches/recipes in port-source.tar.gz; inventoried legacy prebuilts excluded',
+ 'port_source_excludes': sys.argv[6:],
  'scope': ('Native USB rescue ' if rescue else 'Noninteractive ')+target_profile['target_profile']+' development build. Hardware handoff and physical boot unvalidated.'}
 (artifacts/'target-build-provenance.json').write_text(json.dumps(data,indent=2)+'\n')
 PY

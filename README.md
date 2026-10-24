@@ -46,6 +46,10 @@ The [dual-boot selection reference](docs/QUEST2_DUAL_BOOT.md) tests persistent
 defaults, one-boot overrides and interrupted-switch fallback on the host.
 Actual switching buttons, shared state and automatic startup remain unimplemented.
 
+The [release-readiness audit](docs/QUEST2_RELEASE_READINESS.md) covers all nine
+stages, development artifact limits and remaining installation/recovery blockers.
+There is no supported Quest 2 OS installer or feature-complete release.
+
 The [VR tracking and presentation matrix](docs/QUEST2_VR_TRACKING.md) records the
 remaining 6DoF, optics, controller and safety dependencies. A source-tested patch
 fixes upstream controller clock wrap and stick bounds; native VR remains blocked.
