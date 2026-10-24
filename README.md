@@ -58,6 +58,11 @@ The [camera/DSP ownership audit](docs/QUEST2_OWNER_AUDIT.md) adds a passive
 process/device collector and a proposed checked stop/drain sequence. FD holders
 do not establish session ownership, and several stock stop paths discard errors.
 
+The [source-integrated camera/FastRPC entry accounting](docs/QUEST2_DRIVER_ENTRY_ACCOUNTING.md)
+now covers 150 annotated sites. Both kernel configurations compile, and its
+isolated accounting module passed 15 cases on the Quest 2. The patched built-in
+drivers remain unbooted; complete ownership and checked shutdown remain open.
+
 The [sensors/tracking lifecycle audit](docs/QUEST2_SERVICE_LIFECYCLE.md) traces
 the matching shipped services and init. It identifies forced-kill paths,
 discarded camera-stop results and tracking cleanup waits; a checked global

@@ -74,8 +74,8 @@ source sites have passed hash/signature/lexical application checks.
 `module/owner_gate_selftest.c` embeds the production core into its **own
 unexported module state**, using real kernel spinlocks and a controlled test
 clock. It has no stock driver bindings, probes, ioctls, MMIO or handoff code.
-It requires explicit `observe=1` and the matching Hollywood kernel/model. Passing
-its 15 cases would validate this isolated accounting implementation, not camera
+It requires explicit `observe=1` and the matching Hollywood kernel/model. Its
+15 passing cases validate this isolated accounting implementation, not camera
 or FastRPC execution, real-time behavior, pending work or hardware ownership.
 
 The matching-loader workflow's optional `owner_gate=true` build first builds
@@ -83,8 +83,49 @@ and audits that module against the unchanged stock configuration. It then
 applies the source patch and compiles the modified kernel with the option off
 and on. Stock-module ABI evidence and modified-kernel provenance are separate.
 The artifact contains the generated source patch, logs and hashes; no installable
-Horizon boot image is exported. Native compilation and the live isolated module
-test are pending at this implementation checkpoint.
+Horizon boot image is exported.
+
+## Verified implementation checkpoint
+
+The [native build](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/40056509167)
+passed at source `e25e92d87572f723b72a1a0c3a2b857d6ea43d4f`. Both the Windows
+and native Linux runs passed all **530 host tests**, without skips. Independent
+review regenerated all 150 wrappers from the pinned archive and checked all
+40 generated file hashes. Python AST, YAML parsing, Bash syntax and whitespace
+checks passed. There is no configured Python linter.
+
+The unchanged matching kernel and baseline modules passed their existing ABI
+gates. The patched kernel then compiled with `CONFIG_QKX_OWNER_GATE` disabled
+and enabled, without compiler errors in either build. The enabled build compiled
+the new core; the disabled build omitted it. Their raw Image hashes are build
+evidence, not verified Horizon boot packages.
+
+The downloaded 28-file artifact matched GitHub's archive digest and every
+`SHA256SUMS` entry. Its source receipt matched the independently reproduced
+receipt, and all five modules passed an independent ELF/vermagic/import audit.
+The isolated self-test module is 90,968 bytes, SHA-256
+`cadab91d5365aefcce7bb878d383565cb360774ef9fb2ef1e6aa7c166b9ee361`.
+All 14 version records match generated and observed stock export CRCs. The
+module exports no controls and imports no camera/FastRPC or probe interface.
+
+On the matching rooted Quest 2, one explicit module insertion produced:
+
+```text
+QKX_OWNER_SELFTEST cases=15 result=PASS driver_bindings=0 controlled_clock=1
+```
+
+The module unloaded and its sole temporary file was removed. Boot identity,
+CPU set, stock module names, panic/watchdog settings and sampled DSP, camera,
+binding and IOMMU observations matched before/after. No new matched kernel fault
+messages appeared. The user confirmed Home and head/controller tracking normal.
+
+The strict capture flagged a taint change from **1028 to 5124**. The only added
+bit was `1 << 12`, which the pinned source defines as `TAINT_OOT_MODULE` and sets
+when loading an external module without `intree` metadata. Original flagged
+evidence was retained; a separate assessment records this explained delta.
+The test was not repeated and did not reboot or change the built-in drivers.
+Raw captures and device identifiers remain private. **Actual patched-driver
+execution, retained resource ownership and hardware shutdown remain unvalidated.**
 
 ## Running modified Horizon drivers
 
