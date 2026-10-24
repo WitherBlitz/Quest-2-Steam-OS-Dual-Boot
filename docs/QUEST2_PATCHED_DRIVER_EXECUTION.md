@@ -200,7 +200,8 @@ execution resumed only from the verified unloaded, no-query checkpoint.
 
 One explicit fixed query then completed with transport status zero and configured
 counts **XBL 0, TZ 0, ABL 0**. The three fixed requests passed all response bounds
-and XBL/ABL alias checks. No secure request was repeated. Normal unload and exact
+and XBL/ABL alias checks. The explicit query insertion was performed once; the
+three counter requests used `scm_call2_noretry`. Normal unload and exact
 temporary-file removal completed; boot, CPUs, module list and taint `5124` matched
 around the query. Post-query human Home/tracking confirmation is pending.
 
@@ -256,6 +257,10 @@ The initial missing-collector tests failed before implementation.
 The collector increment's independent review found no actionable issues and
 reran 45 affected collector/preflight/shutdown tests successfully. That review
 does not cover the subsequent query-module addition.
+The later five-prefix expansion's independent review passed 47 affected tests
+and independently rehashed all five actual captures and checked their metadata,
+health observations and saved query receipts. Its wording correction distinguishes
+one explicit insertion from the public availability transport's internal retries.
 
 The five-prefix on-headset capture above completed with matching prefixes and stable
 observations. Host-only inspection independently verified OTA manifest/operation/
