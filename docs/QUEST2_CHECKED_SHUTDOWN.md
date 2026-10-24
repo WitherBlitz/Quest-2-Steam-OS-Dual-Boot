@@ -101,6 +101,9 @@ ownership, captured before stock cleanup discards them. No verified cooperative
 owner interface or kernel instrumentation supplies all those receipts here.
 Building a target Linux kernel does not change the running Horizon driver.
 The new kernel-client metadata observations establish none of those completions.
+The [bounded return observer](QUEST2_RELEASE_OBSERVATION.md) can record original
+kernel returns without forcing release; it supplies no admission fence or checked
+owner receipt and does not enable a stock adapter.
 
 ## Verification
 

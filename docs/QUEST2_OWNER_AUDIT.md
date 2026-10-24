@@ -74,6 +74,8 @@ references; it is not an inert scalar read. Accounting attributes were left unre
 The [source verifier](../tools/quest2_shutdown_source.py) now checks this file's
 exact SHA-256, `f479739662bd427b577e493b518240f3c1ec0b7eb0b1cdf0f3da769efea6d49b`.
 Public source matching remains separate from stock binary equivalence.
+The [bounded kernel return observer](QUEST2_RELEASE_OBSERVATION.md) is a separate
+instrumentation diagnostic; its return samples cannot close these ownership gaps.
 
 ## What ownership evidence means
 
