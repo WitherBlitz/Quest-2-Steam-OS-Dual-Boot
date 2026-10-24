@@ -88,8 +88,11 @@ supplies an eight-argument indirect request. That different-platform boot-stage
 contract does not establish Hollywood's handler, normal-world permissions,
 rollback domain or side effects. The suspected numeric records in the matching
 OTA TZ image actually belong to a 42-record configuration table; they are
-withdrawn as evidence of secure-service implementation. This increment has not
-matched the active unit's TZ image.
+withdrawn as evidence of secure-service implementation. At this increment's
+completion, the active unit's TZ image had not been matched. The subsequent
+[execution-route investigation](QUEST2_PATCHED_DRIVER_EXECUTION.md) matched the
+active-slot ABL/TZ partition prefixes; running secure-image measurement and a
+safe boot path remain unproven.
 
 The next prerequisite is an offline audit of that matching implementation and
 complete contract. No secure call, bootloader-mode cycle, flash, downgrade or

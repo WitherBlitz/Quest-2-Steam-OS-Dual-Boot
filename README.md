@@ -71,6 +71,11 @@ The [selected object-custody work](docs/QUEST2_OBJECT_CUSTODY.md) covers deferre
 CRM and FastRPC object retirement across operations and callbacks. Complete
 ownership, hardware shutdown and a safe patched-driver boot path remain open.
 
+The [patched-driver execution investigation](docs/QUEST2_PATCHED_DRIVER_EXECUTION.md)
+adds bounded read-only active-slot ABL/TZ identity collection. Both prefixes match
+the audited OTA on the headset; an accepted boot path and independent recovery
+remain unproven. The collector never authorizes driver execution.
+
 The [sensors/tracking lifecycle audit](docs/QUEST2_SERVICE_LIFECYCLE.md) traces
 the matching shipped services and init. It identifies forced-kill paths,
 discarded camera-stop results and tracking cleanup waits; a checked global
