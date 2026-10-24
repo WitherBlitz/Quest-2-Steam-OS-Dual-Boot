@@ -151,6 +151,34 @@ an older image, establish every earlier boot-stage minimum or prove recovery.
 Zero counts would not authorize downgrade/unlock/flash. The persistent objective
 remains safe execution of the actual patched drivers on the headset.
 
+## Signed metadata comparison
+
+An offline comparison reconstructed five images from the exact current OTA and
+compared them with the unlocker's pinned `quest2a12/16476800118700000.zip` archive
+(SHA-256 `af25f24a975eab802065da0f1bc753d209af10d66164db28ebacdbedfa05e6a2`).
+The signed OEM metadata reports:
+
+| Image | Old archive anti-rollback version | Current OTA anti-rollback version |
+| --- | ---: | ---: |
+| XBL | 0 | 0 |
+| XBL config | 0 | 0 |
+| TZ | 0 | 0 |
+| devcfg | 0 | 0 |
+| ABL | 0 | 1 |
+
+All 12 embedded authority hash-segment signatures (including TZ's QTI signatures)
+verified using RSA-PSS/SHA-256, along with their 36 certificate signatures.
+Corresponding old/current OEM intermediate and root certificates match exactly.
+The signing-header layout was checked against the pinned
+[vendor MBN schema](https://github.com/Rivko/android-firmware-qti-sdm670/blob/20bb8ae36c93fc16bbadda0e0a83f930c0c8a271/aop_proc/tools/build/scons/sectools/sectools/common/parsegen/mbn/header.py).
+This verifies the signed metadata and embedded chain consistency; it does not
+establish hardware trust-anchor acceptance or complete program-segment coverage.
+
+In particular, the current OTA's signed XBL version is also zero. A configured
+TZ counter for the aliased XBL/ABL records cannot simply be promoted to proof
+that PBL rejects version-zero XBL. Earlier-stage enforcement and image acceptance
+still need their own evidence. No older firmware was installed or executed.
+
 ## Verification
 
 `python -B -m unittest discover -s tools/tests -p 'test_*.py'` passed **656 tests,
