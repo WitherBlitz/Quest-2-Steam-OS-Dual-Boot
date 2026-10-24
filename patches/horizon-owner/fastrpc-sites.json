@@ -1,0 +1,364 @@
+{
+  "schema_version": 1,
+  "domain": "fastrpc",
+  "files": [
+    {
+      "path": "drivers/char/adsprpc.c",
+      "sha256": "f479739662bd427b577e493b518240f3c1ec0b7eb0b1cdf0f3da769efea6d49b",
+      "sites": [
+        {
+          "name": "fastrpc_file_sysfs_attr_show",
+          "signature": "static ssize_t fastrpc_file_sysfs_attr_show(struct kobject *kobj,\n\tstruct attribute *attr, char *buf)",
+          "function_sha256": "8f1155048df862081cdb23106b626dff63d5c3d8e1c3a6ad0d4e24d3d765a767",
+          "args": [
+            "kobj",
+            "attr",
+            "buf"
+          ],
+          "result": "ssize_t",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_file_sysfs_kobj_release",
+          "signature": "static void fastrpc_file_sysfs_kobj_release(struct kobject *kobj)",
+          "function_sha256": "58413a82fb2893e8e8094fb4533f710f1472e6b86c29a4da28f088bf96ae6a34",
+          "args": [
+            "kobj"
+          ],
+          "result": "void",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_mmap_add_global",
+          "signature": "static void fastrpc_mmap_add_global(struct fastrpc_mmap *map)",
+          "function_sha256": "2b629cc26018a5931c7573851222b1f4896fcc649f13158ffbe44736e4f9949b",
+          "args": [
+            "map"
+          ],
+          "result": "void",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_mmap_remove",
+          "signature": "static int fastrpc_mmap_remove(struct fastrpc_file *fl, uintptr_t va,\n\t\t\t       size_t len, struct fastrpc_mmap **ppmap)",
+          "function_sha256": "5843df159aec7195f571bb2ed339b58313aaedbdd398701116f298e9b09db6a4",
+          "args": [
+            "fl",
+            "va",
+            "len",
+            "ppmap"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_mmap_free",
+          "signature": "static void fastrpc_mmap_free(struct fastrpc_mmap *map, uint32_t flags)",
+          "function_sha256": "36a278f20634870bda3f8afd0ddefb8f23e7720170e31b50d3946400b430e557",
+          "args": [
+            "map",
+            "flags"
+          ],
+          "result": "void",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_mmap_create",
+          "signature": "static int fastrpc_mmap_create(struct fastrpc_file *fl, int fd,\n\tunsigned int attr, uintptr_t va, size_t len, int mflags,\n\tstruct fastrpc_mmap **ppmap)",
+          "function_sha256": "055d6e5f361f58c02e9f7ee85721b12fdabb48848be33c3b40bff4a778a5af72",
+          "args": [
+            "fl",
+            "fd",
+            "attr",
+            "va",
+            "len",
+            "mflags",
+            "ppmap"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "context_notify_user",
+          "signature": "static void context_notify_user(struct smq_invoke_ctx *ctx,\n\t\tint retval, uint32_t rspFlags, uint32_t earlyWakeTime)",
+          "function_sha256": "0a8d95e93c996dde1532798508bebf62b5d71e10aef0c8eefcdaf25c21e640ea",
+          "args": [
+            "ctx",
+            "retval",
+            "rspFlags",
+            "earlyWakeTime"
+          ],
+          "result": "void",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_file_destroy",
+          "signature": "static void fastrpc_file_destroy(struct kref *kref)",
+          "function_sha256": "ba6c5b1867e9c71f03eb493b82a0fa4b83cc92f3098c5253e4e8bffdc290507f",
+          "args": [
+            "kref"
+          ],
+          "result": "void",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_wait_for_completion",
+          "signature": "static void fastrpc_wait_for_completion(struct smq_invoke_ctx *ctx,\n\t\t int *pInterrupted, uint32_t kernel)",
+          "function_sha256": "6be36648e6eda0e2d5b900d00b3c9d58cb7fd21325dc1bb0059a59e99bd55df5",
+          "args": [
+            "ctx",
+            "pInterrupted",
+            "kernel"
+          ],
+          "result": "void",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_internal_invoke",
+          "signature": "static int fastrpc_internal_invoke(struct fastrpc_file *fl, uint32_t mode,\n\t\t\t\t   uint32_t kernel,\n\t\t\t\t   struct fastrpc_ioctl_invoke_crc *inv)",
+          "function_sha256": "209f0a9a52ba84dabd493b2f8641e8960551fadd7edecf17f6316e78883c91a8",
+          "args": [
+            "fl",
+            "mode",
+            "kernel",
+            "inv"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_mmap_remove_ssr",
+          "signature": "static int fastrpc_mmap_remove_ssr(struct fastrpc_file *fl, int locked)",
+          "function_sha256": "fa2dc85460e49a3c702e4e0fa25dc68a25ac2d66ca54b272b7d6db0b81eb0bd9",
+          "args": [
+            "fl",
+            "locked"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_mmap_remove_pdr",
+          "signature": "static int fastrpc_mmap_remove_pdr(struct fastrpc_file *fl)",
+          "function_sha256": "ad7c72a02cb0727e82d5e35cf482cdbff0e2e1545bc23d5dd712cad458a3243f",
+          "args": [
+            "fl"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_internal_munmap",
+          "signature": "static int fastrpc_internal_munmap(struct fastrpc_file *fl,\n\t\t\t\t   struct fastrpc_ioctl_munmap *ud)",
+          "function_sha256": "2d1b4b642f35b8325e35685169dc91123e992f6680ea4d11908ece794295dbf1",
+          "args": [
+            "fl",
+            "ud"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_internal_munmap_fd",
+          "signature": "static int fastrpc_internal_munmap_fd(struct fastrpc_file *fl,\n\t\t\t\tstruct fastrpc_ioctl_munmap_fd *ud)",
+          "function_sha256": "c40fe07d63dfc69a6fca1a0a8f862b2b4a7fe23aca5feb812a7bceb29868a53c",
+          "args": [
+            "fl",
+            "ud"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_internal_mmap",
+          "signature": "static int fastrpc_internal_mmap(struct fastrpc_file *fl,\n\t\t\t\t struct fastrpc_ioctl_mmap *ud)",
+          "function_sha256": "28f264d5be873f34851dcdc8b0a8d7864ddd2f07954f81fb447ccacaca236f3c",
+          "args": [
+            "fl",
+            "ud"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_rpmsg_probe",
+          "signature": "static int fastrpc_rpmsg_probe(struct rpmsg_device *rpdev)",
+          "function_sha256": "a0281c23340dfb3d240f52c160a204c6fade5f673cce8183bda234e6376283ca",
+          "args": [
+            "rpdev"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_rpmsg_remove",
+          "signature": "static void fastrpc_rpmsg_remove(struct rpmsg_device *rpdev)",
+          "function_sha256": "9ba649d0fe9a01ada5021706abd0f9dbac8412ffe0babb86c6cf61c5a9dd8d07",
+          "args": [
+            "rpdev"
+          ],
+          "result": "void",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_rpmsg_callback",
+          "signature": "static int fastrpc_rpmsg_callback(struct rpmsg_device *rpdev, void *data,\n\tint len, void *priv, u32 addr)",
+          "function_sha256": "1d39ea05c616e706225d24a07fbeb54c5a42594887bc522f9ecae9bbdd141b47",
+          "args": [
+            "rpdev",
+            "data",
+            "len",
+            "priv",
+            "addr"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_file_free",
+          "signature": "static int fastrpc_file_free(struct fastrpc_file *fl)",
+          "function_sha256": "c0ab17e2249f2a7f057867d5bce901f4ba352802ddf4c5ec408de87ea14a49f0",
+          "args": [
+            "fl"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_device_release",
+          "signature": "static int fastrpc_device_release(struct inode *inode, struct file *file)",
+          "function_sha256": "f0eab00865168ad7fe5ad509e3f95014421147a42ef7ac0493638364e874c5d4",
+          "args": [
+            "inode",
+            "file"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_procfs_open",
+          "signature": "static int fastrpc_procfs_open(struct inode *inode, struct file *filp)",
+          "function_sha256": "e6d3eb6ff01e48e1bf7559f97ebf1109839bf2c2fe0645760943c057c78a7e6e",
+          "args": [
+            "inode",
+            "filp"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_procfs_read",
+          "signature": "static ssize_t fastrpc_procfs_read(struct file *filp, char __user *buffer,\n\t\t\t\t\t size_t count, loff_t *position)",
+          "function_sha256": "0a8f2bf356d1aad559c0ef6842bedf6019a9eefd23acc515492c977f2961054a",
+          "args": [
+            "filp",
+            "buffer",
+            "count",
+            "position"
+          ],
+          "result": "ssize_t",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_device_open",
+          "signature": "static int fastrpc_device_open(struct inode *inode, struct file *filp)",
+          "function_sha256": "361163d3269e00ff47d20c26c9761820445bc233fd03372d1a4905d14d31b2d3",
+          "args": [
+            "inode",
+            "filp"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "fastrpc_device_ioctl",
+          "signature": "static long fastrpc_device_ioctl(struct file *file, unsigned int ioctl_num,\n\t\t\t\t unsigned long ioctl_param)",
+          "function_sha256": "c7e91e2bc86aea574e0bae036da97764bd567992e279b1755b451d6579e051c9",
+          "args": [
+            "file",
+            "ioctl_num",
+            "ioctl_param"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "fastrpc_restart_notifier_cb",
+          "signature": "static int fastrpc_restart_notifier_cb(struct notifier_block *nb,\n\t\t\t\t\tunsigned long code,\n\t\t\t\t\tvoid *data)",
+          "function_sha256": "6b006455397b2d21d15828c6e2ef05de02132328b55e74d1e910a15d0ed39752",
+          "args": [
+            "nb",
+            "code",
+            "data"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_pdr_notifier_cb",
+          "signature": "static int fastrpc_pdr_notifier_cb(struct notifier_block *pdrnb,\n\t\t\t\t\tunsigned long code,\n\t\t\t\t\tvoid *data)",
+          "function_sha256": "b41fe957ed44102d5cd63d1665aa1be8abffc2c32c53f00c6dd00407d4ddbd4d",
+          "args": [
+            "pdrnb",
+            "code",
+            "data"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_get_service_location_notify",
+          "signature": "static int fastrpc_get_service_location_notify(struct notifier_block *nb,\n\t\t\t\tunsigned long opcode, void *data)",
+          "function_sha256": "405db5ec86723159d975690397b0328b53243089e3af48ce4461f80ed81ff8ed",
+          "args": [
+            "nb",
+            "opcode",
+            "data"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_cb_probe",
+          "signature": "static int fastrpc_cb_probe(struct device *dev)",
+          "function_sha256": "1a8b6e169552eb44577f5429a8f9c4e9138a29818c185ff09c2ac534dabf99f7",
+          "args": [
+            "dev"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_cb_legacy_probe",
+          "signature": "static int fastrpc_cb_legacy_probe(struct device *dev)",
+          "function_sha256": "d2940205f010e2899fbe9435e85cf2f8ee648fef60b328dea983cb1476ab3f2c",
+          "args": [
+            "dev"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_probe",
+          "signature": "static int fastrpc_probe(struct platform_device *pdev)",
+          "function_sha256": "f903c743036a16d0661b55ed5e348938a8bc6d5e5727ac0c52c8973b7476ee19",
+          "args": [
+            "pdev"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "fastrpc_file_sysfs_destroy",
+          "signature": "static void fastrpc_file_sysfs_destroy(struct kref *kref)",
+          "function_sha256": "d32b4ba14e42504571bbea1951957c268ba863a6d48800959b8de8ba1222e2c7",
+          "args": [
+            "kref"
+          ],
+          "result": "void",
+          "policy": "observe"
+        }
+      ]
+    }
+  ]
+}

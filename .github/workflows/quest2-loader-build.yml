@@ -2,6 +2,11 @@ name: Quest 2 matching loader build
 
 on:
   workflow_dispatch:
+    inputs:
+      owner_gate:
+        description: Build default-off/enabled driver entry accounting and isolated self-test
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -29,6 +34,7 @@ jobs:
       - name: Build pinned kernel and stage-only loader
         env:
           Q2_CONFIG_GZ_B64: ${{ secrets.QUEST2_CONFIG_52242990024200150_GZ_B64 }}
+          QKX_OWNER_BUILD: ${{ inputs.owner_gate && '1' || '0' }}
         run: bash tools/ci/quest2_build.sh
       - name: Upload allowlisted build outputs
         if: always()

@@ -84,5 +84,14 @@ data = {
 PY
 git -C "$kernel" diff --exit-code
 git diff --exit-code
+if [[ "${QKX_OWNER_BUILD:-0}" == 1 ]]; then
+  source "$repo/tools/ci/quest2_owner_build.sh"
+elif [[ "${QKX_OWNER_BUILD:-0}" != 0 ]]; then
+  echo 'Invalid owner build selection' >&2
+  exit 2
+fi
 (cd "$artifacts" && sha256sum ./*.ko ./*.json ./*.log Module.symvers ./*.compile.txt ./*.disassembly.txt LICENSE > SHA256SUMS)
+if [[ "${QKX_OWNER_BUILD:-0}" == 1 ]]; then
+  (cd "$artifacts" && sha256sum owner-driver.patch >> SHA256SUMS)
+fi
 echo 'Offline matching-module build and ABI gates complete. No hardware handoff performed.'

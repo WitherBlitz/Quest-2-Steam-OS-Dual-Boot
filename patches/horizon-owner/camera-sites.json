@@ -1,0 +1,1528 @@
+{
+  "schema_version": 1,
+  "domain": "camera",
+  "files": [
+    {
+      "path": "techpack/camera/drivers/cam_core/cam_context.c",
+      "sha256": "4b358b9cc76896dbe37a84f1564b75c7ba1b345b7e15107b3b61e05141c99b33",
+      "sites": [
+        {
+          "name": "cam_context_handle_hw_event",
+          "signature": "static int cam_context_handle_hw_event(void *context, uint32_t evt_id,\n\tvoid *evt_data)",
+          "function_sha256": "ea80571af3a048dd4a7685f7cc54f5ddef6da1eab82a20f2ba2370f12ec205bb",
+          "args": [
+            "context",
+            "evt_id",
+            "evt_data"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_context_shutdown",
+          "signature": "int cam_context_shutdown(struct cam_context *ctx)",
+          "function_sha256": "6edb754a0fba9295ebbe5eff5da8d325d91b71341fef836ec0815535356366fb",
+          "args": [
+            "ctx"
+          ],
+          "result": "int",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_core/cam_node.c",
+      "sha256": "048ab2cfa11d375a1760b43de1a5a71999e0792d9aeae3b7fa4dcf44812a8405",
+      "sites": [
+        {
+          "name": "cam_node_shutdown",
+          "signature": "int cam_node_shutdown(struct cam_node *node)",
+          "function_sha256": "863a7cabae963c48182b2e085fe0040e78ad491c4c9a661ba403039957024141",
+          "args": [
+            "node"
+          ],
+          "result": "int",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_core/cam_node_fastpath.c",
+      "sha256": "70f9a3397cd3b15f2e73517bd0ca54287b64d82b9534800e5cb107da7697edd8",
+      "sites": [
+        {
+          "name": "cam_node_fastpath_poweron",
+          "signature": "int cam_node_fastpath_poweron(struct cam_node_fastpath *node)",
+          "function_sha256": "b85212bbf127f9cd21c61974dee6e840a64165b937015f02958c97bc358355ab",
+          "args": [
+            "node"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_node_fastpath_shutdown",
+          "signature": "void cam_node_fastpath_shutdown(struct cam_node_fastpath *node)",
+          "function_sha256": "3a571abfbc8475aaea1b1e846ab0cd1ab5e2e5358fbc9b3b101a39e45b9a80aa",
+          "args": [
+            "node"
+          ],
+          "result": "void",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_core/cam_subdev.c",
+      "sha256": "a67c5e59898a0fa471f34e080025b8907ec9112c8d9512f01df1903799121a0e",
+      "sites": [
+        {
+          "name": "cam_subdev_ioctl",
+          "signature": "static long cam_subdev_ioctl(struct v4l2_subdev *sd, unsigned int cmd,\n\tvoid *arg)",
+          "function_sha256": "7bd6f08b53ecf28ee4bd380945e495aff43aab04f16c460508571f9c60d5bbfe",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_subdev_compat_ioctl",
+          "signature": "static long cam_subdev_compat_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, unsigned long arg)",
+          "function_sha256": "affb535977e880aadd65656f7d3d279a3b94b6c347bd446a4e57ae91271f0458",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_core/cam_subdev_fastpath.c",
+      "sha256": "e6273bd1fb894067e3462a40ef24c02862e10c62bbaeb6e5261c7459686dcc82",
+      "sites": [
+        {
+          "name": "cam_subdev_ioctl",
+          "signature": "static long cam_subdev_ioctl(struct v4l2_subdev *sd, unsigned int cmd,\n\tvoid *arg)",
+          "function_sha256": "28575366c42290dd4a19ad26238df25ff22a54790b94e8af99228dfc5fc0cbb3",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_subdev_compat_ioctl",
+          "signature": "static long cam_subdev_compat_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, unsigned long arg)",
+          "function_sha256": "affb535977e880aadd65656f7d3d279a3b94b6c347bd446a4e57ae91271f0458",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_cpas/cam_cpas_intf.c",
+      "sha256": "54041d70b6bea5472ca6e6edff90b7a1aa9cdd4dddb6808a3afee25be673548e",
+      "sites": [
+        {
+          "name": "cam_cpas_subdev_open",
+          "signature": "static int cam_cpas_subdev_open(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "35a29cc9d01b32f9eb726342089a3b12d884d32d7253c34f160e7a5274ee21ab",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_cpas_subdev_close",
+          "signature": "static int cam_cpas_subdev_close(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "95678c9c7f029e057e7ca86f1aa0b19cfc7e2faeec332abc7799ea48147fd50b",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_cpas_subdev_ioctl",
+          "signature": "static long cam_cpas_subdev_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, void *arg)",
+          "function_sha256": "11ac4f394377b422c441a908d56498b91f98423b1998e9dae99a425527be7280",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_cpas_subdev_compat_ioctl",
+          "signature": "static long cam_cpas_subdev_compat_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, unsigned long arg)",
+          "function_sha256": "8b101b4753b9a0cf2e7f6e600ebf0a8b2886f4871b2822de598a43284f9ca9cc",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_cust/cam_custom_dev.c",
+      "sha256": "bf0dfa3f3fadbdf4af56b885de87cdd27ce12549eeb5017f82039a3b107072eb",
+      "sites": [
+        {
+          "name": "cam_custom_subdev_open",
+          "signature": "static int cam_custom_subdev_open(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "d901b49282d7ae355aaffcaf1b139cb00f6556e0df3955d2cd59e95827dcade1",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_custom_subdev_close",
+          "signature": "static int cam_custom_subdev_close(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "a2dd1bf47e0beb609e9d6b2bc8dd59b2046d0fe18ba70ef4ddd8043dae53c4dd",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_fastpath/cam_fastpath_queue.c",
+      "sha256": "62a5df0301beee152978e450e416fcecbb4159e0734e02950b4883bd69d1f388",
+      "sites": [
+        {
+          "name": "cam_fp_queue_misc_ioctl",
+          "signature": "static long cam_fp_queue_misc_ioctl(struct file *file, unsigned int cmd,\n\t\t\t\t    unsigned long arg)",
+          "function_sha256": "d5a7904beb9a53e52f7a8041b146a904b8743136435bab4b58ece82deac91817",
+          "args": [
+            "file",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_fp_queue_misc_open",
+          "signature": "static int cam_fp_queue_misc_open(struct inode *inode, struct file *file)",
+          "function_sha256": "a4721dcb67efd1b4b0e097405803f962f2624b40d1afadb9ba0724c3d161a9e5",
+          "args": [
+            "inode",
+            "file"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_fp_queue_misc_release",
+          "signature": "static int cam_fp_queue_misc_release(struct inode *inode, struct file *file)",
+          "function_sha256": "490cb39e3998ec5320e59d6c7a42ef8ec2b327151529e133202bfac8264e8590",
+          "args": [
+            "inode",
+            "file"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_fp_queue_buffer_set_done",
+          "signature": "int cam_fp_queue_buffer_set_done(struct cam_fp_queue *fpq,\n\t\t\t\t u64 request_id, u64 timestamp,\n\t\t\t\t enum cam_fp_buffer_status status,\n\t\t\t\t __u32 sof_index)",
+          "function_sha256": "ff2ea39e540fcb187735b184ac6e1f419222474345f154a006f0b8d54a0803d6",
+          "args": [
+            "fpq",
+            "request_id",
+            "timestamp",
+            "status",
+            "sof_index"
+          ],
+          "result": "int",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_fd/cam_fd_dev.c",
+      "sha256": "9561b27e29c7d23eea6c3cfdcdddc7697a8e2931dbf65ed7cfbf0947537f4e5d",
+      "sites": [
+        {
+          "name": "cam_fd_dev_open",
+          "signature": "static int cam_fd_dev_open(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "c665e76a48416809530f67d1cc9505be17af2211f9a9219c4b3fa684f03cc606",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_fd_dev_close",
+          "signature": "static int cam_fd_dev_close(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "70f0e5ce95ad62f192b7010f89e42e3925854773d86de42658550ed6dadcbba1",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_icp/cam_icp_context_fastpath.c",
+      "sha256": "4be391472e873d42010cd1cc5d15e4ade321c797addb664da87a6baa6d55fb3e",
+      "sites": [
+        {
+          "name": "cam_icp_fpc_queue_buf_notify",
+          "signature": "static int cam_icp_fpc_queue_buf_notify(void *priv)",
+          "function_sha256": "5780484d5ee6354791bd88962ba3b029c917ac6b05666f98f283ec7e7baeda4a",
+          "args": [
+            "priv"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_icp_fastpath_set_power",
+          "signature": "int cam_icp_fastpath_set_power(void *hnd, int on)",
+          "function_sha256": "84ddf578dffcf566297b8e95bcf619e14112a6590820b881d869a79096895ff4",
+          "args": [
+            "hnd",
+            "on"
+          ],
+          "result": "int",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_icp/cam_icp_subdev.c",
+      "sha256": "a2b2181e73d181c6015c66d25434b17a23d5e9727092286ce8463e2b5dfb9dc6",
+      "sites": [
+        {
+          "name": "cam_icp_subdev_open",
+          "signature": "static int cam_icp_subdev_open(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "7c61283e8bc35e8e7fd03a2a2f7fc9250a4f4f4783e200c91b3580372074a6a5",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_icp_subdev_close",
+          "signature": "static int cam_icp_subdev_close(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "13d48af42e1a541886b08f9de40db667098406eb5798b6a8b9cd8f954122bff7",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_icp_dev_fp_subdev_open",
+          "signature": "static int cam_icp_dev_fp_subdev_open(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "99cc8b12b5f482bca34719dec2630c35685de0a5277f5b82685949b3fa33a5b2",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_icp_dev_fp_subdev_close",
+          "signature": "static int cam_icp_dev_fp_subdev_close(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "3973311300bd5081d280d42aae56c1f0c874952ff1032272bb62b3dc6e6dafb3",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_isp/cam_isp_context_fastpath.c",
+      "sha256": "d6b82daf05ce0a56d2cbdc81b524a0cb50b223e06adcd592635710414247efec",
+      "sites": [
+        {
+          "name": "cam_isp_fpc_handle_workqueue_event",
+          "signature": "static void cam_isp_fpc_handle_workqueue_event(struct work_struct *work)",
+          "function_sha256": "96c7e74b947067a20a0e2d958742bbb6122310deea60a6681cdeafb93dae54ef",
+          "args": [
+            "work"
+          ],
+          "result": "void",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_isp_fpc_handle_irq",
+          "signature": "static int cam_isp_fpc_handle_irq(void *context, uint32_t evt_id,\n\t\t\t\t  void *evt_data)",
+          "function_sha256": "91adeb9f2f2149e3b77a2f3d34aa2c893b34caeb9679d6cb830e18083307fc5b",
+          "args": [
+            "context",
+            "evt_id",
+            "evt_data"
+          ],
+          "result": "int",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_isp/cam_isp_dev.c",
+      "sha256": "1a5f0f3c6f81869f9fb398fd48c7e59625af4c13956e230cb7a05bfd8a5fe647",
+      "sites": [
+        {
+          "name": "cam_isp_subdev_open",
+          "signature": "static int cam_isp_subdev_open(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "89e91bffe2c6d86e1e500fae2a711be77a744ade4518b5a474c92d47270dae9d",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_isp_subdev_close",
+          "signature": "static int cam_isp_subdev_close(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "819564d8c86368aafb18f322455833755723c564c04f08dbd1ae134b214755a2",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_isp_dev_fp_subdev_open",
+          "signature": "static int cam_isp_dev_fp_subdev_open(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "bb8c0b7898e46ffaf91096025754f95de6a4e50639ebbced6c44da48e79095e8",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_isp_dev_fp_subdev_close",
+          "signature": "static int cam_isp_dev_fp_subdev_close(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "8a926ffd6148930b43cea2e9a7ec374dbb990047a55c8089fe3465e10d4484ae",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_jpeg/cam_jpeg_dev.c",
+      "sha256": "3d30f734d61907407860c917e4790580d7b4f8f9bdf648492276c60464573da0",
+      "sites": [
+        {
+          "name": "cam_jpeg_subdev_open",
+          "signature": "static int cam_jpeg_subdev_open(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "794ae8ea72d789123853d24762176798676ec45bcfa06876f492f24851a8b8a3",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_jpeg_subdev_close",
+          "signature": "static int cam_jpeg_subdev_close(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "a14369d74ee486c01bd7f5c1b66e0fcd9a515fbf4edf47425359d68a1be95c8f",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_lrme/cam_lrme_dev.c",
+      "sha256": "bda62e52bed0fd3eb4c34d53d1f8c2f2893532090030e9d1747cbfd24a1a741b",
+      "sites": [
+        {
+          "name": "cam_lrme_dev_open",
+          "signature": "static int cam_lrme_dev_open(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "beecc5e404f34dfab10ed4f0979bebea46efd492ecc51745a0ee525525d38252",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_lrme_dev_close",
+          "signature": "static int cam_lrme_dev_close(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "8d456e93f2a85f8c0d624117fd78ed9e825dcbaee2291ec5776517607faae4f9",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_req_mgr/cam_mem_mgr.c",
+      "sha256": "fdc085038c22d72331f43c1f92e70fe21cf3652e8125655217505e0dffc845b8",
+      "sites": [
+        {
+          "name": "cam_mem_get_io_buf",
+          "signature": "int cam_mem_get_io_buf(int32_t buf_handle, int32_t mmu_handle,\n\tdma_addr_t *iova_ptr, size_t *len_ptr)",
+          "function_sha256": "84f9f5fafe3d391272b864045379cdbb67d288afa0df162e707ccd0d411c7cca",
+          "args": [
+            "buf_handle",
+            "mmu_handle",
+            "iova_ptr",
+            "len_ptr"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_mem_get_cpu_buf",
+          "signature": "int cam_mem_get_cpu_buf(int32_t buf_handle, uintptr_t *vaddr_ptr, size_t *len)",
+          "function_sha256": "4eb3614af475d5f80fed89c955be0709f1c7ab5723fe6328f32b41420280a267",
+          "args": [
+            "buf_handle",
+            "vaddr_ptr",
+            "len"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_mem_mgr_alloc_and_map",
+          "signature": "int cam_mem_mgr_alloc_and_map(struct cam_mem_mgr_alloc_cmd *cmd)",
+          "function_sha256": "89c448630a576ce8742a2b8ff6944136b1b3193702a3284cec783946335c3ff8",
+          "args": [
+            "cmd"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_mem_mgr_map",
+          "signature": "int cam_mem_mgr_map(struct cam_mem_mgr_map_cmd *cmd)",
+          "function_sha256": "e7ff3f8143d1c76f069d6abc46bd4e1415039cb7ecb10941fff6f3901a53ad34",
+          "args": [
+            "cmd"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_mem_mgr_deinit",
+          "signature": "void cam_mem_mgr_deinit(void)",
+          "function_sha256": "967f34da179ade69597cfb9f8ac649d38a712bc9ae015abede9506d365029be4",
+          "args": [],
+          "result": "void",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_mem_put_cpu_buf",
+          "signature": "void cam_mem_put_cpu_buf(int32_t buf_handle)",
+          "function_sha256": "b0e4d80cc5d66101db1ae0a75c74fb6c12b1f6f52e8e20a9a48d13a0a1d61f87",
+          "args": [
+            "buf_handle"
+          ],
+          "result": "void",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_mem_mgr_release",
+          "signature": "int cam_mem_mgr_release(struct cam_mem_mgr_release_cmd *cmd)",
+          "function_sha256": "4d6b682a9c4a86fdb9211efccd7e0855006ac96e8188c3ffc90366f44305fd44",
+          "args": [
+            "cmd"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_mem_mgr_request_mem",
+          "signature": "int cam_mem_mgr_request_mem(struct cam_mem_mgr_request_desc *inp,\n\tstruct cam_mem_mgr_memory_desc *out)",
+          "function_sha256": "590ea660319821cb4ce2b5eef60532f32ea23cdc3290e5859c1583058238c9f3",
+          "args": [
+            "inp",
+            "out"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_mem_mgr_release_mem",
+          "signature": "int cam_mem_mgr_release_mem(struct cam_mem_mgr_memory_desc *inp)",
+          "function_sha256": "48ad302a1174d59ce69c120037fd7e76bad60d54fb7b61fc05f8f4c5ec36bc15",
+          "args": [
+            "inp"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_mem_mgr_reserve_memory_region",
+          "signature": "int cam_mem_mgr_reserve_memory_region(struct cam_mem_mgr_request_desc *inp,\n\tenum cam_smmu_region_id region,\n\tstruct cam_mem_mgr_memory_desc *out)",
+          "function_sha256": "97609780ab0d24e6769b8eb76b6d4a5573b58738f013b37feed990a3569133fd",
+          "args": [
+            "inp",
+            "region",
+            "out"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_mem_mgr_free_memory_region",
+          "signature": "int cam_mem_mgr_free_memory_region(struct cam_mem_mgr_memory_desc *inp)",
+          "function_sha256": "2fab3dcc48cac2b1db8461b3b9c78f6c61ffc08d69b09f542cd3bbdd0923a68e",
+          "args": [
+            "inp"
+          ],
+          "result": "int",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_req_mgr/cam_req_mgr_core.c",
+      "sha256": "69c4c9b6de55118e735f53ef049f1d8903d7974994523ca5051755e4626215e1",
+      "sites": [
+        {
+          "name": "cam_req_mgr_handle_core_shutdown",
+          "signature": "void cam_req_mgr_handle_core_shutdown(void)",
+          "function_sha256": "aa469e7f6c33201b2999d08efe0330622b0e4fd7334fc7eda53840b7e0a43e19",
+          "args": [],
+          "result": "void",
+          "policy": "observe"
+        },
+        {
+          "name": "__cam_req_mgr_process_sof_freeze",
+          "signature": "static int __cam_req_mgr_process_sof_freeze(void *priv, void *data)",
+          "function_sha256": "aaa3bb6a8ff3f57c2594cf787ac3c98860e2896cbd19c9286d722391de1f2033",
+          "args": [
+            "priv",
+            "data"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "__cam_req_mgr_sof_freeze",
+          "signature": "static void __cam_req_mgr_sof_freeze(struct timer_list *timer_data)",
+          "function_sha256": "817865d94c71bb18261ea49a58141025ab2d29e7bbe6a0433b72f532fdf5aa51",
+          "args": [
+            "timer_data"
+          ],
+          "result": "void",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_req_mgr_process_send_req",
+          "signature": "int cam_req_mgr_process_send_req(void *priv, void *data)",
+          "function_sha256": "28c247ab7230718a7153d60310aa662ba678cb00b8628e2a311d9a907bc58652",
+          "args": [
+            "priv",
+            "data"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_req_mgr_process_flush_req",
+          "signature": "int cam_req_mgr_process_flush_req(void *priv, void *data)",
+          "function_sha256": "a49ff51d3ad6e7490ada5bf33176951263ba6add7566acaaa237d55625c5da90",
+          "args": [
+            "priv",
+            "data"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_req_mgr_process_sched_req",
+          "signature": "int cam_req_mgr_process_sched_req(void *priv, void *data)",
+          "function_sha256": "a2143a5657fc359f7fb21e685427cbbf187d781e5e5d67c19a504d8545dfa722",
+          "args": [
+            "priv",
+            "data"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_req_mgr_process_add_req",
+          "signature": "int cam_req_mgr_process_add_req(void *priv, void *data)",
+          "function_sha256": "47a3c875d103db09b8aa65c01b87a5dd6a1b6bb23b7c38c059564ec7d2f9a117",
+          "args": [
+            "priv",
+            "data"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_req_mgr_process_error",
+          "signature": "int cam_req_mgr_process_error(void *priv, void *data)",
+          "function_sha256": "d13e0185ed6af4d590b49e655159df826c8482ed604a477e8b3e4b98210084e6",
+          "args": [
+            "priv",
+            "data"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_req_mgr_process_stop",
+          "signature": "int cam_req_mgr_process_stop(void *priv, void *data)",
+          "function_sha256": "af30c84b9b8fb2738ceb9fea5e469ec99fb4d533dab186006d3d97c4465d9eea",
+          "args": [
+            "priv",
+            "data"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_req_mgr_process_trigger",
+          "signature": "static int cam_req_mgr_process_trigger(void *priv, void *data)",
+          "function_sha256": "bebf0904de2cf5a7d76797bcc9e1705f6acd7520b1a8a0faf52af8f8a4144d53",
+          "args": [
+            "priv",
+            "data"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_req_mgr_cb_add_req",
+          "signature": "static int cam_req_mgr_cb_add_req(struct cam_req_mgr_add_request *add_req)",
+          "function_sha256": "9700a6d32e2a2311ffd1e929cd6e768181c01f2a4a7d7468cb011c82bca46a78",
+          "args": [
+            "add_req"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_req_mgr_cb_notify_err",
+          "signature": "static int cam_req_mgr_cb_notify_err(\n\tstruct cam_req_mgr_error_notify *err_info)",
+          "function_sha256": "ec45475e1a3f750d31fa9c8f3e8952c5ffc7aedf5364c6222b4f2e36a61d0c17",
+          "args": [
+            "err_info"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_req_mgr_cb_notify_timer",
+          "signature": "static int cam_req_mgr_cb_notify_timer(\n\tstruct cam_req_mgr_timer_notify *timer_data)",
+          "function_sha256": "5fddbbc3a81125cd6c7a08f097f36556dc4da5c0373f295d36c9c4d1569fd2db",
+          "args": [
+            "timer_data"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_req_mgr_cb_notify_stop",
+          "signature": "static int cam_req_mgr_cb_notify_stop(\n\tstruct cam_req_mgr_notify_stop *stop_info)",
+          "function_sha256": "9b089d8ef06ebe47048b75f644f3568078493e19e03c5c5854dfb0e342bc320e",
+          "args": [
+            "stop_info"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_req_mgr_cb_notify_trigger",
+          "signature": "static int cam_req_mgr_cb_notify_trigger(\n\tstruct cam_req_mgr_trigger_notify *trigger_data)",
+          "function_sha256": "1d580e63ae8adece077c505c116b64b55bab0a1a4a4956c8171a09d8f35cd489",
+          "args": [
+            "trigger_data"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_req_mgr_process_workq_link_worker",
+          "signature": "static void cam_req_mgr_process_workq_link_worker(struct work_struct *w)",
+          "function_sha256": "9ea83d175a40bb327401807a176f9011ec769caf54cfa1c8d1e0da861776ad43",
+          "args": [
+            "w"
+          ],
+          "result": "void",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_req_mgr/cam_req_mgr_dev.c",
+      "sha256": "102fafbac93a11d561acbef292970094c3196c45a172e9b365dad64995f848a2",
+      "sites": [
+        {
+          "name": "cam_req_mgr_open",
+          "signature": "static int cam_req_mgr_open(struct file *filep)",
+          "function_sha256": "95d929df47438c74139e3160ad76b8d960c76913ade2f7adffed11edd19b8001",
+          "args": [
+            "filep"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_req_mgr_close",
+          "signature": "static int cam_req_mgr_close(struct file *filep)",
+          "function_sha256": "9ccf484575ea9ecfa1b6ec1b4e630c183f21a56232871bcfae09d8e4359cba17",
+          "args": [
+            "filep"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_private_ioctl",
+          "signature": "static long cam_private_ioctl(struct file *file, void *fh,\n\tbool valid_prio, unsigned int cmd, void *arg)",
+          "function_sha256": "edf89f143662db92121942095994cc6cf3d1b3d7b86c8b33b8c4a28f837b1788",
+          "args": [
+            "file",
+            "fh",
+            "valid_prio",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_req_mgr_notify_message",
+          "signature": "int cam_req_mgr_notify_message(struct cam_req_mgr_message *msg,\n\tuint32_t id,\n\tuint32_t type)",
+          "function_sha256": "1d06a6005e714777601cf5974afcaafddd18c89f3c3066216500ba4c169f5bd4",
+          "args": [
+            "msg",
+            "id",
+            "type"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_subdev_notify_message",
+          "signature": "void cam_subdev_notify_message(u32 subdev_type,\n\tenum cam_subdev_message_type_t message_type,\n\tuint32_t data)",
+          "function_sha256": "d93196ba9db8d5e55f40cd19cbdffe606a985471a78f45bc3fa16c4d4f8d405d",
+          "args": [
+            "subdev_type",
+            "message_type",
+            "data"
+          ],
+          "result": "void",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_req_mgr/cam_req_mgr_timer.c",
+      "sha256": "cbd3d3f4df4eeb82b8c49a2ae0c750cde8278a58fe792cd7aff8d2a432bf0d65",
+      "sites": [
+        {
+          "name": "crm_timer_callback",
+          "signature": "void crm_timer_callback(struct timer_list *timer_data)",
+          "function_sha256": "1e13472780029fea6468e5ec153b139a09a06239a436e08ece44eecb629d521d",
+          "args": [
+            "timer_data"
+          ],
+          "result": "void",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_req_mgr/cam_req_mgr_workq.c",
+      "sha256": "01d89acdcac645f0997902c3a81ae736bb79e07540b148a4c75cd7386d82b75a",
+      "sites": [
+        {
+          "name": "cam_req_mgr_process_workq",
+          "signature": "void cam_req_mgr_process_workq(struct work_struct *w)",
+          "function_sha256": "3211ab2d56de716ded34e430b23dda0cbcbf1ecab63b94891cd6b85e7a2c1c61",
+          "args": [
+            "w"
+          ],
+          "result": "void",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_req_mgr_workq_enqueue_task",
+          "signature": "int cam_req_mgr_workq_enqueue_task(struct crm_workq_task *task,\n\tvoid *priv, int32_t prio)",
+          "function_sha256": "8e2957d5dc3525753c92852cdd24741d9af4299ab4885e801700eb635548df0a",
+          "args": [
+            "task",
+            "priv",
+            "prio"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_req_mgr_workq_destroy",
+          "signature": "void cam_req_mgr_workq_destroy(struct cam_req_mgr_core_workq **crm_workq)",
+          "function_sha256": "7cbc04268b5ef1e35dbaf6fb4983ef667aa60f547b4de1df303a898714b761a1",
+          "args": [
+            "crm_workq"
+          ],
+          "result": "void",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_sensor_module/cam_actuator/cam_actuator_core.c",
+      "sha256": "5fbcfd5146a800911d1f09fbcb4089614a3b73c42afb679088148a9835115cfe",
+      "sites": [
+        {
+          "name": "cam_actuator_shutdown",
+          "signature": "void cam_actuator_shutdown(struct cam_actuator_ctrl_t *a_ctrl)",
+          "function_sha256": "c0d10d7b38a13507e04551f951b084efe0eb0fe94de3d3fd992c633c12c9939d",
+          "args": [
+            "a_ctrl"
+          ],
+          "result": "void",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_sensor_module/cam_actuator/cam_actuator_dev.c",
+      "sha256": "98365fb25c4428cd8c508e4ca1c09bfd5b93c98fcc2ad2dab251fc76d93755c6",
+      "sites": [
+        {
+          "name": "cam_actuator_subdev_ioctl",
+          "signature": "static long cam_actuator_subdev_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, void *arg)",
+          "function_sha256": "f0e7431f1f8c15967f65957ff581638cf88abcddbd803de6f3c459c67672c501",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_actuator_init_subdev_do_ioctl",
+          "signature": "static long cam_actuator_init_subdev_do_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, unsigned long arg)",
+          "function_sha256": "a689cbcc5f2de8c7e61028d6d076ba589bc505f9e4013398cd3fb44d3abc45b2",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_actuator_subdev_open",
+          "signature": "static int cam_actuator_subdev_open(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "4f1f947077af85f403aff9174ac6e86921318acac4bc81c951e401c6543c88bc",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_actuator_subdev_close",
+          "signature": "static int cam_actuator_subdev_close(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "77dd670cfa972bb0f7c291c68a4fb4321ef19147b7caadbaa359c448170f453f",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_sensor_module/cam_cci/cam_cci_dev.c",
+      "sha256": "6cbba7392040d0bf31558be671531789bd5870b57788ad008948423433963c1b",
+      "sites": [
+        {
+          "name": "cam_cci_subdev_ioctl",
+          "signature": "static long cam_cci_subdev_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, void *arg)",
+          "function_sha256": "10295fb8b896ff48847b4e02724da6dd3b65be1404f5cdbc7899ef25bb38b7be",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_cci_subdev_compat_ioctl",
+          "signature": "static long cam_cci_subdev_compat_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, unsigned long arg)",
+          "function_sha256": "ff626366821a6442eda93cc913880b988f883a99c3d3ed6cf3062b6d0c8d1794",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_cci_irq_routine",
+          "signature": "static int cam_cci_irq_routine(struct v4l2_subdev *sd, u32 status,\n\tbool *handled)",
+          "function_sha256": "325814dec0cbb9953662f75020b9671a14e0395f14fe3668b8459a17e18b456f",
+          "args": [
+            "sd",
+            "status",
+            "handled"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_cci_subdev_do_ioctl",
+          "signature": "static long cam_cci_subdev_do_ioctl(\n\tstruct file *file, unsigned int cmd, void *arg)",
+          "function_sha256": "62d06810b5e7de5255688e6d4c349380809b62d5bfb1fa03ddc29a5f3e08327b",
+          "args": [
+            "file",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_cci_subdev_fops_ioctl",
+          "signature": "static long cam_cci_subdev_fops_ioctl(struct file *file, unsigned int cmd,\n\tunsigned long arg)",
+          "function_sha256": "ef9d58f4e81292084c52ad008f3bdeafbbcfccd5c95e6c770f1d0848fb05cfd1",
+          "args": [
+            "file",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_cci_subdev_fops_compat_ioctl",
+          "signature": "static long cam_cci_subdev_fops_compat_ioctl(struct file *file,\n\tunsigned int cmd, unsigned long arg)",
+          "function_sha256": "6fafc9fd596c8e0eca7d9dca5cf542ab5c05792e73ab463f26f8995c62009417",
+          "args": [
+            "file",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_sensor_module/cam_csiphy/cam_csiphy_core.c",
+      "sha256": "d6f15eeac8e4341acef9611b682102769cb7174f6107491cb36d0b7721ade174",
+      "sites": [
+        {
+          "name": "cam_csiphy_shutdown",
+          "signature": "void cam_csiphy_shutdown(struct csiphy_device *csiphy_dev)",
+          "function_sha256": "8ac115ede596230dc6b7b31ad079807d37fc80337df2a1377b3f664942004fa3",
+          "args": [
+            "csiphy_dev"
+          ],
+          "result": "void",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_sensor_module/cam_csiphy/cam_csiphy_dev.c",
+      "sha256": "4f63e34fc9e179cf78a6d12139cfe96baaabac3f94dd92e1bd7f81967b6a450b",
+      "sites": [
+        {
+          "name": "cam_csiphy_subdev_handle_message",
+          "signature": "static void cam_csiphy_subdev_handle_message(\n\tstruct v4l2_subdev *sd,\n\tenum cam_subdev_message_type_t message_type,\n\tuint32_t data)",
+          "function_sha256": "7b8a2d6759f40887d7b54ce9ce59c943b13cb02718fd750b6657a2bc998e0be1",
+          "args": [
+            "sd",
+            "message_type",
+            "data"
+          ],
+          "result": "void",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_csiphy_subdev_ioctl",
+          "signature": "static long cam_csiphy_subdev_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, void *arg)",
+          "function_sha256": "20e78d1e2e9115e5f61c96154e559def997d085a72bd0dac4257b983862c46d7",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_csiphy_subdev_open",
+          "signature": "static int cam_csiphy_subdev_open(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "eb1227dc877a478a037903748c86c187ab5b78639c7b075122a1c3bab09fe3dc",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_csiphy_subdev_close",
+          "signature": "static int cam_csiphy_subdev_close(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "5d997dd913fb1a3626842d30f374ad518a1ac401f6bb61defe442f364f38d187",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_csiphy_subdev_compat_ioctl",
+          "signature": "static long cam_csiphy_subdev_compat_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, unsigned long arg)",
+          "function_sha256": "4602812aa624ac292af004a4a51f321485af0d824844684e0a5b8d67fddde95e",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_sensor_module/cam_eeprom/cam_eeprom_core.c",
+      "sha256": "d1a4b88eb58f5067491f29c7773b944ecd8924d9bb74b730a16d2244dbdc2c84",
+      "sites": [
+        {
+          "name": "cam_eeprom_shutdown",
+          "signature": "void cam_eeprom_shutdown(struct cam_eeprom_ctrl_t *e_ctrl)",
+          "function_sha256": "0274c9ce454dff426fc939e0aa1b88967b1489de4af38a5c2d686cb25fd607fd",
+          "args": [
+            "e_ctrl"
+          ],
+          "result": "void",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_sensor_module/cam_eeprom/cam_eeprom_dev.c",
+      "sha256": "a1b7da15f7daa788b9ee06472b83dbb60ba36d051c7bfe0e28e4c353b595fb86",
+      "sites": [
+        {
+          "name": "cam_eeprom_subdev_ioctl",
+          "signature": "static long cam_eeprom_subdev_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, void *arg)",
+          "function_sha256": "61814963ffaaad965954e69fe0f1df622a63fdb6c112aca3556b375e15c9fa5e",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_eeprom_subdev_open",
+          "signature": "static int cam_eeprom_subdev_open(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "62463c7c90b1342b2f0dc14684515c123b1693535946a801f0a542b12068db54",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_eeprom_subdev_close",
+          "signature": "static int cam_eeprom_subdev_close(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "5111c82b30c6a947806bfbfd2c9ff20ba3cb2aff07c6273f2c99e81f14488410",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_eeprom_init_subdev_do_ioctl",
+          "signature": "static long cam_eeprom_init_subdev_do_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, unsigned long arg)",
+          "function_sha256": "a286f2ef88e5a20ed76da2858a738414325954af88a78a6dd27fdca472d5ddec",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_sensor_module/cam_flash/cam_flash_core.c",
+      "sha256": "d5e6e6c01d30424c097432c66a8b3d0b925fddd45acd00a56980439903ad9bd6",
+      "sites": [
+        {
+          "name": "cam_flash_shutdown",
+          "signature": "void cam_flash_shutdown(struct cam_flash_ctrl *fctrl)",
+          "function_sha256": "69cc0cd25f5d2d55c7be33d0869453a3c30d3bc913aad8301178ed85298ee18c",
+          "args": [
+            "fctrl"
+          ],
+          "result": "void",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_sensor_module/cam_flash/cam_flash_dev.c",
+      "sha256": "9fbbacfa400335c1dff798e25b7de561941d8f73cffb94731fed79a1bee58264",
+      "sites": [
+        {
+          "name": "cam_flash_subdev_ioctl",
+          "signature": "static long cam_flash_subdev_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, void *arg)",
+          "function_sha256": "81c22a0e9cf9a21cbf664b5af807ff224f89465329104ccc767bd77a7001c69f",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_flash_subdev_do_ioctl",
+          "signature": "static long cam_flash_subdev_do_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, unsigned long arg)",
+          "function_sha256": "c7fd8fdeb35386288a3b9797cb1d3cf0286cc59c7649ce5f9ceb4a87a563a1e1",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_flash_subdev_open",
+          "signature": "static int cam_flash_subdev_open(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "3a29cc1b270bbdd0ab15f263890ac8ae69ce5b88e9f4b5f4eb43d245feaf36cf",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_flash_subdev_close",
+          "signature": "static int cam_flash_subdev_close(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "7967233a0781791032f2e504ec980d1003d2fa282015964531505a12f14bdafe",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_sensor_module/cam_ois/cam_ois_core.c",
+      "sha256": "6357a605493532c3557dfac00328550f58f522a3fd72b87c68436a25129aa7f6",
+      "sites": [
+        {
+          "name": "cam_ois_shutdown",
+          "signature": "void cam_ois_shutdown(struct cam_ois_ctrl_t *o_ctrl)",
+          "function_sha256": "3758f9f9391d85d9a3040d3155c63123a6fb658bbc766e619f1c083d33ded18a",
+          "args": [
+            "o_ctrl"
+          ],
+          "result": "void",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_sensor_module/cam_ois/cam_ois_dev.c",
+      "sha256": "1e10ea21d26e7a6a6c4bc89c3b0467c3afb0ec1ab3412ee99df9c99674ab06a0",
+      "sites": [
+        {
+          "name": "cam_ois_subdev_ioctl",
+          "signature": "static long cam_ois_subdev_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, void *arg)",
+          "function_sha256": "744f7030130bc1a090dcef2da667a2d912ffd96271bbd7201139702ed4a5ccd0",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_ois_subdev_open",
+          "signature": "static int cam_ois_subdev_open(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "784361147737d90cc2755f41bdf7556e3502649197b80a63f35514b4383f3e57",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_ois_subdev_close",
+          "signature": "static int cam_ois_subdev_close(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "65cfe719eb2eec739e7d280d8c5125e98898133a31ee5e38673fb0b376be4a33",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_ois_init_subdev_do_ioctl",
+          "signature": "static long cam_ois_init_subdev_do_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, unsigned long arg)",
+          "function_sha256": "2f94e2e78729fb6e1e0ffff9c5ebbac9bff6307acbdf860fbed7195e81a00c99",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_sensor_module/cam_sensor/cam_sensor_core.c",
+      "sha256": "eaebd112621beca818ff3800f3a4a8403e41912352bfa046eef5e6e546ffb4c3",
+      "sites": [
+        {
+          "name": "cam_sensor_shutdown",
+          "signature": "void cam_sensor_shutdown(struct cam_sensor_ctrl_t *s_ctrl)",
+          "function_sha256": "db7f31cc5c5935ba7cf4634487a0def9f782e1c863e1745e7ca521724a311a4b",
+          "args": [
+            "s_ctrl"
+          ],
+          "result": "void",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_sensor_power",
+          "signature": "int cam_sensor_power(struct v4l2_subdev *sd, int on)",
+          "function_sha256": "291b0088d7bf8dda23c3c5971035250d1f5777a6d6838b698870c94b1ee3f6f7",
+          "args": [
+            "sd",
+            "on"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_sensor_power_up",
+          "signature": "int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)",
+          "function_sha256": "fce155593a4d14b70dcd41887a736d19313f91a1302c5586e18d80582335a912",
+          "args": [
+            "s_ctrl"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_sensor_power_down",
+          "signature": "int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)",
+          "function_sha256": "85f949692406c0f193057056062a3d7ce737f233998c735ee5964e543c8cbf64",
+          "args": [
+            "s_ctrl"
+          ],
+          "result": "int",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_sensor_module/cam_sensor/cam_sensor_dev.c",
+      "sha256": "51afb08e22dc5408bf4ae9c70225c8d68ef336ff75f397881a77df0f4dc099a1",
+      "sites": [
+        {
+          "name": "cam_sensor_subdev_ioctl",
+          "signature": "static long cam_sensor_subdev_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, void *arg)",
+          "function_sha256": "feb852d01ba12239c920b2398fc80cbd69e95c3f843c176242e2f7d3da05d773",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_sensor_subdev_open",
+          "signature": "static int cam_sensor_subdev_open(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "aa12164cecfb253233e77ec2ff89e8cbdc155dc9439f4730b74de3f2fa7fb1e7",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_sensor_subdev_close",
+          "signature": "static int cam_sensor_subdev_close(struct v4l2_subdev *sd,\n\tstruct v4l2_subdev_fh *fh)",
+          "function_sha256": "bedd7456c9ec1df328b1d0936637aff66aea0ee2f3e7b091cec42c6683629f42",
+          "args": [
+            "sd",
+            "fh"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_sensor_init_subdev_do_ioctl",
+          "signature": "static long cam_sensor_init_subdev_do_ioctl(struct v4l2_subdev *sd,\n\tunsigned int cmd, unsigned long arg)",
+          "function_sha256": "5ff33dc3b4335749b7c8823e393ce276fe74abe588b41abfe1f545022c2e0676",
+          "args": [
+            "sd",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_sync/cam_sync.c",
+      "sha256": "ee1a08473d221eade682e0643060c3de50194cde7410ae506e5ccd5764da4324",
+      "sites": [
+        {
+          "name": "cam_sync_signal",
+          "signature": "int cam_sync_signal(int32_t sync_obj, uint32_t status)",
+          "function_sha256": "484bb9581a310a80ea1f21a6ebb36344c1c0fa13e402cd47e29618d0d871d656",
+          "args": [
+            "sync_obj",
+            "status"
+          ],
+          "result": "int",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_sync_dev_ioctl",
+          "signature": "static long cam_sync_dev_ioctl(struct file *filep, void *fh,\n\t\tbool valid_prio, unsigned int cmd, void *arg)",
+          "function_sha256": "0103f95c9ad4fd03837cf601a4e8da3f3cd842daa87de069764fdf43fd3239f9",
+          "args": [
+            "filep",
+            "fh",
+            "valid_prio",
+            "cmd",
+            "arg"
+          ],
+          "result": "long",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_sync_open",
+          "signature": "static int cam_sync_open(struct file *filep)",
+          "function_sha256": "68697744f37df2f68e9ce57e39d7717e72b252f65a4c3fe06ed31233b7cb26f1",
+          "args": [
+            "filep"
+          ],
+          "result": "int",
+          "policy": "reject"
+        },
+        {
+          "name": "cam_sync_close",
+          "signature": "static int cam_sync_close(struct file *filep)",
+          "function_sha256": "234565b04c11c1905c9ef72472ca784a9fbd5cb09a5cbeba47c23ac8e2f2fe0c",
+          "args": [
+            "filep"
+          ],
+          "result": "int",
+          "policy": "observe"
+        }
+      ]
+    },
+    {
+      "path": "techpack/camera/drivers/cam_sync/cam_sync_util.c",
+      "sha256": "41b8dce05621331f3a640ff524c6fe845734ba656fd972df39b69bb66da16a40",
+      "sites": [
+        {
+          "name": "cam_sync_util_cb_dispatch",
+          "signature": "void cam_sync_util_cb_dispatch(struct work_struct *cb_dispatch_work)",
+          "function_sha256": "66eee215d36e9a62d4797d58d6cb37f2a329efb4eec2d2763982a5eefb77359d",
+          "args": [
+            "cb_dispatch_work"
+          ],
+          "result": "void",
+          "policy": "observe"
+        },
+        {
+          "name": "cam_sync_util_dispatch_signaled_cb",
+          "signature": "void cam_sync_util_dispatch_signaled_cb(int32_t sync_obj,\n\tuint32_t status)",
+          "function_sha256": "3d9100c1df1d06c2ea2a86e4232489ced40543572c3d3837e4ce81bde06dc3ce",
+          "args": [
+            "sync_obj",
+            "status"
+          ],
+          "result": "void",
+          "policy": "observe"
+        }
+      ]
+    }
+  ]
+}

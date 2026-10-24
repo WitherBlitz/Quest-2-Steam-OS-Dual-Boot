@@ -79,6 +79,10 @@ instrumentation diagnostic; its return samples cannot close these ownership gaps
 
 ## Driver ownership implementation boundary
 
+The first [source-integrated entry-accounting patch](QUEST2_DRIVER_ENTRY_ACCOUNTING.md)
+now covers selected camera and FastRPC gateways. It supplies no complete
+ownership transaction or validated replacement of Horizon's running drivers.
+
 The subsequent source and runtime feasibility check found no existing complete
 ownership transaction to bind to the project's module. On the matching rooted
 headset, `CONFIG_MSM_ADSPRPC=y` and `CONFIG_SPECTRA_CAMERA=y` build these drivers
