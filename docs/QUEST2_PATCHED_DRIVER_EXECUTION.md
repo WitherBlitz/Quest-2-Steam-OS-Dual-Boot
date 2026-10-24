@@ -73,6 +73,37 @@ These paths were checked with 66 exact instruction assertions plus command,
 string and public-key anchors in the matching extracted LinuxLoader. No valid
 signer-issued token is available, and no token or unlock command was submitted.
 
+## Exact unlock-state storage boundary
+
+Host-only decoding of the exact current OTA XBL validated 123 firmware files and
+88 PE images, including `VerifiedBootDxe` (61,440 bytes, SHA-256
+`6c15a6b6a92ba4dd5680b7b764bf6e34b7c88707dfa11826ae1f686a92839aec`).
+Its registration code binds the VerifiedBoot GUID to table `0xd160`; slot `+8`
+is state operation `0x157c`, and slot `+0x20` is milestone operation `0x1a90`.
+The state operation selects either Keymaster/RPMB or `devinfo` partition helpers
+using secure firmware state. The active backend on this unit remains unmeasured;
+finding a `devinfo` partition would not establish that it controls unlock state.
+
+The matching OTA Keymaster image (253,952 bytes, SHA-256
+`d47a59f743fa622f2f7a3733574c7b335d18661a6dbb3ea811b7abce1661533f`)
+checks software fuse 1 before either state read `0x202` or write `0x203`.
+Milestone `0x204` sets that software latch. The provider sends this milestone
+and checks both transport and response status. ABL calls it before returning
+success to its normal Linux-launch path; milestone failure does not take that
+kernel-launch block. The three-image check passed 75 instruction assertions,
+dynamic-symbol/PLT resolution, image signatures and indexed hash-table checks.
+This establishes the expected boundary for the inspected normal boot path,
+not a runtime measurement of this unit's latch or executing secure images.
+It does not justify an exploratory Keymaster state request from Horizon.
+The command dispatcher can also initialize persistent RPMB partitions before a
+read handler on its cold path. Attaching through QSEECom changes application
+reference state even when it avoids restarting the existing Keymaster app.
+
+The standard secure-state INFO service also performs fuse-controller and clock
+operations in the inspected TZ implementation. Its complete effect contract has
+not been established here; no new probe or hardware-mutation-free claim follows
+from its public API name. No storage, Keymaster or secure-state command was sent.
+
 ## Matching secure-firmware audit
 
 Offline inspection now follows a genuine SMC exception path in the matching TZ
