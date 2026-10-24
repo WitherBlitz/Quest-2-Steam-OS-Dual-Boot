@@ -201,7 +201,7 @@ def collect(adb, serial, out, source_report, *, runner=subprocess.run,
         before = {key: save(key + "-before", read_health(adb, serial, key, runner=bounded_runner)) for key in HEALTH}
         if not re.fullmatch(BOOT_RE + rb"\s*", before["boot"]):
             raise CaptureError("valid boot ID required")
-        if set(module_names(before["modules"])) & {"quest_kexec", "marker_read", "usb_log", "camera_dsp_diag"}:
+        if set(module_names(before["modules"])) & {"quest_kexec", "marker_read", "usb_log", "camera_dsp_diag", "scm_version_probe"}:
             raise CaptureError("project module already resident")
         mount = _mount(probe("mountinfo", "mountinfo-before"))
         usable = mount is not None and mount["fstype"] == "pstore" and mount["root"] == "/"

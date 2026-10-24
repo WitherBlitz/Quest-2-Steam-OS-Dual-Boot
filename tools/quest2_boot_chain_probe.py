@@ -19,7 +19,7 @@ IMAGES = MappingProxyType({
     "tz": (3207168, "9384241f1169e4953992fc06723507e8ac217006a5dfb92e47826068500dc8d3"),
 })
 HEALTH = ("boot", "cpus", "taint", "modules")
-PROJECT_MODULES = {"quest_kexec", "marker_read", "usb_log", "camera_dsp_diag", "owner_gate_selftest"}
+PROJECT_MODULES = {"quest_kexec", "marker_read", "usb_log", "camera_dsp_diag", "owner_gate_selftest", "scm_version_probe"}
 FOOTER = b"\nQKX_BOOT_CHAIN_STATUS="
 BLOCK = 4096
 

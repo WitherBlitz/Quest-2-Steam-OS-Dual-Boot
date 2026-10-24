@@ -182,7 +182,7 @@ ls() {
                   "boot": "12345678-1234-1234-1234-123456789abc\n", "cpus": "0-7\n", "taint": "5124\n",
                   "modules": "stock 1 0 - Live 0x0\n", "camera": "MISSING\n", "dsp": "MISSING\n"}
         if bad_identity: values["device"] = "wrong"
-        if resident: values["modules"] += "camera_dsp_diag 1 0 - Live 0x0\n"
+        if resident: values["modules"] += resident + " 1 0 - Live 0x0\n"
 
         def run(cmd, **kwargs):
             self.assertEqual(cmd[:3], ["adb-test", "-s", "USB-TEST"])
@@ -210,7 +210,7 @@ ls() {
 
     def test_wrong_identity_or_resident_module_prevents_owner_scan(self):
         mod = self.module()
-        for options in ({"bad_identity": True}, {"resident": True}):
+        for options in ({"bad_identity": True}, {"resident": "camera_dsp_diag"}, {"resident": "scm_version_probe"}):
             runner, calls = self.runner(mod, **options)
             with tempfile.TemporaryDirectory() as temp, self.assertRaises(preflight.CaptureError):
                 mod.collect("adb-test", "USB-TEST", Path(temp)/"new", runner=runner)

@@ -194,7 +194,7 @@ class BootChainProbeTests(unittest.TestCase):
     def test_malformed_health_and_resident_project_modules_precede_partition_reads(self):
         changes = [{"boot": "-"*36}, {"cpus": "broken"}, {"taint": "-1"}]
         changes += [{"modules": name+" 1 0 - Live 0x0\n"} for name in (
-            "quest_kexec", "marker_read", "usb_log", "camera_dsp_diag", "owner_gate_selftest")]
+            "quest_kexec", "marker_read", "usb_log", "camera_dsp_diag", "owner_gate_selftest", "scm_version_probe")]
         for change in changes:
             with self.subTest(change=change), tempfile.TemporaryDirectory() as temp:
                 module = self.module()

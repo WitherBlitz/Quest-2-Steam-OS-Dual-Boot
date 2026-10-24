@@ -85,7 +85,7 @@ def collect(adb, serial, out, source_report, *, runner=subprocess.run):
         before = {key: save(key, key+"-before") for key in ("boot", "cpus", "taint", "modules")}
         if not re.fullmatch(rb"[a-fA-F0-9-]{36}\s*", before["boot"]):
             raise CaptureError("valid boot ID required")
-        if set(module_names(before["modules"])) & {"quest_kexec", "marker_read", "usb_log"}:
+        if set(module_names(before["modules"])) & {"quest_kexec", "marker_read", "usb_log", "scm_version_probe"}:
             raise CaptureError("project module already resident")
         state = {key: save(key) for key in PROBES if key not in before}
         after = {key: save(key, key+"-after") for key in ("cpus", "taint", "modules")}

@@ -139,6 +139,7 @@ class ReleaseTraceTests(unittest.TestCase):
                 key = health[args]; calls.append(key)
                 value = values[key]
                 if key == "modules" and fault == "resident": value += "quest_kexec 1 0 - Live 0x0\n"
+                if key == "modules" and fault == "scm_resident": value += "scm_version_probe 1 0 - Live 0x0\n"
                 data = value.encode()+b"\nQKX_PASSIVE_STATUS=0\n"
             else:
                 key = identities[args]; calls.append(key)
@@ -174,7 +175,7 @@ class ReleaseTraceTests(unittest.TestCase):
 
     def test_wrong_identity_missing_root_resident_module_or_config_prevents_trace(self):
         module = self.module()
-        for fault in ("identity", "root", "resident", "config"):
+        for fault in ("identity", "root", "resident", "scm_resident", "config"):
             runner, calls = self.fake_device(module, fault=fault)
             with self.subTest(fault=fault), tempfile.TemporaryDirectory() as temp:
                 out = Path(temp)/"capture"

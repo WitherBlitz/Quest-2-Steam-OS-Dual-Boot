@@ -84,10 +84,9 @@ That is a control-flow result, not an inference from missing literals or a
 claim about every earlier boot-stage authentication interface.
 
 Rollback ID `0x0200020f` has a real descriptor for handler `0x1c0540c8`, parameter
-ID 1 and flags 1. Its input families, enforced signing-domain mapping, runtime
-caller permissions and complete effect contract still require verification.
-Registration alone cannot justify a device query. No experimental secure query
-has been performed.
+ID 1 and flags 1. Registration alone did not justify a device query. The subsequent
+fixed-contract investigation is described below; earlier-stage signing and boot
+acceptance remain separate questions. No experimental secure query has been performed.
 
 The current running kernel configuration was separately read with matching
 identity and boot observations. Function tracing is disabled and dynamic
@@ -120,8 +119,9 @@ resumption or waiting for its mutex.
 
 The optional [module](../module/scm_version_probe.c) defaults to no secure calls.
 It checks model/kernel compatibility before its opt-in gate. The explicit query
-path first checks service availability, then submits only the three fixed
-one-value requests with zeroed descriptors. It rejects unexpected status/output,
+path first checks service availability through the public helper, which internally
+uses the retrying `scm_call2`. Only the subsequent three fixed counter requests
+use `scm_call2_noretry`, with zeroed descriptors. It rejects unexpected status/output,
 out-of-range counts or disagreement between the aliased XBL/ABL fields. There
 are no caller buffers, arbitrary service/address parameters or asynchronous work.
 
@@ -132,12 +132,19 @@ strict stock-module gates are unchanged. Missing captured stock CRC evidence is
 deferred only for the two named public SCM imports and remains explicit in the
 report. Generated CRC agreement does not become running-kernel acceptance.
 
-Native build, default-load acceptance and actual counter queries are still
-pending for this module. The intended first device step is a normal, no-force,
-no-query load/unload after artifact checks; that runs module initialization and
-changes transient kernel module state, even though it makes no secure call.
-A successful loader check would not validate the subsequent query or drivers.
-No module has been inserted and no counter query has been issued in this stage.
+Native [run 40076155855](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/40076155855)
+passed at source `ec8b9e450f3cc9f6e57f26678a61372ed14cb634`. Its 24-file artifact,
+checksums, source/compiler/config pins, all five module audits and the compiled
+default branch were independently checked. The probe contains all 14 required
+version records; only the two SCM import CRCs initially lacked captured stock proof.
+
+The exact probe then passed one normal, no-force, no-query load/unload on the
+matching headset. The kernel accepted its complete import set; the expected
+`dry_run=1 scm_calls=0` marker appeared, with no query marker. Boot ID, online
+CPUs, module list and taint (`5124`) matched afterward. Its temporary file was
+removed. This runs module initialization and changes transient module state.
+User confirmation of Home/tracking after this test is pending. No counter query
+has been issued; this loader check does not validate queries or patched drivers.
 
 Even a successful query would describe configured fuse counts, not authenticate
 an older image, establish every earlier boot-stage minimum or prove recovery.
@@ -146,12 +153,17 @@ remains safe execution of the actual patched drivers on the headset.
 
 ## Verification
 
-`python -B -m unittest discover -s tools/tests -p 'test_*.py'` passed **654 tests,
+`python -B -m unittest discover -s tools/tests -p 'test_*.py'` passed **656 tests,
 no skips**, including 12 collector, nine fixed-query module and eight separate
 ELF-audit tests. The collector tests include real shell byte-count/status framing,
 binary data containing a status-like marker, regular-file refusal, truncated
 reads, failed/missing status, hash mismatches, changed metadata/identity/health,
 resident project modules, invalid inputs, host deadlines and existing outputs.
+Five existing diagnostic admission guards now reject a resident SCM probe before
+partition, ownership, pstore, subsystem or trace operations; all five regressions
+failed before the fix and passed afterward. The affected suites passed 88 tests.
+The native run above tested the earlier 654-test source; its module, CI and patch
+inputs are unchanged by these later guard/test/documentation fixes.
 The initial missing-collector tests failed before implementation.
 The collector increment's independent review found no actionable issues and
 reran 45 affected collector/preflight/shutdown tests successfully. That review

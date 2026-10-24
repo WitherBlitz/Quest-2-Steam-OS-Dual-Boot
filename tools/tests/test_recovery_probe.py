@@ -32,7 +32,7 @@ class RecoveryProbeTests(unittest.TestCase):
     def setup_capture(self, module, *, files=None, mount=MOUNT, extra_names=(),
                       bad_mode=False, changed_metadata=False, changed_boot=False,
                       changed_identity=False, fault=None, payload_override=None, boot=BOOT,
-                      late_boot_change=False, stat_device=21):
+                      late_boot_change=False, stat_device=21, resident=None):
         files = {"dmesg-ramoops-0": b"old retained log\x00\xff"} if files is None else files
         identity_commands = {tuple(value): key for key, value in preflight.PROBES.items()}
         health_commands = {( "exec-out", shutdown.remote_command(key)): key
@@ -42,6 +42,7 @@ class RecoveryProbeTests(unittest.TestCase):
                   "vbmeta_state": "locked", "boot_complete": "1", "boot_reason": "powerkey",
                   "root_uid": "uid=0(root)", "boot": boot, "cpus": "0-7", "taint": "5124",
                   "modules": "stock_module 1 0 - Live 0x0\n"}
+        if resident: values["modules"] += resident + " 1 0 - Live 0x0\n"
         mapping = {module.remote_command("mountinfo"): ("mountinfo", mount),
                    module.remote_command("entries"): ("entries", b"".join(
                        name.encode() + b"\0" for name in [*files, *extra_names]))}
@@ -184,6 +185,15 @@ class RecoveryProbeTests(unittest.TestCase):
                     report["pstore"]["mount"]["device"] = "malformed"
                 (out/"capture.json").write_text(json.dumps(report))
                 with self.assertRaises(preflight.CaptureError): module.compare(out, out)
+
+    def test_resident_scm_module_prevents_pstore_reads(self):
+        module = self.module()
+        runner, calls = self.setup_capture(module, resident="scm_version_probe")
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaisesRegex(preflight.CaptureError, "project module already resident"):
+                self.collect(module, Path(temp)/"capture", runner)
+        self.assertNotIn("mountinfo", calls)
+        self.assertFalse(any(key.startswith("record:") for key in calls))
 
     def test_compare_refuses_nonregular_manifest_without_opening(self):
         module = self.module()

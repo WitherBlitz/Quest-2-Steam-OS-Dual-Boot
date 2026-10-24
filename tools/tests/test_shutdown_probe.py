@@ -92,6 +92,15 @@ class ShutdownProbeTests(unittest.TestCase):
             with self.assertRaises(preflight.CaptureError): self.collect(module, out, runner)
             self.assertTrue((out/"INCOMPLETE.json").exists()); self.assertFalse((out/"capture.json").exists())
 
+    def test_resident_scm_module_prevents_subsystem_reads(self):
+        module = self.module(); runner, calls, values = self.setup_capture(module)
+        values["modules"] += "scm_version_probe 1 0 - Live 0x0\n"
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaisesRegex(preflight.CaptureError, "project module already resident"):
+                self.collect(module, Path(temp)/"new", runner)
+        self.assertNotIn("watchdog", calls)
+        self.assertNotIn("dsp", calls)
+
     def test_timeout_or_oversize_cannot_publish_complete_capture(self):
         module = self.module()
         for options in ({"bad_probe": "dsp"}, {"oversize": True}):

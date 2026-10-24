@@ -294,7 +294,7 @@ def collect(adb, serial, out, source_report, *, runner=subprocess.run, token=Non
         before = health("-before")
         if not re.fullmatch(rb"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\s*", before["boot"]):
             raise CaptureError("valid baseline boot ID required")
-        if set(passive.module_names(before["modules"])) & {"quest_kexec", "marker_read", "usb_log", "camera_dsp_diag"}:
+        if set(passive.module_names(before["modules"])) & {"quest_kexec", "marker_read", "usb_log", "camera_dsp_diag", "scm_version_probe"}:
             raise CaptureError("project module already resident")
         config = save("stock-config.gz", adb_read(adb, serial, "config", runner=limited))
         with gzip.GzipFile(fileobj=io.BytesIO(config)) as stream:

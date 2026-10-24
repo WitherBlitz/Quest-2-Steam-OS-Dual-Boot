@@ -201,7 +201,7 @@ def collect(adb, serial, out, *, runner=subprocess.run):
                   for key in ("boot", "cpus", "taint", "modules")}
         if not re.fullmatch(rb"[a-fA-F0-9-]{36}\s*", before["boot"]):
             raise CaptureError("valid boot ID required")
-        if set(passive.module_names(before["modules"])) & {"quest_kexec", "marker_read", "usb_log", "camera_dsp_diag"}:
+        if set(passive.module_names(before["modules"])) & {"quest_kexec", "marker_read", "usb_log", "camera_dsp_diag", "scm_version_probe"}:
             raise CaptureError("project module already resident")
         scan = read_scan(adb, serial, runner=runner, capture_path=out / "transport.txt")
         with (out / "scan.txt").open("xb") as stream: stream.write(scan)
