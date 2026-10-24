@@ -1,7 +1,15 @@
 # Unified-diff context prefixes are data; git apply checks added-code whitespace.
 kernel/patches/quest2-startup/*.patch text eol=lf -whitespace
 patches/monado/quest2/*.patch text eol=lf -whitespace
+patches/horizon-owner/*.json text eol=lf
+kernel/owner_gate.c text eol=lf
+kernel/owner_gate.h text eol=lf
 tools/tests/fixtures/q2_driver-9c96c192.c text eol=lf
 tools/tests/fixtures/camera-memory-lifetime-6bde5fc.c text eol=lf
 tools/tests/fixtures/camera-smmu-lifetime-6bde5fc.c text eol=lf
 tools/tests/fixtures/fastrpc-lifetime-6bde5fc.c text eol=lf
+tools/tests/fixtures/camera-core-custody-6bde5fc.c text eol=lf
+tools/tests/fixtures/camera-dev-custody-6bde5fc.c text eol=lf
+tools/tests/fixtures/camera-timer-custody-6bde5fc.c text eol=lf
+tools/tests/fixtures/camera-workq-custody-6bde5fc.c text eol=lf
+tools/tests/fixtures/fastrpc-custody-6bde5fc.c text eol=lf

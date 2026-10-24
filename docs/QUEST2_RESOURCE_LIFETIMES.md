@@ -10,6 +10,10 @@ The target remains Hollywood `52242990024200150`, kernel
 `4.19.325-cip128-st12-g49638c7a8637`, public source commit
 `6bde5fc06b252c97761bc0963dd13c1abcf377ab`.
 
+The subsequent [selected object-custody increment](QUEST2_OBJECT_CUSTODY.md)
+extends specific CRM and FastRPC lifetimes across operations and callbacks.
+The cleanup changes and their historical verification below remain separate.
+
 ## Implemented source changes
 
 Both lifetime manifests apply after the existing 150 entry wrappers. Original

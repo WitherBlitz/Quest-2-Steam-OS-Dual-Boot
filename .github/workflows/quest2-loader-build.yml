@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       owner_gate:
-        description: Build default-off/enabled driver entry accounting and isolated self-test
+        description: Build default-off/enabled ownership development and isolated entry self-test
         type: boolean
         default: false
 

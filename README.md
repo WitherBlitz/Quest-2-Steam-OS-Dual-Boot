@@ -67,6 +67,10 @@ The [resource-lifetime follow-up](docs/QUEST2_RESOURCE_LIFETIMES.md) preserves
 selected camera cleanup state and FastRPC errors. It also records the installed
 bootloader's locked RAM-boot rejection and the remaining custody/execution gaps.
 
+The [selected object-custody work](docs/QUEST2_OBJECT_CUSTODY.md) covers deferred
+CRM and FastRPC object retirement across operations and callbacks. Complete
+ownership, hardware shutdown and a safe patched-driver boot path remain open.
+
 The [sensors/tracking lifecycle audit](docs/QUEST2_SERVICE_LIFECYCLE.md) traces
 the matching shipped services and init. It identifies forced-kill paths,
 discarded camera-stop results and tracking cleanup waits; a checked global

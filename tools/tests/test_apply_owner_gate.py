@@ -101,6 +101,9 @@ class OwnerGateApplyTests(unittest.TestCase):
                         "include/linux/qkx_owner_gate.h": self.header})
         self.patch.start()
         self.addCleanup(self.patch.stop)
+        self.custody_patch = mock.patch.object(self.module, "CUSTODY_MANIFEST_PATHS", (), create=True)
+        self.custody_patch.start()
+        self.addCleanup(self.custody_patch.stop)
 
     def save_manifest(self):
         self.manifest_path.write_text(json.dumps(self.manifest), encoding="utf-8")
@@ -125,6 +128,82 @@ class OwnerGateApplyTests(unittest.TestCase):
         self.assertEqual(receipt["counts"]["lifetime_edits"], 1)
         self.assertFalse(receipt["full_ownership"])
         self.assertEqual(receipt["manifest_sha256"][path.name], digest(path.read_bytes()))
+
+    def test_custody_phase_composes_after_cleanup_using_original_hash(self):
+        cleanup = self.lifetime_manifest()
+        custody = self.base / "custody-edits.json"
+        manifest = json.loads(cleanup.read_text())
+        manifest["files"][0]["edits"] = [{"name": "defer_finalizer",
+            "before": "return value + 11;", "after": "return value + 17;"}]
+        custody.write_text(json.dumps(manifest))
+        with mock.patch.object(self.module, "RESOURCE_MANIFEST_PATHS", (cleanup,)), \
+             mock.patch.object(self.module, "CUSTODY_MANIFEST_PATHS", (custody,)):
+            report = self.module.apply(self.source, self.base / "receipt.json")
+        self.assertIn(b"return value + 17;", (self.source / "drivers/test.c").read_bytes())
+        self.assertEqual(report["counts"]["lifetime_edits"], 1)
+        self.assertEqual(report["counts"]["custody_edits"], 1)
+        self.assertEqual(report["counts"]["custody_files"], 1)
+        self.assertEqual(report["scope"], "entry_cleanup_and_selected_object_custody")
+        self.assertFalse(report["full_ownership"])
+        self.assertFalse(report["deployment"])
+        self.assertEqual(report["files"]["drivers/test.c"]["original_sha256"], digest(SOURCE))
+
+    def test_custody_failure_prevents_earlier_cleanup_writes(self):
+        cleanup = self.lifetime_manifest()
+        custody = self.base / "custody-edits.json"
+        manifest = json.loads(cleanup.read_text())
+        manifest["files"][0]["sha256"] = "0" * 64
+        custody.write_text(json.dumps(manifest))
+        before = self.original_tree()
+        with mock.patch.object(self.module, "RESOURCE_MANIFEST_PATHS", (cleanup,)), \
+             mock.patch.object(self.module, "CUSTODY_MANIFEST_PATHS", (custody,)):
+            with self.assertRaisesRegex(ValueError, "hash"):
+                self.module.apply(self.source, self.base / "receipt.json")
+        self.assertEqual(self.original_tree(), before)
+        self.assertFalse((self.base / "receipt.json.incomplete").exists())
+
+    def test_duplicate_custody_file_or_domain_is_refused(self):
+        custody = self.lifetime_manifest()
+        manifest = json.loads(custody.read_text())
+        manifest["files"].append(copy.deepcopy(manifest["files"][0]))
+        custody.write_text(json.dumps(manifest))
+        with mock.patch.object(self.module, "CUSTODY_MANIFEST_PATHS", (custody,)):
+            with self.assertRaisesRegex(ValueError, "duplicate"):
+                self.module.prepare_changes(self.source)
+        manifest["files"].pop()
+        custody.write_text(json.dumps(manifest))
+        second = self.base / "second-custody.json"
+        second.write_bytes(custody.read_bytes())
+        with mock.patch.object(self.module, "CUSTODY_MANIFEST_PATHS", (custody, second)):
+            with self.assertRaisesRegex(ValueError, "duplicate"):
+                self.module.prepare_changes(self.source)
+
+    def test_only_named_crm_headers_are_accepted_in_custody_phase(self):
+        names = ["techpack/camera/drivers/cam_req_mgr/cam_req_mgr_" + kind + ".h"
+                 for kind in ("workq", "timer", "core")]
+        data = b"int driver_entry(void);\n"
+        manifest = {"schema_version": 1, "domain": "camera", "files": []}
+        for name in names:
+            target = self.source / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+            manifest["files"].append({"path": name, "sha256": digest(data), "edits": [{
+                "name": "private_declaration", "before": "int driver_entry(void);",
+                "after": "int driver_entry(void);\nint private_custody(void);"}]})
+        path = self.base / "camera-custody.json"
+        path.write_text(json.dumps(manifest))
+        with mock.patch.object(self.module, "CUSTODY_MANIFEST_PATHS", (path,)):
+            changes = self.module.prepare_changes(self.source)
+        for name in names:
+            self.assertIn(b"private_custody", changes[name])
+        with mock.patch.object(self.module, "RESOURCE_MANIFEST_PATHS", (path,)):
+            with self.assertRaisesRegex(ValueError, "source path"):
+                self.module.prepare_changes(self.source)
+        manifest["files"][0]["path"] = "drivers/other.h"
+        path.write_text(json.dumps(manifest))
+        with mock.patch.object(self.module, "CUSTODY_MANIFEST_PATHS", (path,)):
+            with self.assertRaisesRegex(ValueError, "source path"):
+                self.module.prepare_changes(self.source)
 
     def test_lifetime_mismatch_or_ambiguous_edit_prevents_all_writes(self):
         for kwargs in ({"source_hash": "0"*64},

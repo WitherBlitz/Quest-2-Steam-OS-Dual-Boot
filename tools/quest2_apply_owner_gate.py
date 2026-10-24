@@ -20,6 +20,11 @@ MANIFEST_PATHS = tuple(PROJECT_ROOT / "patches/horizon-owner" / name
 RESOURCE_MANIFEST_PATHS = tuple(PROJECT_ROOT / "patches/horizon-owner" / name
                                for name in ("camera-lifetime-edits.json",
                                             "fastrpc-lifetime-edits.json"))
+CUSTODY_MANIFEST_PATHS = tuple(PROJECT_ROOT / "patches/horizon-owner" / name
+                              for name in ("camera-custody-edits.json",
+                                           "fastrpc-custody-edits.json"))
+CUSTODY_HEADERS = {"techpack/camera/drivers/cam_req_mgr/cam_req_mgr_" + kind + ".h"
+                   for kind in ("workq", "timer", "core")}
 BUILD_HASHES = {
     "kernel/Makefile": "297ffe866e344ee073cf09ab9b31fc66441940d1e129cbe8cd72e3e239963a4f",
     "lib/Kconfig.debug": "bd4d5f10bf66f6bc2d0a227919ef40405ed084f65614df843d9af640cd5c1e1b",
@@ -33,9 +38,11 @@ SHA256 = re.compile(r"[0-9a-f]{64}")
 RESERVED_ARGS = {"qkx_entry_token", "qkx_entry_result"}
 KCONFIG_ENTRY = b"""config QKX_OWNER_GATE
 \tbool "Experimental camera/FastRPC ownership development"
+\tdepends on MSM_ADSPRPC=y && SPECTRA_CAMERA=y
 \tdefault n
 \thelp
-\t  Account annotated entries and preserve selected failed cleanup state.
+\t  Account entries, preserve selected cleanup state and retain selected
+\t  queued/callback objects until their owning driver can retire them.
 \t  This is not complete resource ownership, a checked drain controller,
 \t  DMA quiescence or a shutdown/handoff implementation. Leave disabled
 \t  unless testing a separately built development kernel.
@@ -325,17 +332,19 @@ def _plan(source_root):
             counts[domain + "_sites"] += len(sites)
             counts["source_files"] += 1
     lifetime_domains, lifetime_files = set(), set()
-    counts["lifetime_edits"] = 0
-    for path in RESOURCE_MANIFEST_PATHS:
+    counts.update(lifetime_edits=0, custody_edits=0)
+    phases = [("lifetime", path) for path in RESOURCE_MANIFEST_PATHS]
+    phases += [("custody", path) for path in CUSTODY_MANIFEST_PATHS]
+    for phase, path in phases:
         raw = Path(path).read_bytes()
         manifest = json.loads(raw, object_pairs_hook=_json_object)
         _keys(manifest, ("schema_version", "domain", "files"), "lifetime manifest")
         domain = manifest["domain"]
         if type(manifest["schema_version"]) is not int or manifest["schema_version"] != 1:
             raise ValueError("unsupported lifetime manifest schema")
-        if domain not in ("camera", "fastrpc") or domain in lifetime_domains:
+        if domain not in ("camera", "fastrpc") or (phase, domain) in lifetime_domains:
             raise ValueError("invalid or duplicate lifetime domain")
-        lifetime_domains.add(domain)
+        lifetime_domains.add((phase, domain))
         if Path(path).name in manifests:
             raise ValueError("duplicate manifest filename")
         manifests[Path(path).name] = _sha(raw)
@@ -344,10 +353,11 @@ def _plan(source_root):
         for entry in manifest["files"]:
             _keys(entry, ("path", "sha256", "edits"), "lifetime file")
             name = _relative(entry["path"])
-            if (not name.endswith(".c") or not name.startswith(("drivers/", "techpack/camera/"))
-                    or name in lifetime_files):
+            if (not (name.endswith(".c") or (phase == "custody" and name in CUSTODY_HEADERS))
+                    or not name.startswith(("drivers/", "techpack/camera/"))
+                    or (phase, name) in lifetime_files):
                 raise ValueError("invalid or duplicate lifetime source path")
-            lifetime_files.add(name)
+            lifetime_files.add((phase, name))
             original = originals[name] if name in originals else _member(root, name).read_bytes()
             if not isinstance(entry["sha256"], str) or not SHA256.fullmatch(entry["sha256"]) or _sha(original) != entry["sha256"]:
                 raise ValueError("original lifetime source hash mismatch: " + name)
@@ -368,10 +378,11 @@ def _plan(source_root):
                 if data.count(before) != 1:
                     raise ValueError("unique lifetime edit anchor required: " + label)
                 data = data.replace(before, after, 1)
-                counts["lifetime_edits"] += 1
+                counts[phase + "_edits"] += 1
             originals[name] = original
             changes[name] = data
-    counts["lifetime_files"] = len(lifetime_files)
+    for phase in ("lifetime", "custody"):
+        counts[phase + "_files"] = sum(p == phase for p, _ in lifetime_files)
     for name, expected in BUILD_HASHES.items():
         data = _member(root, name).read_bytes()
         if _sha(data) != expected:
@@ -396,8 +407,9 @@ def _plan(source_root):
         "schema_version": 1, "status": "SOURCE_PATCH_APPLIED", "source_commit": SOURCE_COMMIT,
         "source_root": str(root), "manifest_sha256": manifests, "counts": counts,
         "new_option": {"name": "CONFIG_QKX_OWNER_GATE", "type": "bool", "default": "n"},
-        "scope": ("entry_accounting_and_checked_cleanup" if counts["lifetime_edits"]
-                  else "entry_accounting_only"), "deployment": False, "full_ownership": False,
+        "scope": ("entry_cleanup_and_selected_object_custody" if counts["custody_edits"] else
+                  "entry_accounting_and_checked_cleanup" if counts["lifetime_edits"] else
+                  "entry_accounting_only"), "deployment": False, "full_ownership": False,
         "files": {name: {"original_sha256": _sha(originals[name]) if originals[name] is not None else None,
                          "original_bytes": len(originals[name]) if originals[name] is not None else None,
                          "patched_sha256": _sha(data), "patched_bytes": len(data)}

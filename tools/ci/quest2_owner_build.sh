@@ -73,4 +73,4 @@ result = {
 (artifacts/'owner-build-provenance.json').write_text(json.dumps(result, indent=2)+'\n')
 PY
 git diff --exit-code
-echo 'Driver entry-accounting builds complete. Patched Horizon execution remains unvalidated.'
+echo 'Selected driver ownership development builds complete. Patched Horizon execution remains unvalidated.'
