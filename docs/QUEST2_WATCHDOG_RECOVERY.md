@@ -11,7 +11,7 @@ not been demonstrated.** No reset adapter is bound; the Hollywood gate is closed
 The exact public kernel source is commit
 `6bde5fc06b252c97761bc0963dd13c1abcf377ab`. The expanded
 `tools/quest2_shutdown_source.py` verifier checks the existing exact archive,
-16 complete source-file hashes and seven copied watchdog/camera/DSP functions.
+17 complete source-file hashes and seven copied watchdog/camera/DSP functions.
 The seven added pins cover SCM, ARM64 restart, pstore inode/RAM/platform code,
 kernel stat and device-number encoding.
 Source agreement does not establish secure-firmware behavior or physical reset.
@@ -194,6 +194,12 @@ The extended observation comparison passed 29 focused recovery tests and all 495
 host regression tests on Windows without skips. These use transport fixtures and
 real file/JSON/hash validation, not physical recovery. The actual pinned archive
 also passed all 17 source hashes and the existing exact function-fixture checks.
+The [Ubuntu regression run](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/40049811374)
+at `9aec5c99ad1b37eb47a2103384ee6f9a7b707fe5` passed all 495 tests without skips
+and seven existing reader QEMU cases. Downloaded source/commit, license and binary
+hashes matched their receipts. Independent review found no functional issues;
+its stale source-count wording was corrected here. Native module sources,
+target build and loader gates are unchanged in this increment.
 
 The schema-2 selector-binding update passed all 40 focused recovery/source tests
 and all 457 host regression tests on Windows, with no skips. These are host
