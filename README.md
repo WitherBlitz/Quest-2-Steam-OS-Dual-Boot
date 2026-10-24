@@ -63,6 +63,10 @@ now covers 150 annotated sites. Both kernel configurations compile, and its
 isolated accounting module passed 15 cases on the Quest 2. The patched built-in
 drivers remain unbooted; complete ownership and checked shutdown remain open.
 
+The [resource-lifetime follow-up](docs/QUEST2_RESOURCE_LIFETIMES.md) preserves
+selected camera cleanup state and FastRPC errors. It also records the installed
+bootloader's locked RAM-boot rejection and the remaining custody/execution gaps.
+
 The [sensors/tracking lifecycle audit](docs/QUEST2_SERVICE_LIFECYCLE.md) traces
 the matching shipped services and init. It identifies forced-kill paths,
 discarded camera-stop results and tracking cleanup waits; a checked global

@@ -6,6 +6,11 @@ for Hollywood firmware `52242990024200150`. **It implements annotated entry and
 lifetime accounting, not complete resource ownership or checked shutdown.**
 The stock headset's built-in drivers have not been replaced by this source patch.
 
+The subsequent [resource-lifetime work](QUEST2_RESOURCE_LIFETIMES.md) adds selected
+failure-preserving cleanup under the same default-off option and records the
+exact installed bootloader gate. Its enabled option now includes those cleanup
+changes; the first-build evidence below remains a historical checkpoint.
+
 ## Source changes
 
 The source applier verifies whole-file, exact signature and complete-function
