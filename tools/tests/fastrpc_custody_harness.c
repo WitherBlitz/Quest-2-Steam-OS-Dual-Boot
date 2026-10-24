@@ -125,8 +125,13 @@ struct task_struct { int pid; };
 static struct task_struct caller = { 10 }, worker = { 20 }, receiver = { 30 };
 static struct task_struct *current = &caller;
 struct completion { unsigned int done; };
+static void (*complete_hook)(struct completion *);
 static void init_completion(struct completion *c) { c->done = 0; }
-static void complete(struct completion *c) { c->done++; }
+static void complete(struct completion *c)
+{
+	c->done++;
+	if (complete_hook) complete_hook(c);
+}
 struct work_struct { void (*fn)(struct work_struct *); bool pending; };
 static struct work_struct *queue[512];
 static unsigned int queue_count;
@@ -340,6 +345,20 @@ static void reply(struct smq_invoke_ctx *ctx, uint32_t flags)
 }
 
 #ifdef CONFIG_QKX_OWNER_GATE
+static int terminal_at_wake, callbacks_at_wake, physical_at_wake;
+static void waiter_at_completion(struct completion *completion)
+{
+	struct smq_invoke_ctx *ctx = container_of(completion, struct smq_invoke_ctx, work);
+	struct task_struct *saved = current;
+	terminal_at_wake = qkx_rpc_ctx_completed(ctx);
+	callbacks_at_wake = qkx_rpc_ctx_find(ctx)->callbacks;
+	current = &caller;
+	context_free(ctx);
+	drain();
+	physical_at_wake = physical_contexts;
+	current = saved;
+}
+
 static struct fastrpc_file *loss_hook_file;
 static unsigned int owner_lock_count;
 static void loss_during_parent_acquisition(spinlock_t *lock)
@@ -478,6 +497,20 @@ int main(int argc, char **argv)
 		return 0;
 	}
 	ctx = new_ctx(fl);
+	if (!strcmp(argv[1], "wake_terminal") || !strcmp(argv[1], "wake_signal")) {
+#ifdef CONFIG_QKX_OWNER_GATE
+		CHECK(fastrpc_invoke_send(ctx, 1, 10), 0, "send before response");
+		complete_hook = waiter_at_completion;
+		reply(ctx, !strcmp(argv[1], "wake_terminal") ? NORMAL_RESPONSE : COMPLETE_SIGNAL);
+		complete_hook = NULL;
+		CHECK(terminal_at_wake, 1, "terminal proof precedes waiter wake");
+		CHECK(callbacks_at_wake, 1, "callback lease covers complete");
+		CHECK(physical_at_wake, 0, "waiter cannot free active callback target");
+		drain(); CHECK(physical_contexts, 1, "callback return permits owner finalization");
+		close_file(fl); drain(); CHECK(physical_files, 1, "parent retires after callback");
+#endif
+		return 0;
+	}
 	if (!strcmp(argv[1], "repeat_retire")) {
 		context_free(ctx);
 #ifdef CONFIG_QKX_OWNER_GATE

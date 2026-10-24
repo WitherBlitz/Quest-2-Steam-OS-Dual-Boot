@@ -106,6 +106,12 @@ class FastRPCCustodyTests(unittest.TestCase):
     def test_terminal_rx_releases_async_custody_after_operation(self):
         self.case("terminal")
 
+    def test_normal_reply_publishes_terminal_before_waking_waiter(self):
+        self.case("wake_terminal", enabled_only=True)
+
+    def test_complete_signal_keeps_callback_lease_across_waiter_wake(self):
+        self.case("wake_signal", enabled_only=True)
+
     def test_sync_terminal_rx_before_send_return_keeps_operation(self):
         self.case("sync_reply")
 

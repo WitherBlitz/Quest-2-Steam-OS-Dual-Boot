@@ -49,7 +49,7 @@
         {
           "name": "callback_terminal_and_early_lifetimes",
           "before": "\ttrace_fastrpc_context_complete(ctx->fl->cid, (uint64_t)ctx, retval,\n\t\tctx->msg.invoke.header.ctx, ctx->handle, ctx->sc);\n\tcomplete(&ctx->work);",
-          "after": "\ttrace_fastrpc_context_complete(ctx->fl->cid, (uint64_t)ctx, retval,\n\t\tctx->msg.invoke.header.ctx, ctx->handle, ctx->sc);\n\tcomplete(&ctx->work);\n#ifdef CONFIG_QKX_OWNER_GATE\n\tqkx_rpc_ctx_complete(ctx, true,\n\t\trspFlags == NORMAL_RESPONSE || rspFlags == COMPLETE_SIGNAL);\n#endif"
+          "after": "\ttrace_fastrpc_context_complete(ctx->fl->cid, (uint64_t)ctx, retval,\n\t\tctx->msg.invoke.header.ctx, ctx->handle, ctx->sc);\n#ifdef CONFIG_QKX_OWNER_GATE\n\t/* Publish terminal proof before waking a concurrent invocation caller. */\n\tqkx_rpc_ctx_complete(ctx, false,\n\t\trspFlags == NORMAL_RESPONSE || rspFlags == COMPLETE_SIGNAL);\n#endif\n\tcomplete(&ctx->work);\n#ifdef CONFIG_QKX_OWNER_GATE\n\t/* Keep the callback target alive across complete() and waiter retirement. */\n\tqkx_rpc_ctx_complete(ctx, true, false);\n#endif"
         },
         {
           "name": "transport_loss_retains_remote_custody",

@@ -13,7 +13,8 @@ Module conversion and deferred module-unload safety are outside this configurati
 
 ## Custody contract
 
-An operation, borrowed task, queued/running callback or outstanding invocation
+Within instrumented paths, an operation, borrowed task, queued/running callback
+or outstanding invocation
 keeps its object and required parent state alive. Client close requests retirement
 without consuming another operation's custody. Returning a ticket does not run
 a hardware destructor in that observer/callback context. Owning driver workers
@@ -36,6 +37,22 @@ separate: its earlier isolated 15-case headset test does not validate these path
 The earlier [cleanup prerequisites](QUEST2_RESOURCE_LIFETIMES.md) still apply.
 Retaining an allocation does not prove hardware stopped using it. Remove/reset/
 devm paths and proprietary consumers require separate coverage.
+
+FastRPC transport/PDR loss seals the affected file, including contexts not yet
+published on normal pending lists. Its custodian stays held without automatic
+recovery. A close waiting on an incomplete child can remain parked indefinitely;
+the process-release RPC is not an automatic cancellation of that unknown child.
+
+CRM sessions have a private pointer/full-handle/generation identity established
+before publication. Destruction seals that session before child retirement;
+both link-creation variants and link control reject it afterward. The seal
+survives zero remaining links and a failed handle destruction. Deferred retries
+validate the captured generation under the CRM lock, and generation exhaustion
+refuses publication. This does not resolve the separate producer callback/handle
+contract mentioned above.
+
+Link setup-failure cleanup, direct device-request mutation and root subdevice-close
+results also remain outside this selected lifetime contract.
 
 ## Source application and tests
 
@@ -65,11 +82,14 @@ A successful RAM download alone would not establish image acceptance; see the
 [AOSP protocol](https://android.googlesource.com/platform/system/core/+/refs/heads/main/fastboot/README.md).
 
 A public vendor [secure-call header](https://github.com/Rivko/android-firmware-qti-sdm670/blob/20bb8ae36c93fc16bbadda0e0a83f930c0c8a271/trustzone_images/ssg/securemsm/trustzone/qsee/include/tz_syscall_pub.h#L1591-L1710)
-documents metadata verification service `0x02000210`. This different-platform
-source does not establish Hollywood's complete ABI, permissions, rollback domain
-or side effects. Numeric records in the matching OTA TZ image are not recovered
-handlers or proof of normal-world callability. This increment has not matched
-the active unit's TZ image.
+documents metadata verification service `0x02000210`. Its
+[XBL boot-stage caller](https://github.com/Rivko/android-firmware-qti-sdm670/blob/20bb8ae36c93fc16bbadda0e0a83f930c0c8a271/boot_images/QcomPkg/XBLLoader/boot_extern_sec_img_interface.c#L80-L113)
+supplies an eight-argument indirect request. That different-platform boot-stage
+contract does not establish Hollywood's handler, normal-world permissions,
+rollback domain or side effects. The suspected numeric records in the matching
+OTA TZ image actually belong to a 42-record configuration table; they are
+withdrawn as evidence of secure-service implementation. This increment has not
+matched the active unit's TZ image.
 
 The next prerequisite is an offline audit of that matching implementation and
 complete contract. No secure call, bootloader-mode cycle, flash, downgrade or

@@ -80,7 +80,9 @@ class CameraCustodyTests(unittest.TestCase):
             for name in ("__cam_req_mgr_disconnect_link", "__cam_req_mgr_unlink",
                          "cam_req_mgr_destroy_session", "cam_req_mgr_unlink",
                          "cam_req_mgr_handle_core_shutdown", "cam_req_mgr_create_session",
-                         "cam_req_mgr_cb_notify_timer", "__cam_req_mgr_sof_freeze"):
+                         "cam_req_mgr_cb_notify_timer", "__cam_req_mgr_sof_freeze",
+                         "cam_req_mgr_process_workq_link_worker", "cam_req_mgr_link",
+                         "cam_req_mgr_link_v2", "cam_req_mgr_link_control"):
                 pieces.append(function(core, name))
             for marker in re.findall(r"/\* QKX_CAMERA_CUSTODY_DEV_BEGIN \*/(.*?)/\* QKX_CAMERA_CUSTODY_DEV_END \*/",
                                      dev, flags=re.S):
@@ -99,6 +101,8 @@ class CameraCustodyTests(unittest.TestCase):
                 command += ["-DCONFIG_QKX_OWNER_GATE"]
             if MANIFEST.exists() and variant != "stock":
                 command += ["-DQKX_CUSTODY_PATCHED"]
+            if enabled and "struct qkx_session_custody" in core:
+                command += ["-DQKX_SESSION_CUSTODY"]
             result = subprocess.run(command + [str(source), "-o", str(binary)],
                                     capture_output=True, text=True)
             if result.returncode:
@@ -188,8 +192,68 @@ class CameraCustodyTests(unittest.TestCase):
         self.assertEqual(self.case("wake_stopped"),
                          {"dirty": 0, "running": 0, "pending": 0, "scheduled": 0})
 
+    def test_worker_publication_cannot_race_stopping_and_cancel(self):
+        self.assertEqual(self.case("wake_publish_stop"),
+                         {"stopped": 1, "late_work": 0, "scheduled": 1})
+
+    def test_real_v1_link_rejects_parent_sealed_by_deferred_session_close(self):
+        self.assertEqual(self.case("session_admission_v1"),
+                         {"close": -16, "link": -108, "reserves": 0, "children": 1})
+
+    def test_real_v2_link_rejects_parent_sealed_by_deferred_session_close(self):
+        self.assertEqual(self.case("session_admission_v2"),
+                         {"close": -16, "link": -108, "reserves": 0, "children": 1})
+
+    def test_sealed_parent_retries_after_last_child_explicit_unlink(self):
+        self.assertEqual(self.case("session_last_child"),
+                         {"close": -16, "unlink": 0, "before": 1,
+                          "children": 0, "after": 0, "handles": 2})
+
+    def test_failed_session_handle_destruction_retains_seal_without_retry(self):
+        self.assertEqual(self.case("session_handle_failure"),
+                         {"close": -5, "v1": -108, "v2": -108, "parent": 1,
+                          "reserves": 0, "destroy_calls": 1})
+
+    def test_missing_session_owner_fails_closed(self):
+        self.assertEqual(self.case("session_missing_owner"),
+                         {"v1": -117, "v2": -117, "close": -117,
+                          "parent": 1, "reserves": 0})
+
+    def test_session_owner_requires_pointer_and_full_handle_match(self):
+        self.assertEqual(self.case("session_owner_handle_mismatch"),
+                         {"v1": -117, "v2": -117, "close": -117,
+                          "parent": 1, "reserves": 0})
+
+    def test_real_link_variants_still_admit_live_owned_session(self):
+        for name in ("session_open_v1", "session_open_v2"):
+            self.assertEqual(self.case(name),
+                             {"rc": 0, "reserves": 1, "children": 1, "published": 1})
+
+    def test_sidecar_allocation_failure_never_publishes_handle_or_session(self):
+        self.assertEqual(self.case("session_alloc_failure"),
+                         {"first": -12, "unpublished": 1234, "early_handles": 0,
+                          "owner_empty": 1, "next": 0, "handles": 1})
+
+    def test_unpublished_handle_failure_frees_session_and_sidecar(self):
+        self.assertEqual(self.case("session_unpublished_handle_failure"),
+                         {"first": -28, "owner_empty": 1, "frees": 2,
+                          "next": 0, "handles": 2})
+
+    def test_session_epoch_overflow_fails_before_handle_publication(self):
+        self.assertEqual(self.case("session_epoch_overflow"),
+                         {"rc": -75, "handle": 1234, "created": 0, "published": 0})
+
+    def test_stale_session_retry_cannot_destroy_reused_handle(self):
+        self.assertEqual(self.case("session_stale_retry"),
+                         {"rc": -2, "new_parent": 1, "destroy_calls": 1})
+
+    def test_real_link_control_rejects_parent_seal_before_child_close(self):
+        self.assertEqual(self.case("session_control"), {"rc": -108, "timer_arms": 0})
+
     def test_disabled_paths_match_stock_destruction(self):
-        for name in ("borrow", "closed", "timer", "parent", "disconnect", "root_close", "root_failure"):
+        for name in ("borrow", "closed", "timer", "parent", "disconnect", "root_close", "root_failure",
+                     "session_open_v1", "session_open_v2", "session_control",
+                     "session_unpublished_handle_failure"):
             self.assertEqual(self.case(name, "disabled"), self.case(name, "stock"))
 
     def test_real_wrappers_then_cleanup_then_custody_anchors(self):

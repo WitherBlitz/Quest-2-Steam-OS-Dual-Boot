@@ -17,6 +17,10 @@
 #undef EWOULDBLOCK
 #endif
 #define EWOULDBLOCK 11
+#ifdef EOVERFLOW
+#undef EOVERFLOW
+#endif
+#define EOVERFLOW 75
 #define GFP_KERNEL 0
 #define __GFP_ZERO 0
 #define CAM_CRM 0
@@ -27,6 +31,16 @@
 #define CAM_WORKQ_FLAG_HIGH_PRIORITY 1
 #define CAM_WORKQ_FLAG_SERIAL 2
 #define MAXIMUM_LINKS_PER_SESSION 7
+#define MAX_LINKS_PER_SESSION 7
+#define CAM_REQ_MGR_MAX_SESSION_HANDLES 8
+#define CAM_REQ_MGR_MAX_HANDLES 32
+#define CAM_REQ_MGR_MAX_HANDLES_V2 64
+#define CRM_WORKQ_NUM_TASKS 60
+#define CAM_REQ_MGR_LINK_ACTIVATE 1
+#define CAM_REQ_MGR_LINK_DEACTIVATE 0
+#define CAM_REQ_MGR_LINK_EVT_RESUME 1
+#define CAM_REQ_MGR_LINK_EVT_PAUSE 0
+#define CAM_REQ_MGR_WATCHDOG_TIMEOUT 1000
 #define CAM_CRM_LINK_STATE_AVAILABLE 0
 #define CAM_CRM_LINK_STATE_IDLE 1
 #define CAM_CRM_LINK_STATE_READY 2
@@ -78,8 +92,9 @@ struct workqueue_struct {int live;};
 #define INIT_WORK(w,f) do{(w)->fn=(f);(w)->pending=0;}while(0)
 #define DECLARE_WORK(n,f) struct work_struct n={f,0}
 static int work_destroys, frees, alloc_fail, interrupt_context, timer_arms, timer_syncs, wakes;
+static int alloc_fail_nth;
 static void (*sync_hook)(void);
-static void *zalloc(size_t n){if(alloc_fail){alloc_fail=0;return NULL;}return calloc(1,n);}
+static void *zalloc(size_t n){if(alloc_fail||(alloc_fail_nth&&!--alloc_fail_nth)){alloc_fail=0;return NULL;}return calloc(1,n);}
 #define kzalloc(n,g) zalloc(n)
 #define kcalloc(n,z,g) zalloc((n)*(z))
 /* Keep host allocations readable so stock UAF is detected by destruction receipts. */
@@ -109,26 +124,37 @@ static int in_interrupt(void){return interrupt_context;}
 #define kmem_cache_free(c,p) kfree(p)
 struct cam_req_mgr_core_link;
 struct cam_req_mgr_core_dev_link_setup {int link_enable,link_hdl,subscribe_event,dev_hdl;void*crm_cb;};
-struct device_ops {int(*link_setup)(struct cam_req_mgr_core_dev_link_setup*);};
+struct cam_req_mgr_link_evt_data {int evt_type,link_hdl,dev_hdl,req_id;};
+struct device_ops {int(*link_setup)(struct cam_req_mgr_core_dev_link_setup*);int(*process_evt)(struct cam_req_mgr_link_evt_data*);};
 struct cam_req_mgr_connected_device {int dev_hdl;void*parent;struct device_ops*ops;struct {char name[8];}dev_info;};
 struct cam_req_mgr_core_session {int session_hdl;unsigned num_links;struct cam_req_mgr_core_link*links[MAXIMUM_LINKS_PER_SESSION];struct list_head entry;struct mutex lock;int sync_mode;};
-struct cam_req_mgr_core_link {int link_hdl,num_devs,state;struct cam_req_mgr_core_workq*workq;struct cam_req_mgr_timer*watchdog;struct cam_req_mgr_connected_device*l_dev;struct cam_req_mgr_core_session*parent;struct mutex lock;spinlock_t link_state_spin_lock;atomic_t is_used;bool is_shutdown;struct{void*in_q;struct mutex lock;}req;};
+struct cam_req_mgr_core_link {int link_hdl,num_devs,state,last_flush_id;struct cam_req_mgr_core_workq*workq;struct cam_req_mgr_timer*watchdog;struct cam_req_mgr_connected_device*l_dev;void*parent;struct mutex lock;spinlock_t link_state_spin_lock;atomic_t is_used;bool is_shutdown,skip_wd_validation;struct{void*in_q;struct mutex lock;}req;};
 struct cam_req_mgr_core_device {struct list_head session_head;struct mutex crm_lock;};
 struct cam_req_mgr_session_info {int session_hdl;};
 struct cam_req_mgr_timer_notify {int link_hdl,state;};
 struct crm_task_payload {int type;};
 struct cam_req_mgr_unlink_info {int session_hdl,link_hdl;};
+struct cam_req_mgr_link_info {int session_hdl,link_hdl,num_devices;};
+struct cam_req_mgr_ver_info {union {struct cam_req_mgr_link_info link_info_v1,link_info_v2;}u;};
+struct cam_create_dev_hdl {int session_hdl;void*priv;};
+struct cam_req_mgr_link_control {int num_links,ops,link_hdls[7],init_timeout[7];};
 static int handle_destroys, link_frees, link_info_frees, disconnect_rc, disconnect_calls;
+static int handle_creates, create_handle_rc, destroy_handle_rc, link_reserves;
 static struct cam_req_mgr_core_session *session_lookup;
-static int cam_create_session_hdl(void*p){session_lookup=p;return 31;}
+static int cam_create_session_hdl(void*p){handle_creates++;if(create_handle_rc)return create_handle_rc;session_lookup=p;return 31;}
 static struct cam_req_mgr_core_session *cam_get_session_priv(int h){return session_lookup&&session_lookup->session_hdl==h?session_lookup:NULL;}
 static struct cam_req_mgr_core_link *cam_get_link_priv(int h);
 static int cam_destroy_link_hdl(int h){handle_destroys++;return 0;}
-static int cam_destroy_session_hdl(int h){handle_destroys++;session_lookup=NULL;return 0;}
+static int cam_destroy_session_hdl(int h){handle_destroys++;if(destroy_handle_rc)return destroy_handle_rc;session_lookup=NULL;return 0;}
 static void __cam_req_mgr_destroy_link_info(struct cam_req_mgr_core_link*l){link_info_frees++;}
 static void __cam_req_mgr_destroy_subdev(struct cam_req_mgr_connected_device**d){kfree(*d);*d=NULL;}
 static void __cam_req_mgr_free_link(struct cam_req_mgr_core_link*l){link_frees++;kfree(l->req.in_q);l->req.in_q=NULL;l->link_hdl=0;l->workq=NULL;l->parent=NULL;atomic_set(&l->is_used,0);}
 static void __cam_req_mgr_unreserve_link(struct cam_req_mgr_core_session*s,struct cam_req_mgr_core_link*l){for(int i=0;i<MAXIMUM_LINKS_PER_SESSION;i++)if(s->links[i]==l){s->links[i]=NULL;s->num_links--;break;}__cam_req_mgr_free_link(l);}
+static struct cam_req_mgr_core_link *__cam_req_mgr_reserve_link(struct cam_req_mgr_core_session*s);
+static int __cam_req_mgr_create_subdevs(struct cam_req_mgr_connected_device**d,int n){*d=zalloc(sizeof(**d)*(n?n:1));return*d?0:-ENOMEM;}
+static int __cam_req_mgr_setup_link_info(struct cam_req_mgr_core_link*l,struct cam_req_mgr_ver_info*i){l->num_devs=0;return 0;}
+static int cam_create_link_hdl(struct cam_create_dev_hdl*d){return 100+link_reserves;}
+static int __cam_req_mgr_setup_payload(struct cam_req_mgr_core_workq*q){struct crm_task_payload*p=zalloc(q->task.num_task*sizeof(*p));if(!p)return-ENOMEM;for(unsigned i=0;i<q->task.num_task;i++)q->task.pool[i].payload=&p[i];return 0;}
 int cam_req_mgr_destroy_session(struct cam_req_mgr_session_info*,bool);
 int cam_req_mgr_unlink(struct cam_req_mgr_unlink_info*);
 void cam_req_mgr_custody_wake(void);
@@ -198,8 +224,10 @@ static int self_cancel_result;
 static void timer_self_cancel(struct timer_list*t){self_cancel_result=crm_timer_close_owned(&active_timer);}
 static void reset_during_cancel(void){crm_timer_reset(active_timer);crm_timer_modify(active_timer,12);}
 static int disconnect(struct cam_req_mgr_core_dev_link_setup*d){disconnect_calls++;return disconnect_rc;}
-static struct device_ops ops={disconnect};
-static void new_link(void){g_crm_core_dev=zalloc(sizeof(*g_crm_core_dev));INIT_LIST_HEAD(&g_crm_core_dev->session_head);session_lookup=zalloc(sizeof(*session_lookup));session_lookup->session_hdl=31;session_lookup->num_links=1;INIT_LIST_HEAD(&session_lookup->entry);list_add_tail(&session_lookup->entry,&g_crm_core_dev->session_head);struct cam_req_mgr_core_link*l=&g_links[0];memset(l,0,sizeof(*l));l->link_hdl=77;l->state=CAM_CRM_LINK_STATE_READY;l->parent=session_lookup;l->workq=new_q();l->req.in_q=zalloc(8);l->num_devs=1;l->l_dev=zalloc(sizeof(*l->l_dev));l->l_dev[0].dev_hdl=55;l->l_dev[0].ops=&ops;l->l_dev[0].parent=l;atomic_set(&l->is_used,1);session_lookup->links[0]=l;
+static struct device_ops ops={disconnect,NULL};
+static void new_core(void){g_crm_core_dev=zalloc(sizeof(*g_crm_core_dev));INIT_LIST_HEAD(&g_crm_core_dev->session_head);}
+static struct cam_req_mgr_core_link *__cam_req_mgr_reserve_link(struct cam_req_mgr_core_session*s){link_reserves++;for(int i=0;i<MAXIMUM_LINKS_PER_SESSION;i++)if(!atomic_read(&g_links[i].is_used)){struct cam_req_mgr_core_link*l=&g_links[i];memset(l,0,sizeof(*l));l->parent=s;l->req.in_q=zalloc(8);atomic_set(&l->is_used,1);for(int j=0;j<MAXIMUM_LINKS_PER_SESSION;j++)if(!s->links[j]){s->links[j]=l;s->num_links++;return l;}return NULL;}return NULL;}
+static void new_link(void){new_core();struct cam_req_mgr_session_info s={0};assert(!cam_req_mgr_create_session(&s));session_lookup->num_links=1;struct cam_req_mgr_core_link*l=&g_links[0];memset(l,0,sizeof(*l));l->link_hdl=77;l->state=CAM_CRM_LINK_STATE_READY;l->parent=session_lookup;l->workq=new_q();l->req.in_q=zalloc(8);l->num_devs=1;l->l_dev=zalloc(sizeof(*l->l_dev));l->l_dev[0].dev_hdl=55;l->l_dev[0].ops=&ops;l->l_dev[0].parent=l;atomic_set(&l->is_used,1);session_lookup->links[0]=l;
 #ifdef CONFIG_QKX_OWNER_GATE
 #ifdef QKX_CUSTODY_PATCHED
 qkx_link_publish(l);
@@ -210,6 +238,7 @@ static void root_init(struct file*f){g_dev.open_cnt=1;g_dev.v4l2_dev=zalloc(size
 #if defined(CONFIG_QKX_OWNER_GATE) && defined(QKX_CUSTODY_PATCHED)
 static int race_when_idle, race_hits;
 static void wake_at_worker_boundary(void){if((race_when_idle&&!qkx_finalize_running)||(!race_when_idle&&qkx_finalize_running&&!qkx_finalize_dirty)){unlock_hook=NULL;race_hits++;cam_req_mgr_custody_wake();}}
+static void stop_at_publication_boundary(void){if(qkx_finalize_running){unlock_hook=NULL;qkx_finalize_stopping=true;qkx_finalize_job.pending=0;}}
 #endif
 int main(int argc,char**argv){
  if(argc!=2)return 2;const char*c=argv[1];
@@ -251,6 +280,50 @@ run_work(&qkx_finalize_job);
 run_work(&qkx_finalize_job);
 #endif
 printf("{\"first\":%d,\"parent_kept\":%d,\"fh_cleanup\":%d,\"handles\":%d,\"memory\":%d,\"open\":%d}\n",first,session_lookup!=NULL,fh_deletes,handle_table_frees,memory_deinits,cam_req_mgr_open(&next));}
+ else if(!strcmp(c,"session_open_v1")||!strcmp(c,"session_open_v2")){new_core();struct cam_req_mgr_session_info s={0};assert(!cam_req_mgr_create_session(&s));struct cam_req_mgr_ver_info info={0};info.u.link_info_v1.session_hdl=s.session_hdl;int rc=!strcmp(c,"session_open_v1")?cam_req_mgr_link(&info):cam_req_mgr_link_v2(&info);printf("{\"rc\":%d,\"reserves\":%d,\"children\":%u,\"published\":%d}\n",rc,link_reserves,session_lookup->num_links,info.u.link_info_v1.link_hdl>0);}
+ else if(!strcmp(c,"session_owner_handle_mismatch")){new_link();session_lookup->session_hdl=32;struct cam_req_mgr_ver_info info={0};info.u.link_info_v1.session_hdl=32;int a=cam_req_mgr_link(&info),b=cam_req_mgr_link_v2(&info);struct cam_req_mgr_session_info s={32};int close=cam_req_mgr_destroy_session(&s,false);printf("{\"v1\":%d,\"v2\":%d,\"close\":%d,\"parent\":%d,\"reserves\":%d}\n",a,b,close,session_lookup!=NULL,link_reserves);}
+ else if(!strcmp(c,"session_admission_v1")||!strcmp(c,"session_admission_v2")){new_link();struct crm_workq_task*t=cam_req_mgr_workq_get_task(g_links[0].workq);struct cam_req_mgr_session_info s={31};int close=cam_req_mgr_destroy_session(&s,false);struct cam_req_mgr_ver_info info={0};info.u.link_info_v1.session_hdl=31;int rc=!strcmp(c,"session_admission_v1")?cam_req_mgr_link(&info):cam_req_mgr_link_v2(&info);printf("{\"close\":%d,\"link\":%d,\"reserves\":%d,\"children\":%u}\n",close,rc,link_reserves,session_lookup->num_links);(void)t;}
+ else if(!strcmp(c,"session_last_child")){new_link();struct crm_workq_task*t=cam_req_mgr_workq_get_task(g_links[0].workq);struct cam_req_mgr_session_info s={31};int close=cam_req_mgr_destroy_session(&s,false);t->cancel=1;cam_req_mgr_workq_enqueue_task(t,NULL,0);struct cam_req_mgr_unlink_info u={31,77};int unlink=cam_req_mgr_unlink(&u);int before=session_lookup!=NULL;unsigned children=session_lookup?session_lookup->num_links:99;cam_req_mgr_custody_retry();printf("{\"close\":%d,\"unlink\":%d,\"before\":%d,\"children\":%u,\"after\":%d,\"handles\":%d}\n",close,unlink,before,children,session_lookup!=NULL,handle_destroys);}
+ else if(!strcmp(c,"session_handle_failure")){new_core();struct cam_req_mgr_session_info s={0};assert(!cam_req_mgr_create_session(&s));destroy_handle_rc=-EIO;int close=cam_req_mgr_destroy_session(&s,false);struct cam_req_mgr_ver_info info={0};info.u.link_info_v1.session_hdl=31;int a=cam_req_mgr_link(&info),b=cam_req_mgr_link_v2(&info);cam_req_mgr_custody_retry();printf("{\"close\":%d,\"v1\":%d,\"v2\":%d,\"parent\":%d,\"reserves\":%d,\"destroy_calls\":%d}\n",close,a,b,session_lookup!=NULL,link_reserves,handle_destroys);}
+ else if(!strcmp(c,"session_missing_owner")){new_core();session_lookup=zalloc(sizeof(*session_lookup));session_lookup->session_hdl=31;INIT_LIST_HEAD(&session_lookup->entry);list_add_tail(&session_lookup->entry,&g_crm_core_dev->session_head);struct cam_req_mgr_ver_info info={0};info.u.link_info_v1.session_hdl=31;int a=cam_req_mgr_link(&info),b=cam_req_mgr_link_v2(&info);struct cam_req_mgr_session_info s={31};int close=cam_req_mgr_destroy_session(&s,false);printf("{\"v1\":%d,\"v2\":%d,\"close\":%d,\"parent\":%d,\"reserves\":%d}\n",a,b,close,session_lookup!=NULL,link_reserves);}
+ else if(!strcmp(c,"session_alloc_failure")){new_core();alloc_fail_nth=2;struct cam_req_mgr_session_info s={1234};int first=cam_req_mgr_create_session(&s);int untouched=s.session_hdl;int early=handle_creates;int owner_empty=-1;
+#ifdef QKX_SESSION_CUSTODY
+owner_empty=list_empty(&qkx_sessions);
+#endif
+alloc_fail_nth=0;int next=first?cam_req_mgr_create_session(&s):999;printf("{\"first\":%d,\"unpublished\":%d,\"early_handles\":%d,\"owner_empty\":%d,\"next\":%d,\"handles\":%d}\n",first,untouched,early,owner_empty,next,handle_creates);}
+ else if(!strcmp(c,"session_unpublished_handle_failure")){new_core();create_handle_rc=-ENOSPC;struct cam_req_mgr_session_info s={1234};int first=cam_req_mgr_create_session(&s);int owner_empty=-1;
+#ifdef QKX_SESSION_CUSTODY
+owner_empty=list_empty(&qkx_sessions);
+#endif
+int freed=frees;create_handle_rc=0;int next=cam_req_mgr_create_session(&s);printf("{\"first\":%d,\"owner_empty\":%d,\"frees\":%d,\"next\":%d,\"handles\":%d}\n",first,owner_empty,freed,next,handle_creates);}
+ else if(!strcmp(c,"session_epoch_overflow")){new_core();
+#ifdef QKX_SESSION_CUSTODY
+qkx_session_generation=(unsigned long)-1;
+#endif
+struct cam_req_mgr_session_info s={1234};int rc=cam_req_mgr_create_session(&s);printf("{\"rc\":%d,\"handle\":%d,\"created\":%d,\"published\":%d}\n",rc,s.session_hdl,handle_creates,session_lookup!=NULL);}
+ else if(!strcmp(c,"session_stale_retry")){new_core();struct cam_req_mgr_session_info s={0};assert(!cam_req_mgr_create_session(&s));unsigned long generation=0;
+#ifdef QKX_SESSION_CUSTODY
+generation=qkx_session_find(session_lookup)->generation;
+#endif
+assert(!cam_req_mgr_destroy_session(&s,false));assert(!cam_req_mgr_create_session(&s));int rc=0;
+#ifdef QKX_SESSION_CUSTODY
+rc=qkx_session_destroy(&s,false,generation);
+#else
+rc=cam_req_mgr_destroy_session(&s,false);
+#endif
+printf("{\"rc\":%d,\"new_parent\":%d,\"destroy_calls\":%d}\n",rc,session_lookup!=NULL,handle_destroys);}
+ else if(!strcmp(c,"session_control")){new_link();
+#ifdef QKX_SESSION_CUSTODY
+qkx_session_find(session_lookup)->closing=true;
+#endif
+struct cam_req_mgr_link_control control={0};control.num_links=1;control.ops=CAM_REQ_MGR_LINK_ACTIVATE;control.link_hdls[0]=77;int rc=cam_req_mgr_link_control(&control);printf("{\"rc\":%d,\"timer_arms\":%d}\n",rc,timer_arms);}
+ else if(!strcmp(c,"wake_publish_stop")){
+#if defined(CONFIG_QKX_OWNER_GATE) && defined(QKX_CUSTODY_PATCHED)
+unlock_hook=stop_at_publication_boundary;cam_req_mgr_custody_wake();printf("{\"stopped\":%d,\"late_work\":%d,\"scheduled\":%d}\n",qkx_finalize_stopping,qkx_finalize_job.pending,wakes);
+#else
+printf("{\"stopped\":0,\"late_work\":1,\"scheduled\":1}\n");
+#endif
+}
  else if(!strcmp(c,"wake_stopped")){
 #if defined(CONFIG_QKX_OWNER_GATE) && defined(QKX_CUSTODY_PATCHED)
 qkx_finalize_stopping=true;cam_req_mgr_custody_wake();printf("{\"dirty\":%d,\"running\":%d,\"pending\":%d,\"scheduled\":%d}\n",qkx_finalize_dirty,qkx_finalize_running,qkx_finalize_job.pending,wakes);
