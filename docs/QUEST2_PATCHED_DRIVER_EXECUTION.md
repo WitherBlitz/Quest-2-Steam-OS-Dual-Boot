@@ -76,6 +76,66 @@ These paths were checked with 66 exact instruction assertions plus command,
 string and public-key anchors in the matching extracted LinuxLoader. No valid
 signer-issued token is available, and no token or unlock command was submitted.
 
+### Supported-route and upstream recheck, 2026-10-24
+
+The user confirmed normal Home, head tracking and both controllers after the
+fixed secure query. That health prerequisite is satisfied; boot acceptance and
+independent recovery are still separate missing evidence.
+
+The current public documentation does not supply a verified Quest 2 development
+boot route for this unit:
+
+- Meta's [unlocked Oculus Go image](https://developers.meta.com/vr/blog/unlocking-oculus-go/)
+  explicitly excludes every other device and OS. It is not a Quest 2 image.
+- Meta's [current RenderDoc instructions](https://developers.meta.com/vr/documentation/native/android/ts-renderdoc-capture/)
+  mention unlocking only if the device supports it, or using a userdebug build.
+  That page supplies neither a Quest 2 unlock token nor a development OS image.
+  Root access to Android does not establish acceptance of a changed boot image.
+- The bootloader's [unlock URL](https://www.oculus.com/unlock) again returned a
+  page-unavailable message during this read-only check. This observation does
+  not establish whether Meta can issue an authorized token through another route.
+- Android's [DSU documentation](https://source.android.com/docs/core/ota/dynamic-system-updates#multiple-partition_dsu_in_zip_file)
+  describes first-stage `init` substituting installed partitions. This does not
+  establish a way to launch the patched kernel before that `init` runs. A GSI
+  experiment would not demonstrate execution of the changed built-in drivers.
+- Android's [device-state documentation](https://source.android.com/docs/security/features/verifiedboot/device-state)
+  describes verification while locked and data erasure during lock-state changes.
+  It is platform guidance, not proof that this Quest implements a public unlock
+  command or accepts our image.
+
+The original project's `quest2-port` head was rechecked through GitHub at
+`9c96c192d4a4a80f95ba0013294977e85c6eae11`. Its
+[README](https://github.com/machachu56/quest-kexec-q2/blob/9c96c192d4a4a80f95ba0013294977e85c6eae11/README.md)
+reports development on build `52150470034600150`, kernel
+`4.19.325-cip128-st12-g48f31e2db128`, which differs from this unit. Its claims of
+successful jumps are upstream reports, not an observed test on this headset.
+The loader diff from our documented base `e61edbd7` was inspected offline:
+
+- `keep_ufs` clears the live UFS driver's shutdown callback before
+  `kernel_restart_prepare()`. Skipping that callback does not establish a
+  storage-I/O/DMA drain or transfer of outstanding resource ownership.
+- The retained console maps and clears pages at a configurable physical
+  address without a demonstrated claim on that window in this running kernel.
+  Address selection and persistence claims do not establish safe RAM ownership.
+- Selecting the Quest 2 Syncboss device does not resolve the camera/FastRPC
+  custody, asynchronous work or watchdog/recovery prerequisites already recorded
+  here.
+
+These source differences do not provide a safe backport that opens the current
+handoff gate. No upstream execute path or physical-memory console was run.
+The previously rejected unlocker-compatibility audit was not retried or moved to
+another agent; this recheck examined the original kexec project and public
+platform documentation only.
+
+For a cold-start test, the concrete missing capability is a legitimate current-key
+per-unit unlock token, an OEM-authorized image/signing route that admits the
+changed kernel, or an independently unlocked development target. Any candidate
+still needs exact image/ABI checks and an independently demonstrated recovery
+path. A supplied userdebug image alone would not prove it accepts a further
+modified kernel. For the existing root-to-kexec route, the stock-kernel shutdown,
+DMA retirement and recovery evidence remains required before entry. No firmware
+write, unlock, wipe, reboot or new device test was performed in this recheck.
+
 ## Exact unlock-state storage boundary
 
 Host-only decoding of the exact current OTA XBL validated 123 firmware files and
@@ -203,7 +263,8 @@ counts **XBL 0, TZ 0, ABL 0**. The three fixed requests passed all response boun
 and XBL/ABL alias checks. The explicit query insertion was performed once; the
 three counter requests used `scm_call2_noretry`. Normal unload and exact
 temporary-file removal completed; boot, CPUs, module list and taint `5124` matched
-around the query. Post-query human Home/tracking confirmation is pending.
+around the query. The user subsequently confirmed normal Home, head tracking
+and both controllers; the private receipt records that direct reply.
 
 The successful query describes configured fuse counts; it does not authenticate
 an older image, establish every earlier boot-stage minimum or prove recovery.
