@@ -35,6 +35,42 @@ Captured ramoops spans `0x9ba00000–0x9ba90000`; its pmsg region is
 `0x9ba80000–0x9ba90000` range overlaps pmsg. `marker_read` remains blocked;
 no replacement retained-RAM address is guessed, reserved or written.
 
+### Power-button reset configuration boundary, 2026-10-24
+
+A separate source inspection verified the existing archive and these complete
+files at the matching kernel commit. The existing 17-file source-verifier scope
+is unchanged:
+
+| File | SHA-256 |
+| --- | --- |
+| `drivers/input/misc/qpnp-power-on.c` | `09e121dc5da4d84ec7cba60dc78d948a120f4dee4c08dcf26b214174c1357ae1` |
+| `arch/arm64/boot/dts/vendor/bindings/input/qpnp-power-on.txt` | `457bb21abbecd7d305f04f265e2f041713dca101f5c71efe39a7634353e2423d` |
+| `arch/arm64/boot/dts/vendor/qcom/pm8150.dtsi` | `cfd2d5e3dfa29eb6019425efa714eb72a0735ac7e7b3ae90ec3e80e2cf776916` |
+
+The matching source distinguishes missing reset properties from disabled reset:
+
+- For the power and RESIN inputs, an absent `qcom,support-reset` leaves
+  `config_reset` unset. The [configuration loop](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/input/misc/qpnp-power-on.c#L1714)
+  then skips S2 reset configuration. An explicit zero instead requests disable;
+  a nonzero value requests timer/type configuration. These are different cases.
+- The [S3 configuration function](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/input/misc/qpnp-power-on.c#L2046)
+  writes debounce/source only when the respective property is present. The
+  driver documents the source register as write-once and possibly already set
+  by the bootloader. Missing DT properties do not disclose the hardware values.
+- The [cached reason getters](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/input/misc/qpnp-power-on.c#L492)
+  return strings from state saved at probe, without a fresh PMIC transaction.
+  These labels are not a complete cause-register dump or a measured reset
+  deadline. Probe selects a reason using `ffs()`; unknown or simultaneous reason
+  bits cannot be reconstructed from those strings alone.
+
+The historical 2026-10-22 runtime-tree capture has power/volume-down key codes
+116/114 at the primary PM8150 PON node, but no S2 reset parameters or S3
+source/debounce. That does not prove the hardware reset is disabled or enabled.
+A fresh fixed-node/cached-reason capture stopped before remote execution because
+ADB reported no USB device. Its incomplete receipt and verified source files
+remain private. No current PON state, physical reset, timing or survival across
+shutdown is claimed; no PMIC register, watchdog or boot setting was changed.
+
 ## Bounded retained-log collection
 
 ```sh
