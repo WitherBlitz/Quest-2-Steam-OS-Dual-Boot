@@ -24,6 +24,8 @@ Both match the exact OTA images inspected offline. Resolved block-device
 metadata was stable around each read. Boot ID, online CPUs, module names and
 taint agreed before and after collection. No partition was written, module
 loaded, secure call issued or reboot requested.
+The metadata samples bracket separate reads; they do not attest continuous
+symlink identity between those observations.
 
 This identifies the bytes at the observed active-slot partition prefixes. It
 does not measure the secure image currently executing, compare entire padded
@@ -67,17 +69,32 @@ bytes: `0x1c019134` to `0x1c019200` to `0x1c01d5d4`. The dispatcher tests saved
 context handling. This locates a monitor path, not a permission check for the
 image-metadata service.
 
-A zero-initialized handoff slot at `0x1c028108` has a recovered writer that takes
-saved-register offset `0x58`. Its downstream registration/dispatch contract is
-still under investigation. Bounded literal/descriptor searches did not identify
-the candidate service; generated constants and other layouts remain possible.
-Negative searches do not prove service absence. The previously rejected
-42-record controller table remains excluded as service-registration evidence.
+A secure-origin initialization producer at `0x1c04b7e8`-`0x1c04b7f0` supplies
+entry `0x1c119e98` through saved-register offset `0x58`. That entry reaches
+`0x1c04bbd4`, then `0x1c067488`, then generated descriptor lookup `0x1c07bf0c`.
+The generated lookup explains why the earlier literal/table searches were
+inconclusive. The previously rejected 42-record controller table remains
+excluded as service-registration evidence.
 
-The specific metadata-service handler, caller/boot-stage permissions, image-ID
-mapping, enforced rollback domain and no-mutation contract are still unresolved.
-A different-platform XBL caller or a generic monitor accepting SMC exceptions
-cannot establish those facts. No experimental secure query is justified yet.
+For normalized SIP/PIL IDs, the guard at `0x1c07c138`-`0x1c07c148` requires
+`ID - 0x02000201 <= 14`. Metadata-verification ID `0x02000210` produces 15 and
+returns unsupported before descriptor creation. Thus this candidate is
+unregistered on the recovered normal-world SCM path in the matching TZ bytes.
+That is a control-flow result, not an inference from missing literals or a
+claim about every earlier boot-stage authentication interface.
+
+Rollback ID `0x0200020f` has a real descriptor for handler `0x1c0540c8`, parameter
+ID 1 and flags 1. Its input families, enforced signing-domain mapping, runtime
+caller permissions and complete effect contract still require verification.
+Registration alone cannot justify a device query. No experimental secure query
+has been performed.
+
+The current running kernel configuration was separately read with matching
+identity and boot observations. Function tracing is disabled and dynamic
+function tracing/livepatch are absent; kprobes are enabled. The kprobe redirect
+and nested-entry semantics do not themselves provide whole-driver consistency
+or keep redirected module text alive after probe teardown. No redirect was
+installed and no canary is presented as complete patched-driver execution.
 
 ## Verification
 
@@ -87,10 +104,13 @@ binary data containing a status-like marker, regular-file refusal, truncated
 reads, failed/missing status, hash mismatches, changed metadata/identity/health,
 resident project modules, invalid inputs, host deadlines and existing outputs.
 The initial missing-collector tests failed before implementation.
+An independent review found no actionable issues and reran 45 affected
+collector/preflight/shutdown tests successfully, including the 12 new tests.
 
 The single on-headset capture above completed with matching prefixes and stable
 observations. Host-only inspection independently verified OTA manifest/operation/
-partition hashes and 29 exact monitor instruction anchors. Python syntax,
+partition hashes, 101 exact instruction anchors and six pointer/table assertions.
+Python syntax,
 documentation links and Git whitespace checks passed. No new kernel code was
 changed or native kernel build claimed; the earlier native result remains pinned
 to the custody implementation. No firmware instructions were executed for the
