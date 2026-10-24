@@ -77,6 +77,44 @@ Public source matching remains separate from stock binary equivalence.
 The [bounded kernel return observer](QUEST2_RELEASE_OBSERVATION.md) is a separate
 instrumentation diagnostic; its return samples cannot close these ownership gaps.
 
+## Driver ownership implementation boundary
+
+The subsequent source and runtime feasibility check found no existing complete
+ownership transaction to bind to the project's module. On the matching rooted
+headset, `CONFIG_MSM_ADSPRPC=y` and `CONFIG_SPECTRA_CAMERA=y` build these drivers
+into Horizon. Its reported boot state is locked; `CONFIG_KEXEC` is disabled and
+`/sys/kernel/livepatch` is absent. No exported FastRPC ownership interface was
+found. These observations establish the current implementation boundary, not
+that every possible custom kernel or volatile patching route is impossible.
+
+The missing facility is **driver-owned admission and lifetime control**, rather
+than another inventory or a new coordinator assertion. A driver-wide transaction
+could account for globally owned resources even where the creator is unknown;
+creator attribution alone is not a prerequisite for all global shutdown designs.
+It must cover the following demonstrated entry and lifetime paths:
+
+| Driver boundary | Required implementation |
+| --- | --- |
+| FastRPC files and global heaps | Account for `gfa.drivers`, each file's maps/buffers/contexts, channel context tables, SMMU sessions, and **`gfa.maps`**. [Heap maps deliberately clear `map->fl`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/char/adsprpc.c#L1166), so walking only per-file maps misses a resource class. Assign transaction-stable identities inside the owning driver. |
+| FastRPC admission and final close | Atomically fence new opens/ioctls with active-operation accounting; include final release, accounting reads and RPMsg/restart/PDR lifetime changes. [The existing `file_close` test](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/char/adsprpc.c#L4887) releases its lock before executing the operation and does not revoke already-admitted work. Receive/completion handling must remain available while draining. |
+| FastRPC retained references | Provide driver-owned transaction lifetime and deferred final closes. [The private get/put pair](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/char/adsprpc.c#L1862) can make the observer's last put run hardware/resource destruction; exporting that pair would not make observation inert or ownership complete. Preserve mappings and contexts if a remote completion times out. |
+| Camera userspace gateways | Cover [CRM root ioctl](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/techpack/camera/drivers/cam_req_mgr/cam_req_mgr_dev.c#L306), generic and [fastpath subdev operations](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/techpack/camera/drivers/cam_core/cam_subdev_fastpath.c#L25), individual sensor/CSIPHY ioctls and their close/power paths. The existing CRM rwsem does not cover all of these entry points. |
+| Camera kernel clients and callbacks | Fence exported [camera-memory acquisition](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/techpack/camera/drivers/cam_req_mgr/cam_mem_mgr.c#L1186) and reserve APIs as well as new CRM callback work. Own and synchronize timers, workers and IRQ completion before retiring requests or buffers. A userspace ioctl fence alone does not fence these producers. |
+| DSP kernel loaders | Transfer the ADSP loader's retained handle and [scheduled boot work](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/techpack/audio/dsp/adsp-loader.c#L162), plus the independent [CDSP loader handle](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/soc/qcom/qdsp6v2/cdsp-loader.c#L69), under their own lifecycle control. FastRPC ownership alone cannot transfer those references. |
+
+Checked release must also retain the original stream-stop, unlink, hardware
+close, mapping-unmap and secure-assignment results before existing cleanup
+discards them. The error-loss paths below remain unresolved. A blocking global
+writer lock around remote invocations is insufficient: those invocations can
+wait indefinitely, so the writer cannot establish a bounded acquisition.
+
+Implementing this contract requires changes inside the owning Horizon drivers,
+followed by a verified way to run and test those changed drivers. Building a
+separate target Linux kernel does not replace Horizon's built-in drivers. No
+such deployment path or complete cooperative driver implementation has been
+validated here. **Full camera/DSP ownership remains incomplete; no new ownership,
+shutdown or handoff capability was enabled by this feasibility check.**
+
 ## What ownership evidence means
 
 | Evidence | Supported interpretation | Limit |
