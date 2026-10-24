@@ -98,6 +98,33 @@ unestablished.**
 
 ## Verification status
 
-Implementation and independent verification are in progress. Final source counts,
-host-test results, native build identity and review findings will be recorded
-before publication as verified development work.
+Verified development source: `b8e2e2c5e0f3e8b1a9b3aa8436ca0c60b20f0800`.
+The [native build](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/40066672412)
+passed the stock build and both default-off and enabled ownership builds. Their
+retained compiler logs contain no errors or warnings. Only build and audit
+outputs were exported; no installable kernel image was exported or deployed.
+
+- `python -B -m unittest discover -s tools/tests -p 'test_*.py'`: **625 passed,
+  no skips**, locally and in native CI. This includes 33 camera-custody,
+  30 FastRPC-custody and 25 source-installer tests.
+- Independent application to the pinned source verified all **44 generated-file
+  hashes**: 150 entry sites, 54 cleanup edits and **56 custody edits across eight
+  files**. The CI receipt matches that independent application.
+- Independent ELF/version checks passed for five project modules. Across stock,
+  disabled and enabled builds, all **12,362 existing export CRCs** were preserved.
+  All 28 retained vendor modules matched **2,176 version records / 1,155 unique
+  imports**, with zero CRC mismatches. Enabled support adds `qkx_owner_snapshot`.
+- The 30-file CI artifact passed transport digest, archive allowlist, checksum,
+  source/compiler/configuration identity and ABI-report checks. Its ZIP SHA-256
+  is `1910db560b8ac1a2c1735718b2cbb7def070268a82539b430e75d6cf66f070bd`.
+
+Independent review identified admission into a retiring CRM session and FastRPC
+completion published after waking its waiter. Both were reproduced in failing
+tests and corrected. Native compilation additionally exposed a wrongly typed
+host parent double and an unsupported harness forward declaration; the harness
+now reproduces those failures, and the production sources compile successfully.
+
+These results establish source application, selected host behavior and native
+build/ABI checks. They do not establish full object ownership, on-headset driver
+execution, hardware shutdown or recovery. **The headset was unchanged by this
+increment.**
