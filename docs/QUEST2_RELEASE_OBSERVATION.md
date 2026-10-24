@@ -88,18 +88,44 @@ All ownership, DMA, recovery and handoff proof flags remain false.
 
 ## Verification and current evidence
 
-Sixteen focused host tests and all 511 Windows regression tests passed without
-skips. Parser/transport fixtures exercise the real collector logic; four actual
+Seventeen focused host tests and all 512 Windows regression tests passed without
+skips. Parser/transport fixtures exercise the real collector logic; five actual
 Bash runs verify failed-setup cleanup and preservation of an existing namespace
-on an ordinary filesystem, including acquisition/cleanup signal injection.
-Those are not kernel probe executions. Generated
-Bash syntax and Python syntax checks passed. Live observation is pending review.
+on an ordinary filesystem, including acquisition/cleanup signal injection and
+a numeric-control transport fixture. Those are not kernel probe executions.
+Generated Bash syntax, Android shell syntax and Python syntax checks passed.
+
+The first live attempt stopped before probe registration: numeric `printf`
+control writes returned `EINVAL`. Its incomplete receipt is preserved privately.
+Separate readback confirmed its instance and event group absent, unchanged
+global tracing, and unchanged boot/CPUs/modules/taint; the user confirmed normal
+Home, head tracking and controllers. Runtime `printf` resolves to Toybox
+`0.8.9-android`, while `echo` is a shell builtin. Toybox's unbuffered output and
+per-character literal formatting suggest fragmented control writes; syscall
+boundaries were not measured. Tracefs controls now use fixed shell `echo`
+payloads; protocol output continues to use `printf`. No failed completion was
+relabelled successful or automatically retried with an unknown job outstanding.
+
+After the transport fix, regression checks and targeted review, a fresh
+three-second live observation completed on the exact target. It recorded one
+matching getpid positive-control return and zero FastRPC/DSP target returns.
+Cleanup verified the owned instance/group absent; global tracing definitions,
+identity, boot, CPUs, modules and taint matched before/after. The explicit
+`no_target_release_observed` gap remains. This demonstrates this bounded
+diagnostic's real kernel operation, not any target release or shutdown result.
+Raw artifacts and the selector remain private.
 
 The restored-root passive recovery capture completed against all 17 source pins.
 It belongs to a different boot from the earlier unprivileged button-return
 checkpoint. That earlier human health report is not attached to the new capture.
 No supported retained pstore records were available, so no log-survival or
 independent recovery-deadline claim follows.
+
+Stages 1-3 remain incomplete. Next requirements are cooperative, owner-bound
+admission and complete release results; checked drain/stop backends for every
+DMA producer and dependency; and an independently surviving reset deadline with
+retained-log and Horizon recovery evidence. An idle trace cannot replace any of
+those requirements or enable the loader's Hollywood handoff gate.
 
 ## Pinned primary sources
 

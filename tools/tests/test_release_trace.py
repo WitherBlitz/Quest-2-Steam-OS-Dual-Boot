@@ -218,6 +218,39 @@ class ReleaseTraceTests(unittest.TestCase):
     def test_real_shell_repeated_signal_cannot_abort_cleanup(self):
         self.shell_failure(existing=False, signal="cleanup")
 
+    def test_real_shell_control_writes_avoid_unbuffered_printf(self):
+        module = self.module()
+        bash = Path("C:/Program Files/Git/bin/bash.exe")
+        if not bash.is_file():
+            located = shutil.which("bash")
+            if not located: self.skipTest("Bash unavailable")
+            bash = Path(located)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)/"trace"
+            (root/"instances").mkdir(parents=True)
+            (root/"events").mkdir()
+            (root/"current_tracer").write_text("nop\n")
+            (root/"tracing_on").write_text("0\n")
+            (root/"kprobe_events").write_text("unrelated probe preserved\n")
+            posix = "/"+root.drive[0].lower()+root.as_posix()[2:] if root.drive else root.as_posix()
+            script = shlex.split(module.remote_command(TOKEN))[2].replace("/sys/kernel/tracing", posix)
+            script = script[:script.index("register_event() {")] + "phase=transport_checked\n"
+            # Model a numeric control that rejects printf's fragmented writes.
+            # These are ordinary files, not Android/tracefs execution evidence.
+            script = r'''stat() { builtin printf '74726163\n'; }
+mkdir() { command mkdir "$@" && touch "$1/tracing_on" "$1/buffer_size_kb"; }
+rmdir() { command rm "$1/tracing_on" "$1/buffer_size_kb"; command rmdir "$@"; }
+printf() {
+    case "$1" in '0\n'|'1\n'|'64\n') return 99;; esac
+    builtin printf "$@"
+}
+''' + script
+            result = subprocess.run([str(bash), "-c", script], capture_output=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+            self.assertIn(b"DONE\t0\t0\ttransport_checked", result.stdout)
+            self.assertFalse((root/"instances"/GROUP).exists())
+            self.assertEqual((root/"kprobe_events").read_text(), "unrelated probe preserved\n")
+
     def shell_failure(self, *, existing, signal=None):
         module = self.module()
         bash = Path("C:/Program Files/Git/bin/bash.exe")

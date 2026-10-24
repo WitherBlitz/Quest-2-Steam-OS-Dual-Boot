@@ -44,15 +44,15 @@ cleanup() {
     set +e
     clean=0
     if [ "$owned" -eq 1 ]; then
-        if [ -e "$i/tracing_on" ]; then printf '0\n' > "$i/tracing_on" || clean=1; fi
+        if [ -e "$i/tracing_on" ]; then echo 0 > "$i/tracing_on" || clean=1; fi
         for suffix in c d f; do
             p=$i/events/$g/${g}_$suffix/enable
-            if [ -e "$p" ]; then printf '0\n' > "$p" || clean=1; fi
+            if [ -e "$p" ]; then echo 0 > "$p" || clean=1; fi
         done
         if [ -d "$i" ]; then rmdir "$i" || clean=1; fi
         for suffix in c d f; do
             if [ -e "$root/events/$g/${g}_$suffix" ]; then
-                printf '%s\n' "-:$g/${g}_$suffix" >> "$root/kprobe_events" || clean=1
+                echo "-:$g/${g}_$suffix" >> "$root/kprobe_events" || clean=1
             fi
         done
         [ ! -e "$i" ] || clean=1
@@ -80,25 +80,25 @@ trap 'exit 143' TERM
 trap 'exit 129' HUP
 phase=buffers
 [ -f "$i/tracing_on" ] && [ -f "$i/buffer_size_kb" ] || exit 1
-printf '0\n' > "$i/tracing_on"
-printf '64\n' > "$i/buffer_size_kb"
+echo 0 > "$i/tracing_on"
+echo 64 > "$i/buffer_size_kb"
 register_event() {
     phase=register_$1
-    printf '%s\n' "r16:$g/${g}_$1 $2 ret=\$retval:s32" >> "$root/kprobe_events"
+    echo "r16:$g/${g}_$1 $2 ret=\$retval:s32" >> "$root/kprobe_events"
 }
 register_event c __arm64_sys_getpid
 register_event d fastrpc_release_current_dsp_process
 register_event f fastrpc_device_release
 phase=enable
-for suffix in c d f; do printf '1\n' > "$i/events/$g/${g}_$suffix/enable"; done
+for suffix in c d f; do echo 1 > "$i/events/$g/${g}_$suffix/enable"; done
 phase=observe
-printf '1\n' > "$i/tracing_on"
+echo 1 > "$i/tracing_on"
 control=$(/system/bin/sh -c 'echo $$')
 printf 'CONTROL\t%s\n' "$control"
 sleep 3
 phase=freeze
-printf '0\n' > "$i/tracing_on"
-for suffix in c d f; do printf '0\n' > "$i/events/$g/${g}_$suffix/enable"; done
+echo 0 > "$i/tracing_on"
+for suffix in c d f; do echo 0 > "$i/events/$g/${g}_$suffix/enable"; done
 emit_value() {
     printf '%s\t' "$1"
     printf '%s' "$2" | base64 | tr -d '\n'
