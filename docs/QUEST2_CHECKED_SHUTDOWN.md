@@ -83,6 +83,25 @@ functions write no registers and call no PM, work-flush or driver-stop helper.
 | Secure assignments | Establish exact assignment ownership, supported release semantics and secure-world completion without guessing a private ABI. |
 | AOP | The IPCC sender's accepted enqueue is distinct from remote acknowledgement. Preserve the selected IPCC/MMIO transport and original errors. The published channel protocol does not establish the legacy loader's LINK_DOWN extension. |
 
+## FastRPC adapter boundary
+
+The source verifier additionally pins `drivers/char/adsprpc.c`, SHA-256
+`f479739662bd427b577e493b518240f3c1ec0b7eb0b1cdf0f3da769efea6d49b`.
+In that source,
+[`fastrpc_file_free()`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/char/adsprpc.c#L4026)
+discards the DSP-process release result before removing bookkeeping.
+[`fastrpc_device_release()`](https://github.com/facebookincubator/oculus-linux-kernel/blob/6bde5fc06b252c97761bc0963dd13c1abcf377ab/drivers/char/adsprpc.c#L4096)
+marks the file closed, drops references and returns zero. A sysfs or concurrent
+operation may still hold a reference; FD disappearance does not prove destruction.
+
+A checked DSP adapter cannot wrap close/init-stop and accept zero. It needs
+owner-controlled admission, original DSP-process release results, outstanding
+invocation completion, per-mapping/secure-assignment results and subsystem/restart
+ownership, captured before stock cleanup discards them. No verified cooperative
+owner interface or kernel instrumentation supplies all those receipts here.
+Building a target Linux kernel does not change the running Horizon driver.
+The new kernel-client metadata observations establish none of those completions.
+
 ## Verification
 
 The host harnesses execute the production C against nonblocking owner, clock

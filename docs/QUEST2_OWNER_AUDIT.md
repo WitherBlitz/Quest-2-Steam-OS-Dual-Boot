@@ -52,6 +52,29 @@ make the whole scan atomic. The scan cannot exclude newly created processes,
 short-lived FDs, alternate paths, other device nodes or kernel-only clients.
 `scan_coverage_complete` describes the scanned directory samples only.
 
+## Additional kernel-client observations, 2026-10-23
+
+A fresh passive FD scan completed on the matching rooted headset: 739 sampled
+processes, 9,917 FD symlinks and five matching holders. Seven process/listing gaps
+remained, so `scan_coverage_complete=false`. Identity, boot, online CPUs, modules
+and taint were unchanged. These samples do not close ownership.
+
+After the separate ordinary button reboot, metadata-only inspection of
+`/sys/devices/virtual/fastrpc/fastrpc/proc` found four TGID candidates. The listing,
+each sampled node inode and each process start/name were stable across paired
+observations. No FastRPC device, accounting attribute, process-memory interface
+or ioctl was opened. The FD and kernel-client captures are from different boots;
+their process identities must not be joined. Raw identifiers remain private.
+
+Pinned `drivers/char/adsprpc.c` creates these nodes from `current->tgid` and shares
+a node among file contexts with that TGID. This narrows attribution but supplies
+no domain, complete map inventory, producer fence or release acknowledgement.
+Its accounting show function walks live maps under locks and takes/drops file
+references; it is not an inert scalar read. Accounting attributes were left unread.
+The [source verifier](../tools/quest2_shutdown_source.py) now checks this file's
+exact SHA-256, `f479739662bd427b577e493b518240f3c1ec0b7eb0b1cdf0f3da769efea6d49b`.
+Public source matching remains separate from stock binary equivalence.
+
 ## What ownership evidence means
 
 | Evidence | Supported interpretation | Limit |

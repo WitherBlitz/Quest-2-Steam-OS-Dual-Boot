@@ -95,6 +95,39 @@ proves reset causality, timing, healthy Horizon or tracking. Every report keeps
 `recovery_validated=false` and `handoff_ready=false`. Complete collection or
 comparison exits 3 (`HANDOFF_BLOCKED`); failure exits 2.
 
+### Optional human observations
+
+Comparison accepts `--rehearsal /private/button-observation.json` without sending
+device commands. The JSON must contain exactly the following fields:
+
+```json
+{
+  "schema_version": 1,
+  "before_capture_sha256": "SHA256_OF_BEFORE_CAPTURE_JSON",
+  "after_capture_sha256": "SHA256_OF_AFTER_CAPTURE_JSON",
+  "sequence": null,
+  "timing_method": "not_measured",
+  "elapsed_seconds": null,
+  "home_usable": true,
+  "head_tracking_normal": true,
+  "left_controller_tracking_normal": true,
+  "right_controller_tracking_normal": true
+}
+```
+
+Replace the hash placeholders with SHA-256 of the exact complete `capture.json`
+files. A known sequence is 1-16 nonempty printable steps, at most 256 characters
+each. For external stopwatch timing, use `external_stopwatch` and positive finite
+seconds. Explicit null sequence/unmeasured time remain unknown. Missing/duplicate
+fields, oversized/malformed input, wrong bindings or an unchanged boot are refused.
+
+Output labels observations `human_report` and preserves reported health failures.
+Even a complete healthy report leaves reset causality, independent deadlines,
+watchdog ownership and machine-verified Horizon health unproven. It records
+`shutdown_boundary_tested=false`, `recovery_validated=false`, `handoff_ready=false`.
+Do not invent an after-capture when root is unavailable; preserve partial evidence
+separately until a real complete capture is possible.
+
 ## External recovery and staged acceptance
 
 Meta's published Quest 2 support procedure uses the physical power and volume
@@ -139,7 +172,28 @@ This demonstrates existing mounted-file collection only. The record is not
 attributed to this experiment. No new physical reset, watchdog expiry,
 retention-across-reset, tracking-health or Horizon-fallback test is claimed.
 
+### Ordinary button-return observations, 2026-10-23 continuation
+
+Fresh owner and retained-log baseline collections completed before the requested
+physical-button rehearsal. No supported retained pstore records were available.
+The user subsequently reported usable Home and normal head/controller tracking.
+ADB observed a changed boot ID with the same expected firmware and kernel.
+Elapsed time was **not measured**, and the exact completed button sequence/menu
+label was not confirmed; neither is supplied by inference.
+
+Existing root was unavailable afterward. A private unprivileged checkpoint retains
+the identity/changed-boot observation. No privileged after-capture/comparison,
+log survival, watchdog expiry, independently timed deadline or recovery after
+hardware shutdown was established. At the user's request, root startup was left
+alone. This increment issued no additional reboot, driver stop, watchdog change
+or Linux handoff.
+
 ### Host verification
+
+The extended observation comparison passed 29 focused recovery tests and all 495
+host regression tests on Windows without skips. These use transport fixtures and
+real file/JSON/hash validation, not physical recovery. The actual pinned archive
+also passed all 17 source hashes and the existing exact function-fixture checks.
 
 The schema-2 selector-binding update passed all 40 focused recovery/source tests
 and all 457 host regression tests on Windows, with no skips. These are host
@@ -155,7 +209,7 @@ HOST_TEST_CC=clang python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
 git diff --check
 ```
 
-The source audit reports `HANDOFF_BLOCKED` even after all 16 hashes and exact
+The source audit reports `HANDOFF_BLOCKED` even after all 17 hashes and exact
 function fixtures match. Record actual headset results separately from mocked
 transport tests and public-source facts.
 

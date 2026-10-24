@@ -11,7 +11,7 @@ build preparation and documentation only. No headset operation is part of it.
 | --- | --- | --- |
 | 1. Resource ownership | Matching-firmware passive collectors and bounded camera/DSP diagnostics; host-tested ownership models. [Ownership audit](QUEST2_OWNER_AUDIT.md), [runtime attribution](QUEST2_TRACKING_OWNERSHIP.md). | Identify every stock camera/tracking/FastRPC/firmware owner and bind checked stop adapters. Open FDs, reference counts and a null optional delegate do not establish complete ownership or release. |
 | 2. Hardware shutdown | Native coordinator and read-only completion primitives compile; host fixtures exercise ordering, errors and rollback. [Checked shutdown](QUEST2_CHECKED_SHUTDOWN.md). | Bind real stock producer adapters; prove camera/DSP/GPU/USB/UFS/AOP DMA completion and error propagation. Several stock paths discard errors or wait without a proven hardware deadline. No complete shutdown has been observed. |
-| 3. Watchdog / recovery | Pinned reset/pstore audit and schema-2 selector-bound passive captures/comparison. [Recovery evidence](QUEST2_WATCHDOG_RECOVERY.md). | Record the promised physical-button sequence/timing and healthy Home/tracking result; prove an independent reset deadline and diagnostic survival across each actual shutdown boundary. Ordinary button recovery alone cannot close those boundaries. |
+| 3. Watchdog / recovery | Pinned reset/pstore audit and schema-2 selector-bound passive captures/comparison. Later ordinary button-return observations include a changed boot and user-reported healthy Home/tracking; timing was unmeasured and root unavailable. [Recovery evidence](QUEST2_WATCHDOG_RECOVERY.md). | Record the exact physical-button sequence/timing and complete the privileged after-capture; prove an independent reset deadline and diagnostic survival across each actual shutdown boundary. Ordinary button recovery alone cannot close those boundaries. |
 | 4. First Linux boot | Matching loader builds, one successful temporary 36 MiB claim/release, payload checks and production transition execution under QEMU EL1. [First-boot evidence](QUEST2_FIRST_LINUX_BOOT.md). | Close ownership/DMA/CPU/secure-firmware/recovery gates; then observe real kernel entry, USB enumeration, RAM-only shell and return to usable Horizon. **No first recoverable native Linux boot is recorded.** |
 | 5. Linux hardware | Pinned Image and 28-module ABI/provider-checked bundle; USB rescue CPU default requests powersave. [19-row checklist](QUEST2_LINUX_HARDWARE.md): **12 Blocked, 7 Untested, 0 Working/Partial**. | Validate display, GPU, sensors, radios, audio, storage, USB/charging, battery, fan/thermal policy, inputs and power management on the native target. Firmware/calibration/userspace and the Syncboss timing/MCU contract remain missing or unresolved. |
 | 6. VR / presentation | Source-tested controller clock/stick fixes. [22-row matrix](QUEST2_VR_TRACKING.md): **16 Blocked, 6 Untested, 0 Working/Partial**. | Implement calibrated head/controller 6DoF, common timestamps, optics/IPD, prediction/timing, loss/relocalization, recentering, haptics, pairing, boundary/safety, passthrough and hand tracking. The source's fixed positions are not positional tracking. |
@@ -136,8 +136,9 @@ thermal control/fan response, performance and loss recovery remain unmeasured.
 
 The [recovery document](QUEST2_WATCHDOG_RECOVERY.md#external-recovery-and-staged-acceptance)
 distinguishes Meta's published power/volume-button procedure from an observed,
-independently timed recovery on this headset. The promised button sequence and
-timing have not been supplied. No watchdog/reset deadline or pstore survival
+independently timed recovery on this headset. The later ordinary return was
+untimed; its exact completed sequence and privileged after-capture remain missing.
+No watchdog/reset deadline or pstore survival
 through actual hardware shutdown has been established. A host timeout cannot
 supply that guarantee. No factory reset is part of recovery acceptance.
 

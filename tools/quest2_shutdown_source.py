@@ -11,6 +11,7 @@ KERNEL = "6bde5fc06b252c97761bc0963dd13c1abcf377ab"
 ARCHIVE_BYTES = 204122036
 ARCHIVE_SHA = "12b987d5672ffc09fe6d3ff7d7d926074305484fc896141824b5ece15d620bca"
 SOURCE_HASHES = {
+    "drivers/char/adsprpc.c": "f479739662bd427b577e493b518240f3c1ec0b7eb0b1cdf0f3da769efea6d49b",
     "drivers/soc/qcom/watchdog_v2.c": "2c9a2cc119b6ad09e176138045f765b4dcca68b19780dbc6ae2c49ebbf0086d4",
     "techpack/camera/drivers/cam_req_mgr/cam_req_mgr_dev.c": "102fafbac93a11d561acbef292970094c3196c45a172e9b365dad64995f848a2",
     "techpack/audio/dsp/adsp-loader.c": "070195f7ddb51d1337b966f8767d5218403f8d1e3d3730cad1d24d25b9e3c5f9",
@@ -91,7 +92,7 @@ def audit_sources(path):
             "source_files": dict(SOURCE_HASHES), "watchdog_fixture_functions": list(WATCHDOG_FUNCTIONS),
             "camera_fixture_functions": list(CAMERA_FUNCTIONS), "dsp_fixture_functions": ["subsystem_put"],
             "source_verified": True, "stock_binary_equivalence_verified": False,
-            "scope": "Pinned public shutdown/SCM/reset/pstore sources and exact watchdog/camera/DSP function fixtures only",
+            "scope": "Pinned public shutdown/FastRPC/SCM/reset/pstore sources and exact watchdog/camera/DSP function fixtures only",
             "hardware_shutdown_validated": False, "recovery_validated": False,
             "handoff_ready": False, "status": "HANDOFF_BLOCKED"}
 

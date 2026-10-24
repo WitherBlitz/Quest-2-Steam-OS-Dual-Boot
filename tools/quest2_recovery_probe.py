@@ -343,19 +343,67 @@ def _load_capture(directory):
                   "reason": "records_captured" if records else "no_supported_records" if usable else "no_verified_pstore_mount"}
         if set(artifacts) != expected or report["pstore"] != pstore:
             raise CaptureError("capture artifact/pstore coverage mismatch")
-        return report, boot.decode(), records
+        return report, boot.decode(), records, hashlib.sha256(raw).hexdigest()
     except (OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
         raise CaptureError("malformed or unreadable recovery capture") from exc
 
 
-def compare(before, after):
+def _rehearsal(path, before_hash, after_hash):
+    """Bind a bounded human report to captures; it cannot certify recovery."""
+    health = ("home_usable", "head_tracking_normal", "left_controller_tracking_normal",
+              "right_controller_tracking_normal")
+    fields = {"schema_version", "before_capture_sha256", "after_capture_sha256",
+              "sequence", "timing_method", "elapsed_seconds", *health}
+
+    def unique(pairs):
+        result = dict(pairs)
+        if len(result) != len(pairs):
+            raise ValueError("duplicate observation field")
+        return result
+
+    try:
+        path = Path(path)
+        if path.is_symlink() or not path.is_file():
+            raise CaptureError("regular rehearsal observation file required")
+        with path.open("rb") as stream:
+            raw = stream.read(8193)
+        if len(raw) > 8192:
+            raise CaptureError("oversized rehearsal observation")
+        observation = json.loads(raw, object_pairs_hook=unique)
+        if (not isinstance(observation, dict) or set(observation) != fields
+                or type(observation["schema_version"]) is not int or observation["schema_version"] != 1
+                or observation["before_capture_sha256"] != before_hash
+                or observation["after_capture_sha256"] != after_hash
+                or any(type(observation[key]) is not bool for key in health)):
+            raise CaptureError("incomplete or incorrectly bound rehearsal observation")
+        sequence = observation["sequence"]
+        if sequence is not None and (not isinstance(sequence, list) or not 1 <= len(sequence) <= 16
+                or any(not isinstance(step, str) or not step.strip() or len(step) > 256
+                       or not step.isprintable() for step in sequence)):
+            raise CaptureError("invalid reported button sequence")
+        elapsed, method = observation["elapsed_seconds"], observation["timing_method"]
+        if method == "not_measured":
+            if elapsed is not None:
+                raise CaptureError("unmeasured rehearsal must have null elapsed time")
+        elif (method != "external_stopwatch" or type(elapsed) not in (int, float)
+              or not math.isfinite(elapsed) or elapsed <= 0):
+            raise CaptureError("positive finite externally measured time required")
+        return {**observation, "evidence_kind": "human_report",
+                "all_health_reported_normal": all(observation[key] for key in health),
+                "all_rehearsal_details_reported": sequence is not None and method == "external_stopwatch",
+                "shutdown_boundary_tested": False}
+    except (OSError, ValueError, TypeError, OverflowError, RecursionError) as exc:
+        raise CaptureError("malformed or unreadable rehearsal observation") from exc
+
+
+def compare(before, after, *, rehearsal=None):
     """Compare complete hash-checked bytes; never infer which event caused them."""
-    first, first_boot, old = _load_capture(before)
-    second, second_boot, new = _load_capture(after)
+    first, first_boot, old, first_hash = _load_capture(before)
+    second, second_boot, new, second_hash = _load_capture(after)
     if first["target_selector_sha256"] != second["target_selector_sha256"]:
         raise CaptureError("recovery captures select different ADB targets")
     common = old.keys() & new.keys()
-    return {"schema_version": 2, "same_target_selector": True,
+    report = {"schema_version": 2, "same_target_selector": True,
             "boot_changed": first_boot != second_boot,
             "unchanged_record_ids": sorted(key for key in common if old[key] == new[key]),
             "changed_record_ids": sorted(key for key in common if old[key] != new[key]),
@@ -365,6 +413,11 @@ def compare(before, after):
             "reset_causality": "unproven", "watchdog_ownership": "unproven",
             "recovery_deadline": "unproven", "healthy_horizon": "unproven",
             "recovery_validated": False, "handoff_ready": False, "status": "HANDOFF_BLOCKED"}
+    if rehearsal is not None:
+        if first_boot == second_boot:
+            raise CaptureError("button rehearsal requires an observed boot change")
+        report["button_rehearsal"] = _rehearsal(rehearsal, first_hash, second_hash)
+    return report
 
 
 def main(argv=None):
@@ -374,6 +427,7 @@ def main(argv=None):
     parser.add_argument("--kernel-source", type=Path)
     parser.add_argument("--compare-before", type=Path)
     parser.add_argument("--compare-after", type=Path)
+    parser.add_argument("--rehearsal", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     comparing = args.compare_before is not None or args.compare_after is not None
@@ -381,11 +435,13 @@ def main(argv=None):
         parser.error("comparison requires both captures and no device/source options")
     if not comparing and not (args.adb and args.serial and args.kernel_source):
         parser.error("collection requires --adb, --serial and --kernel-source")
+    if args.rehearsal is not None and not comparing:
+        parser.error("--rehearsal is only available with both comparison captures")
     try:
         if comparing:
             if args.output.exists():
                 raise CaptureError("new comparison output required")
-            report = compare(args.compare_before, args.compare_after)
+            report = compare(args.compare_before, args.compare_after, rehearsal=args.rehearsal)
             with args.output.open("x", encoding="utf-8") as stream:
                 json.dump(report, stream, indent=2); stream.write("\n")
         else:

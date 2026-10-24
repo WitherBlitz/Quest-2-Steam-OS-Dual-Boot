@@ -373,6 +373,114 @@ class RecoveryProbeTests(unittest.TestCase):
                 with self.subTest(mutation=mutation), self.assertRaises(preflight.CaptureError):
                     module.compare(before, after)
 
+    def rehearsal_fixture(self, module, root, *, changed_boot=True):
+        before, after = root / "before", root / "after"
+        for out, boot in ((before, BOOT), (after, BOOT[:-1]+"d" if changed_boot else BOOT)):
+            runner, _ = self.setup_capture(module, boot=boot)
+            self.collect(module, out, runner)
+        observation = {"schema_version": 1,
+                       "before_capture_sha256": hashlib.sha256((before/"capture.json").read_bytes()).hexdigest(),
+                       "after_capture_sha256": hashlib.sha256((after/"capture.json").read_bytes()).hexdigest(),
+                       "sequence": ["Power + Volume Down", "Reboot system now"],
+                       "timing_method": "external_stopwatch", "elapsed_seconds": 82.5,
+                       "home_usable": True, "head_tracking_normal": True,
+                       "left_controller_tracking_normal": True,
+                       "right_controller_tracking_normal": True}
+        path = root / "observation.json"
+        path.write_text(json.dumps(observation), encoding="utf-8")
+        return before, after, path, observation
+
+    def test_button_rehearsal_records_bound_human_report_without_unlocking_handoff(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temp:
+            before, after, path, _ = self.rehearsal_fixture(module, Path(temp))
+            with patch("subprocess.run", side_effect=AssertionError("comparison must remain offline")):
+                report = module.compare(before, after, rehearsal=path)
+            observed = report["button_rehearsal"]
+            self.assertEqual(observed["evidence_kind"], "human_report")
+            self.assertEqual(observed["elapsed_seconds"], 82.5)
+            self.assertEqual(observed["sequence"], ["Power + Volume Down", "Reboot system now"])
+            self.assertTrue(observed["all_health_reported_normal"])
+            self.assertFalse(observed["shutdown_boundary_tested"])
+            for key in ("reset_causality", "watchdog_ownership", "recovery_deadline", "healthy_horizon"):
+                self.assertEqual(report[key], "unproven")
+            self.assertFalse(report["recovery_validated"])
+            self.assertFalse(report["handoff_ready"])
+
+    def test_button_rehearsal_refuses_wrong_or_reversed_capture_bindings(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temp:
+            before, after, path, original = self.rehearsal_fixture(module, Path(temp))
+            for changes in ({"before_capture_sha256": "0"*64},
+                            {"after_capture_sha256": "0"*64},
+                            {"before_capture_sha256": original["after_capture_sha256"],
+                             "after_capture_sha256": original["before_capture_sha256"]}):
+                path.write_text(json.dumps(dict(original, **changes)), encoding="utf-8")
+                with self.subTest(changes=changes), self.assertRaises(preflight.CaptureError):
+                    module.compare(before, after, rehearsal=path)
+
+    def test_button_rehearsal_requires_an_observed_boot_change(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temp:
+            before, after, path, _ = self.rehearsal_fixture(module, Path(temp), changed_boot=False)
+            with self.assertRaises(preflight.CaptureError):
+                module.compare(before, after, rehearsal=path)
+
+    def test_button_rehearsal_preserves_reported_health_failures(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temp:
+            before, after, path, original = self.rehearsal_fixture(module, Path(temp))
+            for key in ("home_usable", "head_tracking_normal", "left_controller_tracking_normal",
+                        "right_controller_tracking_normal"):
+                path.write_text(json.dumps(dict(original, **{key: False})), encoding="utf-8")
+                report = module.compare(before, after, rehearsal=path)
+                self.assertFalse(report["button_rehearsal"][key])
+                self.assertFalse(report["button_rehearsal"]["all_health_reported_normal"])
+                self.assertFalse(report["recovery_validated"])
+
+    def test_button_rehearsal_refuses_incomplete_ambiguous_or_unbounded_observations(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temp:
+            before, after, path, original = self.rehearsal_fixture(module, Path(temp))
+            invalid = ({"elapsed_seconds": value} for value in (True, None, 0, -1, float("inf"), float("nan"), "82"))
+            changes = [*invalid, {"schema_version": True}, {"home_usable": "yes"},
+                       {"left_controller_tracking_normal": 1}, {"timing_method": "host_timeout"},
+                       {"sequence": []}, {"sequence": "Power"}, {"sequence": [""]},
+                       {"sequence": ["Power\x00"]}, {"sequence": ["x"*257]},
+                       {"sequence": ["Power"]*17}, {"watchdog_verified": True}]
+            for change in changes:
+                path.write_text(json.dumps(dict(original, **change)), encoding="utf-8")
+                with self.subTest(change=change), self.assertRaises(preflight.CaptureError):
+                    module.compare(before, after, rehearsal=path)
+            original.pop("right_controller_tracking_normal")
+            path.write_text(json.dumps(original), encoding="utf-8")
+            with self.assertRaises(preflight.CaptureError):
+                module.compare(before, after, rehearsal=path)
+
+    def test_button_rehearsal_keeps_explicitly_unknown_sequence_and_timing_unknown(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temp:
+            before, after, path, original = self.rehearsal_fixture(module, Path(temp))
+            original.update(sequence=None, timing_method="not_measured", elapsed_seconds=None)
+            path.write_text(json.dumps(original), encoding="utf-8")
+            report = module.compare(before, after, rehearsal=path)
+            self.assertIsNone(report["button_rehearsal"]["sequence"])
+            self.assertIsNone(report["button_rehearsal"]["elapsed_seconds"])
+            self.assertFalse(report["button_rehearsal"]["all_rehearsal_details_reported"])
+            self.assertEqual(report["recovery_deadline"], "unproven")
+            self.assertFalse(report["recovery_validated"])
+
+    def test_button_rehearsal_refuses_oversized_or_nonregular_input(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temp:
+            before, after, path, _ = self.rehearsal_fixture(module, Path(temp))
+            for content in (b"[", b" "*8193, b"\xff"):
+                path.write_bytes(content)
+                with self.subTest(content=content[:8]), self.assertRaises(preflight.CaptureError):
+                    module.compare(before, after, rehearsal=path)
+            with self.assertRaises(preflight.CaptureError):
+                module.compare(before, after, rehearsal=Path(temp))
+
     def test_actual_shell_runs_fixed_binary_read_metadata_and_remote_error(self):
         module = self.module()
         bash = Path("C:/Program Files/Git/bin/bash.exe")
