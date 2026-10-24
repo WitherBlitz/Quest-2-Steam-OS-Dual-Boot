@@ -17,7 +17,7 @@ build preparation and documentation only. No headset operation is part of it.
 | 6. VR / presentation | Source-tested controller clock/stick fixes. [22-row matrix](QUEST2_VR_TRACKING.md): **16 Blocked, 6 Untested, 0 Working/Partial**. | Implement calibrated head/controller 6DoF, common timestamps, optics/IPD, prediction/timing, loss/relocalization, recentering, haptics, pairing, boundary/safety, passthrough and hand tracking. The source's fixed positions are not positional tracking. |
 | 7. Gaming environment | Separate development branch `codex/quest2-native-boot` at `f843fa1`; two unfinished edits remain there and are excluded from this release audit's source. | Integrate and validate the ARM64 userspace/runtime, compositor, graphics and input stack. No native gaming session, Steam/SteamVR integration or Windows-game compatibility has been demonstrated for this port. Do not treat that separate branch as a released gaming environment. |
 | 8. Dual-boot experience | [Host selection reference](QUEST2_DUAL_BOOT.md): 28 focused tests, persistent defaults/one-shot requests, interrupted-attempt fallback and unconditional execution/auto-boot refusal. | Establish a supported shared store, privileged broker, two real switching buttons, checked startup integration and physical switching/cold-boot cycles. The model's `valid`, `ready` and `recover` inputs are simulations. |
-| 9. Installation / reliability / release | This audit, pinned build provenance and the bounded reproducibility checks below. | A Quest 2 OS installer/updater/uninstaller, complete licensing review of legacy distribution assets and the physical acceptance programme below remain release blockers. Development artifacts are prerequisites, not an OS installation. |
+| 9. Installation / reliability / release | This audit, pinned build provenance and the bounded reproducibility checks below. | A Quest 2 OS installer/updater/uninstaller, complete compiled-runtime/legacy-asset provenance and redistribution review, and the physical acceptance programme below remain release blockers. Development artifacts are prerequisites, not an OS installation. |
 
 All stages remain incomplete against the requested end-to-end experience.
 Earlier successful stock diagnostics and user-confirmed normal Horizon tracking
@@ -53,13 +53,30 @@ exclusion is not a provenance or redistribution-rights clearance for them.
 All remaining tracked source, build recipes, patches, tests and licenses are
 retained. A release audit must be repeated for each new source revision.
 
-Development artifacts contain the matching kernel base archive, port patches
+Native CI artifacts contain the matching kernel base archive, port patches
 and recipes, BusyBox source/config and build provenance. The project/kernel/
 BusyBox GPL sources and license travel with their binaries; the controller
 fixture/patch retains its separate Boost license. No Valve/Steam binaries,
 device DTB, stock firmware, calibration, account data or private captures are
 supplied. Do not add those to a public release without their own rights/privacy
 review. The preserved README credit remains unchanged.
+
+The manually attached development snapshot assets are **source-only**: filtered port
+source, public BusyBox source, configs, build provenance, license and this audit.
+It provides no built Image, modules, initramfs, Quest 2 OS installer or root APK. The
+provenance describes the separately tested native CI outputs; it does not claim
+that those binaries are included in the snapshot. The pinned build recipe fetches
+its recorded kernel/compiler inputs from upstream.
+GitHub's automatically generated source archives mirror the tagged Git tree and
+include its preserved legacy prebuilts; the manually attached filtered port-source
+archive is the audited snapshot described here.
+
+Compiled userspace redistribution has not been cleared by this audit. The
+retained static BusyBox includes glibc runtime code; exact system-library/toolchain
+inputs and associated source/notice obligations need a complete distribution
+review before shipping a compiled OS package. Retaining project/kernel/BusyBox
+sources alone is not claimed to complete that review. Existing CI artifacts
+remain development evidence, not an approved end-user distribution.
 
 ## Firmware compatibility and installation status
 
@@ -138,6 +155,26 @@ cannot change this status.
 
 ## Verification for this increment
 
-Host regression, fresh native rebuild comparisons, downloaded artifact audit and
-independent review are pending. Results will be recorded here before publication
-as verified development artifacts. They cannot establish physical completion.
+- Windows and [Ubuntu regression CI 40042950174](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/40042950174)
+  each passed **488 host tests without skips**. Ubuntu additionally passed seven
+  existing reader QEMU cases; these are not native switching tests.
+- [Native CI 40042947805](https://github.com/WitherBlitz/Quest-2-Steam-OS-Dual-Boot/actions/runs/40042947805)
+  built source `0e560fec46a572f4cbbef6a90531b47b5ea65697`, passed 488 host tests
+  and eight ARM64 rescue-init fixture tests, and passed both clean BusyBox
+  binary/config comparisons and both compressed initramfs-pack comparisons.
+- The downloaded native artifact passed its GitHub ZIP digest, exact 17-file
+  inventory, all 16 checksums and ten provenance-bound output hashes. All 188
+  filtered port-source files matched their Git blobs, with exactly seven legacy
+  prebuilts excluded and both license texts retained. The 28-module/40-file
+  bundle passed ABI, import/provider, debug-section and reconstructed-bundle
+  checks. These are offline checks, not module-loading results.
+- Image, target config and the module archive were byte-identical to retained
+  build `40009277447`. The initramfs difference was isolated to BusyBox's fixed
+  `2026-10-21 00:00:00 UTC` banner and derived GNU build ID; all other CPIO
+  entries and the functional BusyBox configuration matched.
+- Bash syntax and `git diff --check` passed. Independent source review found no
+  issues in the change; comprehensive compiled-runtime redistribution clearance
+  and every physical capability above remain outside that result.
+
+The attached source-only development snapshot records these bounded results.
+It cannot establish physical completion or clear the release blockers above.
