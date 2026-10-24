@@ -137,6 +137,11 @@ class CameraCustodyTests(unittest.TestCase):
                          {"init": 0, "first": -16, "stop": 0, "last": 0,
                           "extra_arms": 0, "syncs": 1, "null": 1})
 
+    def test_default_timer_callback_is_declared_and_rearms_owned_timer(self):
+        self.assertEqual(self.case("timer_default"),
+                         {"init": 0, "arms": 2, "stop": 0, "last": 0,
+                          "null": 1, "destroyed": 1})
+
     def test_timer_cancel_from_interrupt_retains_registration(self):
         self.assertEqual(self.case("timer_irq"),
                          {"stop": -11, "retained": 1, "syncs": 0, "close": -16})

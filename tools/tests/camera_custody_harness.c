@@ -165,7 +165,6 @@ int cam_req_mgr_custody_reopen(void);
 void cam_req_mgr_process_workq(struct work_struct*);
 void crm_timer_reset(struct cam_req_mgr_timer*);
 void crm_timer_modify(struct cam_req_mgr_timer*,int32_t);
-void crm_timer_callback(struct timer_list*);
 void crm_timer_exit(struct cam_req_mgr_timer**);
 int crm_timer_init(struct cam_req_mgr_timer**,int32_t,void*,void(*)(struct timer_list*));
 void cam_req_mgr_workq_destroy(struct cam_req_mgr_core_workq**);
@@ -337,6 +336,14 @@ g_crm_core_dev=zalloc(sizeof(*g_crm_core_dev));INIT_LIST_HEAD(&g_crm_core_dev->s
 #else
 printf("{\"hits\":0,\"pending_after_first\":0,\"dirty_after\":0,\"running_after\":0,\"scheduled\":0}\n");
 #endif
+}
+ else if(!strcmp(c,"timer_default")){
+struct cam_req_mgr_core_workq*q=new_q();struct cam_req_mgr_timer*t=NULL;
+int before=timer_arms;int init=crm_timer_init_owned(&t,10,NULL,NULL,q);
+if(t)t->sys_timer.function(&t->sys_timer);
+int arms=timer_arms-before;int stop=crm_timer_close_owned(&t);
+int last=cam_req_mgr_workq_close_owned(q);cam_req_mgr_workq_destroy(&q);
+printf("{\"init\":%d,\"arms\":%d,\"stop\":%d,\"last\":%d,\"null\":%d,\"destroyed\":%d}\n",init,arms,stop,last,t==NULL,work_destroys);
 }
  else return 3;
  return 0;
