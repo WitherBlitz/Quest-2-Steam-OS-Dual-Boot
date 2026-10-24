@@ -40,6 +40,7 @@ phase=preflight
 cleanup() {
     status=$?
     trap - EXIT
+    trap '' INT TERM HUP
     set +e
     clean=0
     if [ "$owned" -eq 1 ]; then
@@ -72,8 +73,11 @@ printf 'QRT1\t@TOKEN@\n'
 [ "$(cat "$root/tracing_on")" = 0 ]
 [ ! -e "$i" ] && [ ! -e "$root/events/$g" ] || exit 1
 phase=instance
-mkdir "$i"
-owned=1
+trap '' INT TERM HUP
+if mkdir "$i"; then owned=1; else exit 1; fi
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 phase=buffers
 [ -f "$i/tracing_on" ] && [ -f "$i/buffer_size_kb" ] || exit 1
 printf '0\n' > "$i/tracing_on"

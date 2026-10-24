@@ -212,7 +212,13 @@ class ReleaseTraceTests(unittest.TestCase):
     def test_real_shell_existing_namespace_is_untouched(self):
         self.shell_failure(existing=True)
 
-    def shell_failure(self, *, existing):
+    def test_real_shell_signal_during_instance_acquisition_still_cleans(self):
+        self.shell_failure(existing=False, signal="acquire")
+
+    def test_real_shell_repeated_signal_cannot_abort_cleanup(self):
+        self.shell_failure(existing=False, signal="cleanup")
+
+    def shell_failure(self, *, existing, signal=None):
         module = self.module()
         bash = Path("C:/Program Files/Git/bin/bash.exe")
         if not bash.is_file():
@@ -233,6 +239,10 @@ class ReleaseTraceTests(unittest.TestCase):
             script = shlex.split(module.remote_command(TOKEN))[2].replace("/sys/kernel/tracing", posix)
             # Ordinary directories model tracefs metadata, never real kernel probes.
             script = "stat() { printf '74726163\\n'; }\n" + script
+            if signal == "acquire":
+                script = 'mkdir() { command mkdir "$@" && kill -TERM $$; }\n' + script
+            elif signal == "cleanup":
+                script = 'rmdir() { kill -TERM $$; command rmdir "$@"; }\n' + script
             result = subprocess.run([str(bash), "-c", script], capture_output=True, timeout=15)
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn(b"DONE\t1\t0\t"+(b"preflight" if existing else b"buffers"), result.stdout)

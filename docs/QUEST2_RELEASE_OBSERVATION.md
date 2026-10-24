@@ -49,6 +49,10 @@ Namespace collisions are refused. A single device-side shell transaction has
 an EXIT cleanup path for ordinary success, failure and handled signals: disable
 its recording/events, remove its instance and unregister only its own probes.
 Success requires the cleanup footer, absence checks and unchanged global state.
+INT/TERM/HUP are briefly ignored while acquiring the instance and recording its
+ownership, then handled normally. Cleanup also ignores them so a repeated signal
+cannot interrupt removal. Signals during those narrow intervals do not cancel
+the transaction; unhandled termination can still leave completion unknown.
 
 The host has a 90-second aggregate command budget and at most 64 subprocesses.
 The transaction subprocess has a 30-second timeout; other commands have at most
@@ -84,10 +88,11 @@ All ownership, DMA, recovery and handoff proof flags remain false.
 
 ## Verification and current evidence
 
-Fourteen focused host tests and all 509 Windows regression tests passed without
-skips. Parser/transport fixtures exercise the real collector logic; two actual
+Sixteen focused host tests and all 511 Windows regression tests passed without
+skips. Parser/transport fixtures exercise the real collector logic; four actual
 Bash runs verify failed-setup cleanup and preservation of an existing namespace
-on an ordinary filesystem. Those are not kernel probe executions. Generated
+on an ordinary filesystem, including acquisition/cleanup signal injection.
+Those are not kernel probe executions. Generated
 Bash syntax and Python syntax checks passed. Live observation is pending review.
 
 The restored-root passive recovery capture completed against all 17 source pins.
