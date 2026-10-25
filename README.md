@@ -1,4 +1,4 @@
-**To improve and hopefully finish  the goat who made this, feel free to use my improvements on the main branch or this code in any other way machachu56.**
+**To improve upon and hopefully finish this project and to the goat who made this, feel free to use my improvements on the main branch or this code in any other way machachu56.**
 
 **To whoever is looking at this, this is MASSIVELY incomplete! Don't expect this to be in a week or anything either.**
 
